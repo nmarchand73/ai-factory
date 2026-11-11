@@ -43,6 +43,12 @@
     background: var(--pass); margin-right: 6px; vertical-align: 1px;
   }
   .status.error { color: var(--human); }
+  .hright { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+  .notify {
+    background: var(--panel); border: 1px solid var(--line); color: var(--muted); border-radius: 99px;
+    padding: 3px 12px; font-size: 12px; cursor: pointer;
+  }
+  .notify[aria-pressed="true"] { color: var(--text); border-color: var(--active); }
   .status.error .dot { background: var(--human); }
   .banner {
     margin: 12px 32px 0; padding: 10px 14px; border: 1px solid var(--human);
@@ -90,9 +96,9 @@
   .card.done { opacity: .72; }
   .card.rejected .feature { text-decoration: line-through; text-decoration-color: var(--faint); }
   .flag.wait { color: var(--changes); }
-  .card-top { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .card-top { display: flex; align-items: center; flex-wrap: wrap; gap: 2px 8px; margin-bottom: 4px; }
   .num { font-family: var(--mono); font-size: 12px; color: var(--muted); }
-  .card-top .num { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card-top .num { min-width: 0; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .pulse {
     width: 7px; height: 7px; border-radius: 50%; background: var(--active);
     animation: pulse 1.6s ease-in-out infinite;
@@ -260,6 +266,11 @@
   .lane .board { padding-top: 14px; padding-bottom: 22px; }
   .lane .col-head { display: none; }
   .lane-empty { color: var(--faint); font-size: 12px; padding: 14px 32px 20px; }
+  .more {
+    margin-top: 8px; width: 100%; background: none; border: 1px dashed var(--line); color: var(--muted);
+    border-radius: 8px; padding: 6px 8px; font-size: 12px; cursor: pointer;
+  }
+  .more:hover { color: var(--text); border-color: var(--active); }
   /* Cumulative cost of a project, spread per step and per agent */
   .cost { padding: 10px 32px 0; }
   .costbar { display: flex; height: 8px; border-radius: 99px; overflow: hidden; background: var(--line); }
@@ -299,7 +310,10 @@
 <body>
 <header>
   <h1>Software factory</h1>
-  <div class="status" id="status">connecting…</div>
+  <div class="hright">
+    <button class="notify" id="notify" type="button" hidden aria-pressed="false" title="Notify me when a job needs me">🔔 Notify me</button>
+    <div class="status" id="status">connecting…</div>
+  </div>
 </header>
 <div id="banner"></div>
 <div class="filters" id="filters"></div>
@@ -331,6 +345,7 @@
 
 <script>
 const POLL_MS = 2000
+const DONE_LIMIT = 5 // finished jobs shown per lane until the lane is expanded
 const COLUMNS = [
   { label: 'Intake', who: 'intake · fable', stages: ['intake', 'needs-info'] },
   { label: 'Spec', who: 'spec-writer · opus', stages: ['spec'] },
@@ -358,6 +373,9 @@ const store = {
 }
 let closedLanes = new Set(store.get('closed', []))
 let onlyLane = store.get('only', null)
+let showAllDone = new Set(store.get('allDone', []))
+let notifyOn = store.get('notify', false) && typeof Notification !== 'undefined' && Notification.permission === 'granted'
+let knownHuman = null // ids of the jobs that needed a human at the last poll (null before the first poll)
 const roundCache = new Map() // "<job>/<n>" -> verdicts of a finished round
 let openJobId = null
 let openPath = null
@@ -393,7 +411,8 @@ async function roundVerdicts(job, n) {
     }))
   }
   const settled = v.gate === 'FAIL' || (v.gate === 'PASS' && Object.values(v.reviews).every((x) => x === 'PASS' || x === 'CHANGES'))
-  if (settled && n < job.round) roundCache.set(key, v)
+  // A round is final once a later round exists, or once the job itself is over (merged or rejected).
+  if (settled && (n < job.round || job.stage === 'merged' || job.stage === 'rejected')) roundCache.set(key, v)
   return v
 }
 
@@ -445,7 +464,7 @@ function card(job, rounds) {
   ].join('')
   return `
     <article class="card ${live ? 'live' : ''} ${human ? 'human' : ''} ${done ? 'done' : ''} ${job.stage}"
-             data-job="${esc(job.id)}" tabindex="0">
+             data-job="${esc(job.id)}" tabindex="0" title="${esc(job.id)}: ${esc(job.title)}">
       <div class="card-top">
         ${live ? '<span class="pulse" aria-label="running"></span>' : ''}
         <span class="num">${esc(num)} · ${esc(slug.join('-'))}</span>
@@ -521,8 +540,15 @@ function laneHtml(name, laneJobs, byJob, unknown) {
   const merged = count((j) => j.stage === 'merged')
   const cost = laneJobs.reduce((sum, j) => sum + Number(j.cost_usd), 0)
   const cols = COLUMNS.map((c) => {
-    const cards = laneJobs.filter((j) => c.stages.includes(j.stage)).map((j) => byJob.get(j.id)).reverse()
-    return `<section class="col ${c.cls || ''}">${columnHead(c)}${cards.join('') || '<div class="empty">—</div>'}</section>`
+    let cards = laneJobs.filter((j) => c.stages.includes(j.stage)).map((j) => byJob.get(j.id)).reverse()
+    let more = ''
+    if (c.cls === 'merged-col' && cards.length > DONE_LIMIT) {
+      const all = showAllDone.has(name)
+      const hidden = cards.length - DONE_LIMIT
+      more = `<button class="more" type="button" data-done="${esc(name)}">${all ? 'Show only the latest ' + DONE_LIMIT : 'Show ' + hidden + ' older'}</button>`
+      if (!all) cards = cards.slice(0, DONE_LIMIT)
+    }
+    return `<section class="col ${c.cls || ''}">${columnHead(c)}${cards.join('') || '<div class="empty">—</div>'}${more}</section>`
   }).join('')
   const empty = `<div class="lane-empty">No jobs yet. Label an issue of this project <code>factory</code> and run /factory run ${esc(name)}.</div>`
   return `
@@ -579,10 +605,37 @@ async function render() {
     $('colhead').innerHTML = COLUMNS.map(columnHead).join('')
     $('banner').innerHTML = banner
   }
+  // Tab title and notifications: how many jobs are waiting for the user.
+  const waiting = valid.filter((j) => j.stage === 'needs-human')
+  document.title = (waiting.length ? `(${waiting.length}) ` : '') + 'Software Factory'
+  const ids = new Set(waiting.map((j) => j.id))
+  if (knownHuman && notifyOn) {
+    for (const j of waiting) {
+      if (!knownHuman.has(j.id)) {
+        try { new Notification(`${j.target ? j.target + ' · ' : ''}${j.id} needs you`, { body: j.title }) } catch { /* ignored */ }
+      }
+    }
+  }
+  knownHuman = ids
   const running = valid.filter((j) => LIVE.has(j.stage)).length
   const cost = valid.reduce((sum, j) => sum + Number(j.cost_usd), 0)
   $('totals').textContent = `${running} running · ${money(cost)} API-equivalent` +
     (overhead > 0 ? ` · + ${money(overhead)} orchestration outside any job` : '')
+}
+
+const notifyBtn = $('notify')
+if (typeof Notification !== 'undefined') {
+  notifyBtn.hidden = false
+  notifyBtn.setAttribute('aria-pressed', String(notifyOn))
+  notifyBtn.addEventListener('click', async () => {
+    if (notifyOn) { notifyOn = false } else {
+      let perm = Notification.permission
+      if (perm === 'default') perm = await Notification.requestPermission()
+      notifyOn = perm === 'granted'
+    }
+    store.set('notify', notifyOn)
+    notifyBtn.setAttribute('aria-pressed', String(notifyOn))
+  })
 }
 
 document.addEventListener('click', (e) => {
@@ -591,6 +644,13 @@ document.addEventListener('click', (e) => {
     const n = toggle.dataset.toggle
     closedLanes.has(n) ? closedLanes.delete(n) : closedLanes.add(n)
     store.set('closed', [...closedLanes]); lastRender = ''; render()
+    return
+  }
+  const done = e.target.closest('[data-done]')
+  if (done) {
+    const n = done.dataset.done
+    showAllDone.has(n) ? showAllDone.delete(n) : showAllDone.add(n)
+    store.set('allDone', [...showAllDone]); lastRender = ''; render()
     return
   }
   const only = e.target.closest('[data-only]')
