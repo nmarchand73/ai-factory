@@ -17,5 +17,7 @@ Main differences:
 - costs are split per agent and per step, include the orchestrator session, and `job summary` reports them per project;
 - the dashboard adds per-project cost spread, GitHub links (open PR to merge, open issue to answer), a latest-5 Done
   column, tab-title count and optional notifications, and caches finished jobs;
+- every agent has a confidence score built from a process metric and an output metric, fed by live jobs and by
+  replayable eval cases (`evals/`), with an `eval-judge` agent for what rules cannot check;
 - the intake agent runs on Opus instead of Fable;
 - the manual is interactive and bilingual (English by default).

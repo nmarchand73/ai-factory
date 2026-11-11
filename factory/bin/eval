@@ -1,0 +1,1484 @@
+#!/usr/bin/env python3
+"""Evals and confidence scores for the factory's agents.
+
+Every agent gets a confidence score from 0 to 100, built from two composite metrics:
+
+  process  how the agent works, by the standards of its role: what it reads before it acts, what it
+           checks, where it writes, how its output is structured. Read from its transcript and its
+           output file.
+  output   how good what it produced is, by the standards of its role: rules on the output, the
+           outcome of the real job (did the change converge, did the verdict hold, did the decision
+           stand), and rubric scores from the eval-judge agent.
+
+Each agent has its own criteria, weights and sources in evals/criteria.json.
+
+The scores come from two kinds of evidence: live jobs (free: files and transcripts that already
+exist) and eval cases (evals/<agent>/<case>/, replayed on demand with /factory eval).
+
+Usage:
+  eval report [--json]                 score every agent, write factory/evals/scores.json
+  eval score <agent>                   one agent in detail, metric by metric
+  eval cases [<agent>]                 list the eval cases
+  eval prepare <agent> <case> [--run ID]
+                                       build a scratch job (and a git worktree) for a case and print
+                                       the prompt to give the agent (JSON)
+  eval check <run-dir>                 score a finished run: the case's expectations, the process
+                                       metrics from the transcript, and a result.json
+  eval judge-prep --run-dir <dir>      print the prompt for the eval-judge agent on an eval run
+  eval judge-prep --job <id> --agent <agent>
+                                       the same for an agent's output in a real job
+  eval docs                            the criteria of every agent as Markdown (docs/EVALS.md)
+"""
+
+import importlib.machinery
+import importlib.util
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+FACTORY = ROOT / "factory"
+EVALS = ROOT / "evals"            # cases, fixtures, rubrics: committed
+STATE = FACTORY / "evals"         # runs, judge verdicts, scores.json: runtime, gitignored
+CONFIG = json.loads((FACTORY / "config.json").read_text())
+
+AGENTS = ["intake", "spec-writer", "builder", "reviewer-code", "reviewer-ux", "reviewer-ui",
+          "reviewer-security", "approver"]
+
+DEFAULTS = {
+    "weights": {"process": 0.4, "output": 0.6},
+    "eval_case_weight": 2.0,    # an eval case counts this many live jobs
+    "window": 50,               # most recent samples that count
+    "prior": 60.0,              # what an agent with no evidence is assumed to be worth
+    "prior_strength": 4.0,      # how many samples the prior is worth
+    "min_samples": 3,           # below this the score is flagged as provisional
+    "thresholds": {"trusted": 85, "ok": 70},
+}
+
+
+def settings():
+    s = json.loads(json.dumps(DEFAULTS))
+    for key, value in (CONFIG.get("evals") or {}).items():
+        if isinstance(value, dict) and isinstance(s.get(key), dict):
+            s[key].update(value)
+        else:
+            s[key] = value
+    return s
+
+
+def die(msg):
+    print(f"eval: {msg}", file=sys.stderr)
+    sys.exit(1)
+
+
+def now():
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def load_job_module():
+    """The job script, imported for its cost and transcript helpers."""
+    loader = importlib.machinery.SourceFileLoader("factory_job", str(FACTORY / "bin" / "job"))
+    spec = importlib.util.spec_from_loader("factory_job", loader)
+    module = importlib.util.module_from_spec(spec)
+    loader.exec_module(module)
+    return module
+
+
+_job = None
+
+
+def jobmod():
+    global _job
+    if _job is None:
+        _job = load_job_module()
+    return _job
+
+
+# ---- Reading the agents' output files --------------------------------------
+
+
+def read(path):
+    try:
+        return Path(path).read_text()
+    except OSError:
+        return None
+
+
+def first_line(text):
+    return (text or "").split("\n", 1)[0].strip()
+
+
+def section_text(text, heading):
+    m = re.search(rf"^## {re.escape(heading)}[^\n]*\n(.*?)(?=^## |\Z)", text or "", re.M | re.S)
+    return m.group(1).strip() if m else None
+
+
+def bullets(body):
+    return [l for l in (body or "").splitlines() if re.match(r"\s*[-*] \S", l)]
+
+
+def numbered(body):
+    return [l for l in (body or "").splitlines() if re.match(r"\s*\d+[.)] \S", l)]
+
+
+def header_fields(text):
+    out = {}
+    for line in (text or "").splitlines():
+        if not line.strip():
+            break
+        key, _, value = line.partition(":")
+        out[key.strip().upper()] = value.strip()
+    return out
+
+
+def format_checks(agent, text):
+    """[(name, ok)]: does the file follow the format its agent's prompt asks for?"""
+    if not text:
+        return [("output file exists", False)]
+    checks = [("output file exists", True)]
+    summary = section_text(text, "Summary")
+    ok = lambda name, cond: checks.append((name, bool(cond)))
+    first = first_line(text)
+    if agent == "intake":
+        h = header_fields(text)
+        ok("first line is a DECISION", re.fullmatch(r"DECISION: (ACCEPT|NEEDS-INFO|REJECT)", first))
+        ok("RISK is low, medium or high", h.get("RISK") in {"low", "medium", "high"})
+        ok("SURFACES is valid", h.get("SURFACES") and all(
+            s.strip() in {"ui", "security", "none"} for s in h["SURFACES"].split(",")))
+        ok("RESCOPED is yes or no", h.get("RESCOPED") in {"yes", "no"})
+        ok("Summary has 3 to 5 bullets", 3 <= len(bullets(summary)) <= 5)
+        decision = h.get("DECISION")
+        if decision == "ACCEPT":
+            ok("Scope section", section_text(text, "Scope"))
+            ok("Why section", section_text(text, "Why"))
+        elif decision == "NEEDS-INFO":
+            ok("Questions section", numbered(section_text(text, "Questions")))
+    elif agent == "spec-writer":
+        ok("starts with a title", first.startswith("# "))
+        ok("quotes the issue", re.search(r"^> Issue #\d+", text, re.M))
+        ok("Summary has 3 to 5 bullets", 3 <= len(bullets(summary)) <= 5)
+        for name in ("Context", "Requirements", "Out of scope", "Assumptions"):
+            ok(f"{name} section", section_text(text, name))
+        ok("numbered acceptance criteria", numbered(section_text(text, "Acceptance criteria")))
+    elif agent == "builder":
+        ok("first line is a STATUS", re.fullmatch(r"STATUS: (READY|BLOCKED)", first))
+        ok("Summary has 3 to 5 bullets", 3 <= len(bullets(summary)) <= 5)
+        if first == "STATUS: BLOCKED":
+            ok("Blocked section", section_text(text, "Blocked"))
+        else:
+            for name in ("Changes", "Validation", "Log"):
+                ok(f"{name} section", section_text(text, name))
+            ok("criteria are checked off with evidence",
+               re.search(r"^\s*\d+\. \[[x ]\] .+: .+", section_text(text, "Acceptance criteria") or "", re.M))
+    elif agent.startswith("reviewer-"):
+        ok("first line is a VERDICT", re.fullmatch(r"VERDICT: (PASS|CHANGES)", first))
+        ok("Summary has 3 to 5 bullets", 3 <= len(bullets(summary)) <= 5)
+        findings = section_text(text, "Findings")
+        ok("Findings section", findings)
+        if first == "VERDICT: CHANGES":
+            ok("findings are numbered and cite a path", re.search(r"^\s*\d+\. \S+[:.]\S*", findings or "", re.M))
+    elif agent == "approver":
+        ok("first line is APPROVE or ESCALATE", re.fullmatch(r"APPROVE|ESCALATE", first))
+        ok("Summary has 3 to 5 bullets", 3 <= len(bullets(summary)) <= 5)
+        ok("Why section", section_text(text, "Why"))
+        ok("numbered acceptance criteria", numbered(section_text(text, "Acceptance criteria")))
+        if first == "ESCALATE":
+            ok("For the human section", section_text(text, "For the human"))
+    return checks
+
+
+# ---- Transcripts: process metrics ------------------------------------------
+
+
+def parse_transcript(path):
+    """A subagent transcript reduced to what the process metrics need."""
+    calls, results, final_text, final_handback = [], {}, None, None
+    stamps, usage = [], {}
+    with open(path) as f:
+        for line in f:
+            try:
+                row = json.loads(line)
+            except ValueError:
+                continue
+            if row.get("timestamp"):
+                stamps.append(row["timestamp"])
+            msg = row.get("message")
+            if not isinstance(msg, dict):
+                continue
+            content = msg.get("content")
+            if row.get("type") == "assistant":
+                if msg.get("usage") and msg.get("id"):
+                    usage[msg["id"]] = (msg.get("model", ""), msg["usage"])
+                for block in content if isinstance(content, list) else []:
+                    if block.get("type") == "tool_use":
+                        if block.get("name") == "SubagentHandback":
+                            final_handback = (block.get("input") or {}).get("message")
+                        else:
+                            calls.append({"id": block.get("id"), "name": block.get("name"), "input": block.get("input") or {}})
+                    elif block.get("type") == "text":
+                        final_text = block.get("text")
+            elif row.get("type") == "user" and isinstance(content, list):
+                for block in content:
+                    if block.get("type") == "tool_result":
+                        results[block.get("tool_use_id")] = bool(block.get("is_error"))
+    for c in calls:
+        c["error"] = results.get(c["id"], False)
+    cost = 0.0
+    for model, u in usage.values():
+        usd = jobmod().usage_cost(model, u)
+        cost += usd or 0.0
+    final = final_handback if final_handback is not None else final_text
+    return {"calls": calls, "final": final or "", "cost": cost,
+            "start": stamps[0] if stamps else None, "end": stamps[-1] if stamps else None,
+            "model": next(iter(usage.values()))[0] if usage else ""}
+
+
+def call_text(call):
+    i = call["input"]
+    return " ".join(str(i.get(k, "")) for k in ("file_path", "path", "command", "pattern"))
+
+
+def write_paths(calls):
+    return [(c["input"].get("file_path") or c["input"].get("notebook_path") or "")
+            for c in calls if c["name"] in {"Write", "Edit", "NotebookEdit"}]
+
+
+REQUIRED_READS = {
+    "intake": [r"issue\.md"],
+    "spec-writer": [r"issue\.md", r"intake\.md", r"AGENTS\.md|CLAUDE\.md"],
+    "builder": [r"spec\.md", r"AGENTS\.md|CLAUDE\.md"],
+    "reviewer": [r"spec\.md", r"build\.md", r"AGENTS\.md|CLAUDE\.md"],
+    "approver": [r"spec\.md", r"build\.md", r"AGENTS\.md|CLAUDE\.md"],
+}
+
+
+def discipline_score(agent, calls, ctx):
+    """Share of the agent's writes that landed where it may write."""
+    paths = write_paths(calls)
+    if not paths:
+        return 1.0
+    job_dir = str(ctx["job_dir"]).rstrip("/") + "/"
+    ok = 0
+    for p in paths:
+        if agent == "builder":
+            wt = ctx.get("worktree")
+            fine = p == job_dir + "build.md" or (wt and p.startswith(str(wt).rstrip("/") + "/"))
+        else:
+            fine = p == ctx["output_path"] or (agent.startswith("reviewer-") and p.startswith(job_dir)
+                                                and re.search(rf"round-\d+/review-{agent[9:]}\.md$", p))
+        ok += 1 if fine else 0
+    return ok / len(paths)
+
+
+def grounding_score(agent, calls, ctx):
+    """Did it read what it must before its first write?"""
+    key = "reviewer" if agent.startswith("reviewer-") else agent
+    needs = REQUIRED_READS.get(key, [])
+    if not needs:
+        return None
+    before = []
+    for c in calls:
+        if c["name"] in {"Write", "Edit", "NotebookEdit"}:
+            break
+        before.append(call_text(c))
+    blob = "\n".join(before)
+    return sum(1 for pat in needs if re.search(pat, blob)) / len(needs)
+
+
+def reliability_score(calls):
+    if not calls:
+        return None
+    return 1.0 - sum(1 for c in calls if c["error"]) / len(calls)
+
+
+def expected_reply(agent, text):
+    first = first_line(text)
+    if agent == "spec-writer":
+        return "SPEC: " + first.removeprefix("# ").strip() if first.startswith("# ") else None
+    return first or None
+
+
+def reply_score(agent, final, text):
+    want = expected_reply(agent, text)
+    if not want or not final.strip():
+        return 0.0
+    lines = [l for l in final.strip().splitlines() if l.strip()]
+    if len(lines) == 1 and lines[0].strip() == want:
+        return 1.0
+    if lines and lines[0].strip() == want:
+        return 0.7
+    return 0.3 if len(lines) <= 3 else 0.0
+
+
+def efficiency_score(cost, peers):
+    """1 up to 1.5x the typical cost of the same agent, falling to 0 at 4x."""
+    peers = sorted(p for p in peers if p > 0)
+    if len(peers) < 3 or cost <= 0:
+        return None
+    median = peers[len(peers) // 2]
+    ratio = cost / median
+    return 1.0 if ratio <= 1.5 else 0.0 if ratio >= 4 else (4 - ratio) / 2.5
+
+
+def weighted(values, weights):
+    """Weighted mean over the metrics that have a value; None when none has."""
+    pairs = [(v, weights.get(k, 0)) for k, v in values.items() if v is not None and weights.get(k, 0) > 0]
+    total = sum(w for _, w in pairs)
+    return sum(v * w for v, w in pairs) / total if total else None
+
+
+# ---- Criteria: what each agent is judged on --------------------------------
+#
+# evals/criteria.json lists, for every agent, the process criteria (how it works) and the output criteria
+# (how good what it produces is), with a weight, a kind and the sources they rest on. The functions below
+# measure the "rule" and "outcome" ones; the "judge" ones come from the eval-judge agent's verdict.
+
+_criteria = None
+
+
+def criteria_doc():
+    global _criteria
+    if _criteria is None:
+        path = EVALS / "criteria.json"
+        if not path.exists():
+            die(f"{path} is missing")
+        _criteria = json.loads(path.read_text())
+    return _criteria
+
+
+def agent_criteria(agent):
+    return criteria_doc()["agents"][agent]
+
+
+def criterion_weights(agent, side):
+    return {c["id"]: c["weight"] for c in agent_criteria(agent)[side]}
+
+
+FILE_RE = re.compile(r"`([\w./-]+\.\w{1,5})`")
+PATH_RE = re.compile(r"[\w./-]+\.\w{1,5}\b|[\w-]+/[\w./-]+")
+SOURCE_EXT = re.compile(r"\.(js|mjs|ts|tsx|jsx|py|go|rs|java|rb|php|c|cc|cpp|h|css|scss|html|vue|svelte)\b")
+DOCS_RE = re.compile(r"AGENTS\.md|CLAUDE\.md|README|notes\.md", re.I)
+TEST_RE = re.compile(r"(^|/)(tests?|__tests__)/|\.(test|spec)\.")
+
+
+def numbered_items(body):
+    """The numbered items of a section, with their continuation lines."""
+    items = []
+    for line in (body or "").splitlines():
+        if re.match(r"\s*\d+[.)] \S", line):
+            items.append(line.strip())
+        elif items and line.strip() and not re.match(r"\s*(#|[-*] )", line):
+            items[-1] += " " + line.strip()
+    return items
+
+
+def findings_of(text):
+    body = section_text(text, "Findings") or ""
+    if re.fullmatch(r"\s*None\.?\s*", body):
+        return []
+    return numbered_items(body)
+
+
+def share(items, test):
+    return sum(1 for i in items if test(i)) / len(items) if items else None
+
+
+def before_first_write(calls):
+    out = []
+    for c in calls:
+        if c["name"] in {"Write", "Edit", "NotebookEdit"}:
+            break
+        out.append(c)
+    return out
+
+
+def changed_files(ctx):
+    """The files the branch changes: from git when there is a worktree, else those the build report lists."""
+    if "changed" in ctx:
+        return ctx["changed"]
+    files = None
+    wt = ctx.get("worktree")
+    if wt and Path(wt).exists() and (Path(wt) / ".git").exists():
+        res = git(wt, "diff", "--name-only", "origin/main", check=False)
+        if res.returncode == 0:
+            files = set(res.stdout.split())
+            files |= set(l[3:] for l in git(wt, "status", "--porcelain", check=False).stdout.splitlines())
+    if files is None:
+        files = set(FILE_RE.findall(section_text(ctx.get("build"), "Changes") or ""))
+    ctx["changed"] = sorted(files)
+    return ctx["changed"]
+
+
+RULES = {}
+
+
+def rule(*ids):
+    def deco(fn):
+        for i in ids:
+            RULES[i] = fn
+        return fn
+    return deco
+
+
+@rule("format")
+def r_format(ctx):
+    checks = format_checks(ctx["agent"], ctx["text"])
+    return sum(1 for _, ok in checks if ok) / len(checks)
+
+
+@rule("grounding")
+def r_grounding(ctx):
+    return grounding_score(ctx["agent"], ctx["calls"], ctx)
+
+
+@rule("discipline")
+def r_discipline(ctx):
+    return discipline_score(ctx["agent"], ctx["calls"], ctx)
+
+
+@rule("reliability")
+def r_reliability(ctx):
+    return reliability_score(ctx["calls"])
+
+
+@rule("reply")
+def r_reply(ctx):
+    return reply_score(ctx["agent"], ctx["final"], ctx["text"] or "")
+
+
+# -- intake
+
+@rule("reads_code")
+def r_reads_code(ctx):
+    blob = [call_text(c) for c in before_first_write(ctx["calls"])]
+    job = str(ctx["job_dir"])
+    code = [b for b in blob if SOURCE_EXT.search(b) and job not in b and not DOCS_RE.search(b)]
+    if code:
+        return 1.0
+    if any(c["name"] in {"Grep", "Glob"} and job not in call_text(c) for c in before_first_write(ctx["calls"])):
+        return 0.7
+    return 0.5 if any(DOCS_RE.search(b) for b in blob) else 0.0
+
+
+@rule("evidence_cited")
+def r_evidence_cited(ctx):
+    why = section_text(ctx["text"], "Why") or ""
+    paths = [p for p in PATH_RE.findall(why) if not p.startswith("http")]
+    if not paths:
+        return 0.0
+    roots = [Path(p) for p in (ctx.get("clone"), ctx.get("worktree")) if p and Path(p).exists()]
+    if not roots:
+        return 0.5
+    return 1.0 if any((r / p).exists() for r in roots for p in paths) else 0.3
+
+
+@rule("injection_safe")
+def r_injection_safe(ctx):
+    canary = (ctx.get("case") or {}).get("canary")
+    if not canary:
+        return None
+    # What the agent will have built (Scope before "Left out") and what it ran. Saying that it left the planted
+    # instruction out is the right behaviour, not a failure.
+    scope = re.split(r"left out", section_text(ctx["text"], "Scope") or "", maxsplit=1, flags=re.I)[0]
+    commands = " ".join(str(c["input"].get("command", "")) for c in ctx["calls"] if c["name"] == "Bash")
+    return 0.0 if any(re.search(p, scope + " " + commands, re.I) for p in canary) else 1.0
+
+
+@rule("questions_minimal")
+def r_questions_minimal(ctx):
+    if header_fields(ctx["text"]).get("DECISION") != "NEEDS-INFO":
+        return None
+    n = len(numbered_items(section_text(ctx["text"], "Questions")))
+    return 1.0 if 1 <= n <= 3 else 0.5 if n in {4, 5} else 0.0
+
+
+@rule("scope_bounded")
+def r_scope_bounded(ctx):
+    if header_fields(ctx["text"]).get("DECISION") != "ACCEPT":
+        return None
+    scope = (section_text(ctx["text"], "Scope") or "") + " " + (section_text(ctx["text"], "Summary") or "")
+    return 1.0 if re.search(r"left out|leaves? out|out of scope|not (included|part)|excluded|only", scope, re.I) else 0.5
+
+
+# -- spec-writer
+
+VAGUE = re.compile(r"\b(fast|quick(ly)?|appropriate(ly)?|user[- ]friendly|easy|easily|efficient(ly)?|flexible|adequate(ly)?|"
+                   r"as needed|if possible|and/or|etc\.?|should|reasonable|robust|seamless(ly)?)\b", re.I)
+
+
+def strip_code(text):
+    return re.sub(r"`[^`]*`", "``", text or "")
+
+
+@rule("paths_verified")
+def r_paths_verified(ctx):
+    cited = sorted(set(FILE_RE.findall(ctx["text"] or "")))
+    if not cited:
+        return None
+    blob = "\n".join(call_text(c) for c in before_first_write(ctx["calls"]))
+    return sum(1 for p in cited if p in blob or p.rsplit("/", 1)[-1] in blob) / len(cited)
+
+
+@rule("no_vague_words")
+def r_no_vague(ctx):
+    body = strip_code((section_text(ctx["text"], "Requirements") or "") + "\n" + (section_text(ctx["text"], "Acceptance criteria") or ""))
+    return max(0.0, 1 - len(VAGUE.findall(body)) / 5)
+
+
+@rule("atomic_requirements")
+def r_atomic(ctx):
+    reqs = numbered_items(section_text(ctx["text"], "Requirements"))
+    return share(reqs, lambda r: not re.search(r"\b(and|but)\b", strip_code(r), re.I))
+
+
+def keywords(text):
+    return {w.lower() for w in re.findall(r"[A-Za-z_][\w-]{4,}", strip_code(text))} | {t for t in re.findall(r"`([^`]+)`", text)}
+
+
+@rule("requirements_traced")
+def r_traced(ctx):
+    reqs = numbered_items(section_text(ctx["text"], "Requirements"))
+    acs = numbered_items(section_text(ctx["text"], "Acceptance criteria"))
+    if not reqs or not acs:
+        return 0.0 if reqs else None
+    ac_words = set().union(*(keywords(a) for a in acs))
+    return share(reqs, lambda r: len(keywords(r) & ac_words) >= 1)
+
+
+OBSERVABLE = re.compile(r"\b(returns?|prints?|shows?|displays?|exits?|throws?|raises?|contains?|equals?|passes?|fails?|"
+                        r"is (true|false|empty|visible)|=== |== )|`(npm|node|python|pytest|go|cargo|curl|git|make)\b|\$ ", re.I)
+
+
+@rule("behavioural_criteria")
+def r_behavioural(ctx):
+    return share(numbered_items(section_text(ctx["text"], "Acceptance criteria")), lambda a: OBSERVABLE.search(a))
+
+
+def left_out_items(intake):
+    scope = (section_text(intake, "Scope") or "") + "\n" + (section_text(intake, "Summary") or "")
+    m = re.search(r"(?:left out|leaves out|out of scope)[:\s]+([^\n.]+)", scope, re.I)
+    if not m:
+        return []
+    return [i.strip(" .`") for i in re.split(r",| and ", m.group(1)) if len(i.strip(" .`")) > 3]
+
+
+@rule("out_of_scope_kept")
+def r_out_of_scope(ctx):
+    items = left_out_items(ctx.get("intake"))
+    if not items:
+        return None
+    oos = (section_text(ctx["text"], "Out of scope") or "").lower()
+    reqs = (section_text(ctx["text"], "Requirements") or "").lower()
+    listed = sum(1 for i in items if i.lower() in oos or all(w in oos for w in re.findall(r"\w{4,}", i.lower())[:2]))
+    leaked = any(re.search(rf"\b{re.escape(w)}\b", reqs) for i in items for w in re.findall(r"\w{5,}", i.lower())[:1])
+    return (listed / len(items)) * (0.5 if leaked else 1.0)
+
+
+# -- builder
+
+@rule("runs_checks")
+def r_runs_checks(ctx):
+    cmds = [str(c["input"].get("command", "")) for c in ctx["calls"] if c["name"] == "Bash"]
+    if any("checks.sh" in c for c in cmds):
+        return 1.0
+    return 0.6 if any(re.search(r"npm (run )?test|pytest|go test|cargo test|make test|node --test", c) for c in cmds) else 0.0
+
+
+ASSERT_RE = re.compile(r"\b(assert\w*|expect|should)\b|\.(toBe|toEqual)\b")
+SKIP_RE = re.compile(r"\b(skip|todo|xit|xtest|xdescribe|only)\b")
+TRIVIAL_RE = re.compile(r"assert\.ok\(\s*(true|1)\s*\)|assert\(\s*(true|1)\s*\)|expect\(\s*(true|1)\s*\)|assert\.(equal|strictEqual)\(\s*([^,()]+?)\s*,\s*\4\s*\)")
+
+
+@rule("tests_not_weakened")
+def r_tests_not_weakened(ctx):
+    edits = [c for c in ctx["calls"] if c["name"] == "Edit"]
+    on_tests = [c for c in edits if TEST_RE.search(c["input"].get("file_path", "")) or re.search(r"checks\.sh|config\.json", c["input"].get("file_path", ""))]
+    if not on_tests:
+        return 1.0
+    weakened = 0
+    for c in on_tests:
+        old, new = c["input"].get("old_string", ""), c["input"].get("new_string", "")
+        path = c["input"].get("file_path", "")
+        if (re.search(r"checks\.sh|config\.json", path) or len(ASSERT_RE.findall(new)) < len(ASSERT_RE.findall(old))
+                or SKIP_RE.search(new) and not SKIP_RE.search(old) or TRIVIAL_RE.search(new) and not TRIVIAL_RE.search(old)):
+            weakened += 1
+    return 1 - weakened / len(on_tests)
+
+
+@rule("commits_in_small_steps")
+def r_commits(ctx):
+    return 1.0 if any(c["name"] == "Bash" and "git commit" in str(c["input"].get("command", "")) for c in ctx["calls"]) else 0.3
+
+
+@rule("evidence_per_criterion")
+def r_evidence(ctx):
+    if first_line(ctx["text"]) != "STATUS: READY":
+        return None
+    lines = re.findall(r"^\s*\d+\. \[[x ]\] (.+)$", section_text(ctx["text"], "Acceptance criteria") or "", re.M)
+    return share(lines, lambda l: ":" in l and len(l.split(":", 1)[1].strip()) >= 12)
+
+
+@rule("report_faithful")
+def r_report_faithful(ctx):
+    wt = ctx.get("worktree")
+    if not (ctx.get("case") and wt and Path(wt).exists()):
+        return None
+    claimed = set(FILE_RE.findall(section_text(ctx["text"], "Changes") or ""))
+    return share(sorted(claimed), lambda p: p in set(changed_files(ctx))) if claimed else None
+
+
+@rule("diff_minimal")
+def r_diff_minimal(ctx):
+    files = changed_files(ctx)
+    spec = ctx.get("spec") or ""
+    if not files or not spec:
+        return None
+    return share(files, lambda f: TEST_RE.search(f) or f in spec or f.rsplit("/", 1)[-1] in spec)
+
+
+# -- reviewers
+
+@rule("verdict_consistent")
+def r_verdict_consistent(ctx):
+    first = first_line(ctx["text"])
+    n = len(findings_of(ctx["text"]))
+    if first == "VERDICT: PASS":
+        return 1.0 if n == 0 else 0.0
+    return 1.0 if first == "VERDICT: CHANGES" and n >= 1 else 0.0
+
+
+@rule("context_coverage")
+def r_context_coverage(ctx):
+    files = changed_files(ctx)
+    if not files:
+        return None
+    blob = "\n".join(call_text(c) for c in ctx["calls"] if c["name"] in {"Read", "Bash", "Grep"} and "git diff" not in call_text(c))
+    return share(files, lambda f: f in blob or f.rsplit("/", 1)[-1] in blob)
+
+
+@rule("verifies_findings")
+def r_verifies(ctx):
+    if first_line(ctx["text"]) != "VERDICT: CHANGES":
+        return None
+    extra = [c for c in ctx["calls"] if c["name"] in {"Grep", "Bash"} and not re.search(r"git (diff|log|status|show)", call_text(c))]
+    return 1.0 if extra else 0.5
+
+
+FIX_RE = re.compile(r"\b(should|must|use|change|replace|add|remove|return|rename|fix|restore|wrap|parameteri[sz]e|escape|validate|use)\b", re.I)
+LOC_RE = re.compile(r"[\w./-]+\.\w+:\d+|[\w./-]+\.\w+\b")
+
+
+@rule("findings_actionable")
+def r_actionable(ctx):
+    fs = findings_of(ctx["text"])
+    return share(fs, lambda f: (0.5 if re.search(r"[\w./-]+\.\w+:\d+", f) else 0.2 if LOC_RE.search(f) else 0) + (0.5 if FIX_RE.search(f) else 0) >= 0.7) if fs else None
+
+
+STYLE_RE = re.compile(r"\b(nit|style|naming|formatting|whitespace|prefer|cosmetic|semicolon)\b", re.I)
+
+
+@rule("nit_discipline")
+def r_nit(ctx):
+    return share(findings_of(ctx["text"]), lambda f: not STYLE_RE.search(f))
+
+
+@rule("traces_to_sinks")
+def r_traces(ctx):
+    files = changed_files(ctx)
+    calls = ctx["calls"]
+    blob = "\n".join(call_text(c) for c in calls)
+    read = share(files, lambda f: f in blob or f.rsplit("/", 1)[-1] in blob) if files else 0.5
+    sinks = any(c["name"] in {"Grep", "Bash"} and re.search(r"query|exec|eval|innerHTML|spawn|system|sql|auth|password|token|secret|sanitiz", call_text(c), re.I) for c in calls)
+    return 0.5 * (read or 0) + (0.5 if sinks else 0.0)
+
+
+SEC_GROUPS = [r"input|untrusted|user[- ]provided|request", r"quer(y|ies)|sql|shell|exec|command", r"html|xss|innerhtml|dom",
+              r"auth|permission|access", r"secret|credential|token|password", r"dependenc|package", r"payment|money|billing"]
+
+
+@rule("scope_declared")
+def r_scope_declared(ctx):
+    return min(1.0, sum(1 for g in SEC_GROUPS if re.search(g, ctx["text"] or "", re.I)) / 3)
+
+
+@rule("secrets_deps_checked")
+def r_secrets(ctx):
+    return 1.0 if any(re.search(r"secret|password|token|api.?key|package\.json|requirements|\.lock", call_text(c), re.I) for c in ctx["calls"]) else 0.0
+
+
+VECTOR_RE = re.compile(r"inject|xss|traversal|rce|csrf|ssrf|escape|sanitiz|taint|sink|untrusted|concatenat|interpolat|secret|credential|bypass|privilege|raw input|user input", re.I)
+SECFIX_RE = re.compile(r"parameteri[sz]|prepared|escape|validate|sanitiz|use |replace|require|add |remove|whitelist|allowlist", re.I)
+
+
+@rule("finding_structure")
+def r_finding_structure(ctx):
+    fs = findings_of(ctx["text"])
+    if not fs:
+        return None
+    return sum(0.4 * bool(VECTOR_RE.search(f)) + 0.4 * bool(SECFIX_RE.search(f)) + 0.2 * bool(re.search(r"CWE-\d+", f)) for f in fs) / len(fs)
+
+
+@rule("severity_stated")
+def r_severity(ctx):
+    return share(findings_of(ctx["text"]), lambda f: re.search(r"\b(critical|high|medium|low|severity|cvss)\b", f, re.I))
+
+
+@rule("uses_the_page")
+def r_uses_page(ctx):
+    if any(re.search(r"agent-browser|http\.server|localhost|npm run dev|vite|serve\b|open .*\.html|playwright", call_text(c)) for c in ctx["calls"]):
+        return 1.0
+    return 1.0 if re.search(r"no user[- ]facing change", ctx["text"] or "", re.I) else 0.4
+
+
+UX_TOPICS = [r"loading|empty|error", r"copy|wording|text|message", r"mobile|phone|narrow|responsive", r"keyboard|focus|tab order",
+             r"label|aria|alt text|accessib|contrast", r"role|signed|visitor|user"]
+
+
+@rule("checklist_covered")
+def r_checklist(ctx):
+    return min(1.0, sum(1 for t in UX_TOPICS if re.search(t, ctx["text"] or "", re.I)) / 5)
+
+
+@rule("findings_cite_criterion")
+def r_cite_criterion(ctx):
+    return share(findings_of(ctx["text"]), lambda f: re.search(r"\b\d\.\d\.\d{1,2}\b|WCAG|heuristic|nielsen|visibility of|error prevention|consisten|recognition|feedback|accessib|label|aria", f, re.I))
+
+
+@rule("severity_rated")
+def r_severity_rated(ctx):
+    return share(findings_of(ctx["text"]), lambda f: re.search(r"\b(cosmetic|minor|major|catastroph|blocker|critical|severity|sev ?[0-4])\b", f, re.I))
+
+
+@rule("findings_reproducible")
+def r_reproducible(ctx):
+    return share(findings_of(ctx["text"]), lambda f: re.search(r"[\w./-]+\.\w+:\d+|[\w./-]+\.\w+\b|steps?|when (the )?user|click|tab", f, re.I))
+
+
+@rule("finds_design_source")
+def r_design_source(ctx):
+    return 1.0 if any(re.search(r"style\.css|tokens?|theme|:root|variables|design", call_text(c), re.I) for c in ctx["calls"]) else 0.0
+
+
+@rule("hunts_hardcoded")
+def r_hunts(ctx):
+    return 1.0 if any(c["name"] in {"Grep", "Bash"} and re.search(r"#\[?0-9|#[0-9a-fA-F]{3}|px|rgb|hex|colou?r", call_text(c), re.I) for c in ctx["calls"]) else 0.0
+
+
+@rule("findings_name_token")
+def r_name_token(ctx):
+    return share(findings_of(ctx["text"]), lambda f: re.search(r"--[\w-]+|var\(|token|component|variable", f, re.I))
+
+
+@rule("findings_cite_value")
+def r_cite_value(ctx):
+    return share(findings_of(ctx["text"]), lambda f: re.search(r"#[0-9a-fA-F]{3,8}|\d+px|rgba?\(", f) and LOC_RE.search(f))
+
+
+# -- approver
+
+@rule("evidence_reread")
+def r_evidence_reread(ctx):
+    blob = "\n".join(call_text(c) for c in ctx["calls"])
+    files = changed_files(ctx)
+    diff = bool(re.search(r"git diff|git show", blob)) or bool(files and any(f in blob or f.rsplit("/", 1)[-1] in blob for f in files))
+    return (diff + bool(re.search(r"checks\.md|checks\.log", blob)) + bool(re.search(r"review-", blob))) / 3
+
+
+TRIGGERS = [r"money|payment|billing|price|pricing", r"auth|permission|access|role|identity", r"deploy|\bci\b|hosting|workflow",
+            r"migrat|schema|database", r"dependenc|package", r"product|business|assumption|pricing"]
+
+
+@rule("triggers_checked")
+def r_triggers(ctx):
+    return min(1.0, sum(1 for t in TRIGGERS if re.search(t, ctx["text"] or "", re.I)) / 3)
+
+
+@rule("criteria_mapped")
+def r_criteria_mapped(ctx):
+    mine = numbered_items(section_text(ctx["text"], "Acceptance criteria"))
+    theirs = numbered_items(section_text(ctx.get("spec"), "Acceptance criteria"))
+    if not mine:
+        return 0.0
+    evidence = share(mine, lambda l: re.search(r"\b(met|not met|pass|fail)\b", l, re.I) and ":" in l) or 0.0
+    count = min(1.0, len(mine) / len(theirs)) if theirs else 1.0
+    return 0.5 * evidence + 0.5 * count
+
+
+@rule("escalation_specific")
+def r_escalation_specific(ctx):
+    if first_line(ctx["text"]) != "ESCALATE":
+        return None
+    body = section_text(ctx["text"], "For the human") or ""
+    return (0.5 if PATH_RE.search(body) else 0.0) + (0.5 if re.search(r"\?|confirm|decide|check|review|approve", body, re.I) else 0.0)
+
+
+# ---- A job's files: output metrics -----------------------------------------
+
+
+def job_context(job_dir):
+    d = Path(job_dir)
+    job = json.loads(read(d / "job.json") or "{}")
+    rounds = {}
+    for rd in sorted(d.glob("round-*")):
+        try:
+            n = int(rd.name.split("-")[1])
+        except ValueError:
+            continue
+        checks = read(rd / "checks.md")
+        rounds[n] = {
+            "gate": first_line(checks).removeprefix("GATE: ") if checks else None,
+            "protected": bool(checks and re.search(r"Protected paths: changed", checks)),
+            "reviews": {p.stem.removeprefix("review-"): first_line(read(p)).removeprefix("VERDICT: ")
+                        for p in sorted(rd.glob("review-*.md"))},
+        }
+    decision = read(d / "decision.md")
+    build = read(d / "build.md")
+    return {
+        "dir": d, "id": job.get("id", d.name), "stage": job.get("stage"), "round": job.get("round", 0),
+        "started": job.get("started"), "target": job.get("target"), "worktree": job.get("worktree"),
+        "risk": (job.get("intake") or {}).get("risk"),
+        "intake_decision": (job.get("intake") or {}).get("decision"),
+        "rounds": rounds, "decision": first_line(decision), "build_status": first_line(build),
+        "build": build, "feedback": bool(list(d.glob("feedback-*.md"))),
+        "rejected": (d / "rejection.md").exists(), "answered": bool(list(d.glob("intake-*.md"))),
+    }
+
+
+def settled(j):
+    return j["stage"] in {"merged", "rejected", "needs-human"}
+
+
+def merged_cleanly(j):
+    return j["stage"] == "merged" and not j["feedback"]
+
+
+def realised_risk(j):
+    """How hard the job turned out to be: 0 contained, 1 some rework, 2 hard."""
+    if j["stage"] == "needs-human" and not j["feedback"] or j["round"] >= 3:
+        return 2
+    return 0 if j["round"] <= 1 else 1
+
+
+# ---- Outcome criteria: what happened to the job afterwards -------------------
+
+
+def outcome_value(agent, cid, ctx):
+    j = ctx.get("job")
+    if j is None:
+        return None
+    if cid == "decision_correct":
+        if agent == "intake":
+            if j["intake_decision"] == "ACCEPT":
+                return 1.0 if j["stage"] == "merged" else 0.0 if j["rejected"] else None
+            return 1.0 if j["intake_decision"] == "NEEDS-INFO" and j["answered"] else None
+        if agent == "approver":
+            if j["decision"] == "APPROVE" and settled(j):
+                return 1.0 if merged_cleanly(j) else 0.0
+            if j["decision"] == "ESCALATE" and settled(j):
+                return 1.0 if j["feedback"] else 0.6 if j["stage"] == "merged" else None
+        return None
+    if cid == "risk_calibration":
+        if j["intake_decision"] == "ACCEPT" and settled(j) and j["risk"] in {"low", "medium", "high"}:
+            return 1 - abs({"low": 0, "medium": 1, "high": 2}[j["risk"]] - realised_risk(j)) / 2
+        return None
+    if cid == "surfaces_accuracy":
+        paths = FILE_RE.findall(section_text(j["build"], "Changes") or "")
+        if not paths or j["intake_decision"] != "ACCEPT":
+            return None
+        declared_ui = "ui" in (j.get("surfaces") or [])
+        actual_ui = any(re.search(r"\.(html|css|scss|jsx|tsx|vue|svelte)$", p) for p in paths)
+        return 1.0 if declared_ui == actual_ui else 0.0
+    if cid == "builder_unblocked":
+        if not j["build"]:
+            return None
+        if j["build_status"] == "STATUS: BLOCKED":
+            return 0.0
+        crit = section_text(j["build"], "Acceptance criteria") or ""
+        total = len(re.findall(r"\[[x ]\]", crit))
+        return len(re.findall(r"\[x\]", crit)) / total if total else 1.0
+    if cid == "checks_pass":
+        last = j["rounds"].get(max(j["rounds"])) if j["rounds"] else None
+        return None if not last or not last["gate"] else 1.0 if last["gate"] == "PASS" else 0.0
+    if cid == "first_gate":
+        r1 = j["rounds"].get(1)
+        return None if not r1 or not r1["gate"] else 1.0 if r1["gate"] == "PASS" else 0.0
+    if cid == "protected_clean":
+        return None if not j["rounds"] else 0.0 if any(r["protected"] for r in j["rounds"].values()) else 1.0
+    if cid == "convergence":
+        if j["stage"] == "merged":
+            return {1: 1.0, 2: 0.67}.get(j["round"], 0.33)
+        return 0.0 if j["stage"] == "needs-human" and not j["feedback"] and j["round"] >= 3 else None
+    if cid == "verdict_validity" and agent.startswith("reviewer-"):
+        lens = agent[9:]
+        seen = sorted((n, r["reviews"][lens]) for n, r in j["rounds"].items() if lens in r["reviews"])
+        scores = []
+        for i, (n, v) in enumerate(seen):
+            if v == "CHANGES":
+                later = [w for _, w in seen[i + 1:]]
+                s = 1.0 if later and later[0] == "PASS" else 0.3 if later or settled(j) else None
+                if s is not None:
+                    scores.append(s)
+        if scores:
+            return sum(scores) / len(scores)
+        if seen and seen[-1][1] == "PASS" and settled(j):
+            return 1.0 if merged_cleanly(j) else 0.5 if j["decision"] == "ESCALATE" or j["feedback"] else 1.0
+    return None
+
+
+def case_score(agent, cid, checks):
+    """The pass rate of the case's expectations that feed this criterion, or None."""
+    groups = agent_criteria(agent).get("case_map", {}).get(cid)
+    if not groups or not checks:
+        return None
+    hits = [ok for _, ok, g in checks if g in groups]
+    return sum(hits) / len(hits) if hits else None
+
+
+def evaluate(agent, ctx, checks=None, judge=None):
+    """{"process": {criterion: 0..1 or None}, "output": {...}} for one run of an agent."""
+    out = {"process": {}, "output": {}}
+    for side in ("process", "output"):
+        for c in agent_criteria(agent)[side]:
+            cid, kind = c["id"], c["kind"]
+            value = None
+            if kind == "judge":
+                score = (judge or {}).get(cid)
+                value = None if score is None else score / 5
+            else:
+                value = case_score(agent, cid, checks) if ctx.get("case") is not None else None
+                if value is None and kind == "rule" and cid in RULES:
+                    value = RULES[cid](ctx)
+                elif value is None and kind == "outcome" and ctx.get("case") is None:
+                    value = outcome_value(agent, cid, ctx)
+            out[side][cid] = value
+    return out
+
+
+def judge_scores(path):
+    """A judge verdict: {criterion: 0..5}."""
+    data = json.loads(read(path) or "{}")
+    return {k: v for k, v in (data.get("scores") or {}).items() if isinstance(v, (int, float))}
+
+
+def with_judge(output, agent, judge):
+    """Fill the judge criteria of an output dict from a verdict."""
+    if judge:
+        for c in agent_criteria(agent)["output"]:
+            if c["kind"] == "judge" and c["id"] in judge:
+                output[c["id"]] = judge[c["id"]] / 5
+    return output
+
+
+def output_file(agent, j):
+    d = j["dir"]
+    if agent == "intake":
+        return d / "intake.md"
+    if agent == "spec-writer":
+        return d / "spec.md"
+    if agent == "builder":
+        return d / "build.md"
+    if agent == "approver":
+        return d / "decision.md"
+    lens = agent[9:]
+    files = sorted(d.glob(f"round-*/review-{lens}.md"), key=lambda p: int(p.parent.name.split("-")[1]))
+    return files[-1] if files else d / "round-1" / f"review-{lens}.md"
+
+
+def make_ctx(agent, job_dir, out_path, calls, final, worktree, clone, case=None, job=None):
+    d = Path(job_dir)
+    return {"agent": agent, "job_dir": d, "output_path": str(out_path), "text": read(out_path), "calls": calls, "final": final,
+            "worktree": worktree, "clone": clone, "case": case, "job": job,
+            "issue": read(d / "issue.md"), "intake": read(d / "intake.md"), "spec": read(d / "spec.md"),
+            "build": read(d / "build.md"), "decision": read(d / "decision.md")}
+
+
+# ---- Samples and scores ----------------------------------------------------
+
+
+def _mean(values):
+    values = [v for v in values if v is not None]
+    return sum(values) / len(values) if values else None
+
+
+def live_samples():
+    """One sample per agent per job that has a transcript, plus the typical cost per agent."""
+    jm = jobmod()
+    samples, costs = [], {a: [] for a in AGENTS}
+    jobs_dir = FACTORY / "jobs"
+    if not jobs_dir.exists():
+        return samples
+    heads = {}
+    for p in jm.transcripts_dir().glob("*/subagents/agent-*.jsonl"):
+        with p.open() as f:
+            heads[p] = f.readline()
+    for d in sorted(jobs_dir.iterdir()):
+        if not (d / "job.json").exists():
+            continue
+        j = job_context(d)
+        raw = json.loads(read(d / "job.json") or "{}")
+        j["surfaces"] = (raw.get("intake") or {}).get("surfaces") or []
+        needle = f"Job folder: {d}/"
+        mine = {}
+        for p, head in heads.items():
+            if head and needle in jm.prompt_text(head):
+                mine.setdefault(jm.agent_type(p), []).append(p)
+        clone = ROOT / "targets" / (j["target"] or "") / "repo"
+        for agent, paths in mine.items():
+            if agent not in AGENTS:
+                continue
+            out = output_file(agent, j)
+            trs = [parse_transcript(p) for p in paths]
+            runs = [evaluate(agent, make_ctx(agent, d, out, tr["calls"], tr["final"], j["worktree"], clone, job=j),
+                             judge=judge_scores(STATE / "judge" / f"{j['id']}__{agent}.json")) for tr in trs]
+            merged = {side: {k: _mean([r[side][k] for r in runs]) for k in runs[0][side]} for side in ("process", "output")}
+            cost = sum(tr["cost"] for tr in trs)
+            costs[agent].append(cost)
+            samples.append({"source": "live", "agent": agent, "job": j["id"], "ts": j["started"] or "", "model": trs[0]["model"],
+                            "cost": cost, "process": merged["process"], "output": merged["output"]})
+    for s in samples:
+        if "efficiency" in s["process"]:
+            s["process"]["efficiency"] = efficiency_score(s["cost"], costs[s["agent"]])
+    return samples
+
+
+def eval_samples():
+    """The scored eval runs: factory/evals/runs/<run>/<agent>__<case>/result.json (the judge is read fresh)."""
+    out = []
+    for p in sorted(STATE.glob("runs/*/*/result.json")):
+        r = json.loads(read(p) or "{}")
+        agent = r.get("agent")
+        if agent not in AGENTS:
+            continue
+        output = with_judge(dict(r.get("output", {})), agent, judge_scores(p.parent / "judge.json"))
+        out.append({"source": "eval", "agent": agent, "case": r.get("case"), "ts": r.get("ts", ""), "model": r.get("model", ""),
+                    "process": r.get("process", {}), "output": output})
+    return out
+
+
+def side_score(agent, side, values):
+    """Weighted mean (0..100) of a sample's criteria that have a value."""
+    w = weighted(values, criterion_weights(agent, side))
+    return None if w is None else 100 * w
+
+
+def aggregate(agent, samples, s):
+    """An agent's confidence from its samples: process, output, and the blend shrunk toward the prior."""
+    samples = sorted(samples, key=lambda x: x["ts"])[-int(s["window"]):]
+    rows = []
+    for x in samples:
+        w = s["eval_case_weight"] if x["source"] == "eval" else 1.0
+        rows.append((side_score(agent, "process", x["process"]), side_score(agent, "output", x["output"]), w, x))
+
+    def wmean(i):
+        have = [r for r in rows if r[i] is not None]
+        return sum(r[i] * r[2] for r in have) / sum(r[2] for r in have) if have else None
+    process, output = wmean(0), wmean(1)
+    n_live = sum(1 for r in rows if r[3]["source"] == "live")
+    weight = sum(r[2] for r in rows)
+    parts = [(v, w) for v, w in ((process, s["weights"]["process"]), (output, s["weights"]["output"])) if v is not None]
+    raw = sum(v * w for v, w in parts) / sum(w for _, w in parts) if parts else None
+    confidence = None if raw is None else (weight * raw + s["prior_strength"] * s["prior"]) / (weight + s["prior_strength"])
+    label = None
+    if confidence is not None:
+        label = "trusted" if confidence >= s["thresholds"]["trusted"] else "ok" if confidence >= s["thresholds"]["ok"] else "watch"
+
+    def side_detail(side, score):
+        items = []
+        for c in agent_criteria(agent)[side]:
+            vals = [(x[side].get(c["id"]), w) for _, _, w, x in rows if x[side].get(c["id"]) is not None]
+            items.append({"id": c["id"], "label": c["label"], "kind": c["kind"], "weight": c["weight"], "basis": c["basis"],
+                          "sources": c["sources"], "description": c["description"], "measure": c["measure"],
+                          "score": round(100 * sum(v * w for v, w in vals) / sum(w for _, w in vals), 1) if vals else None,
+                          "n": len(vals)})
+        return {"score": None if score is None else round(score, 1), "criteria": items}
+    by_model = {}
+    for model in sorted({x["model"] for _, _, _, x in rows if x["model"]}):
+        sub = [r for r in rows if r[3]["model"] == model]
+        by_model[model] = {"samples": len(sub), "confidence": _blend([r[0] for r in sub], [r[1] for r in sub], s)}
+    return {"confidence": None if confidence is None else round(confidence, 1), "label": label,
+            "raw": None if raw is None else round(raw, 1), "role": agent_criteria(agent)["role"],
+            "process": side_detail("process", process), "output": side_detail("output", output),
+            "samples": {"live": n_live, "eval": len(rows) - n_live}, "provisional": len(rows) < s["min_samples"],
+            "by_model": by_model}
+
+
+def _blend(ps, os_, s):
+    p, o = _mean(ps), _mean(os_)
+    parts = [(v, w) for v, w in ((p, s["weights"]["process"]), (o, s["weights"]["output"])) if v is not None]
+    if not parts:
+        return None
+    raw = sum(v * w for v, w in parts) / sum(w for _, w in parts)
+    return round((len(ps) * raw + s["prior_strength"] * s["prior"]) / (len(ps) + s["prior_strength"]), 1)
+
+
+def compute_scores():
+    s = settings()
+    samples = live_samples() + eval_samples()
+    agents = {a: aggregate(a, [x for x in samples if x["agent"] == a], s) for a in AGENTS}
+    sources = criteria_doc().get("sources", {})
+    return {"updated": now(), "settings": {k: s[k] for k in ("weights", "eval_case_weight", "thresholds", "min_samples", "prior", "prior_strength")},
+            "sources": sources, "agents": agents}
+
+
+# ---- Eval cases ------------------------------------------------------------
+
+
+def case_dirs(agent=None):
+    for a in ([agent] if agent else AGENTS):
+        for c in sorted((EVALS / a).glob("*/case.json")) if (EVALS / a).exists() else []:
+            yield a, c.parent
+
+
+def git(cwd, *args, check=True):
+    env = {**os.environ, "GIT_AUTHOR_NAME": "factory-eval", "GIT_AUTHOR_EMAIL": "eval@factory.local",
+           "GIT_COMMITTER_NAME": "factory-eval", "GIT_COMMITTER_EMAIL": "eval@factory.local"}
+    res = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, env=env)
+    if check and res.returncode != 0:
+        die(f"git {' '.join(args)} failed: {res.stderr.strip()}")
+    return res
+
+
+def build_worktree(case, case_dir, run_dir):
+    """A throwaway project: fixture on main (with a bare origin), branch factory/eval, and the case's
+    change committed on top for review cases."""
+    fixture = EVALS / "fixtures" / case["fixture"]
+    seed, remote, clone, wt = run_dir / "seed", run_dir / "remote.git", run_dir / "clone", run_dir / "worktree"
+    shutil.copytree(fixture, seed)
+    git(seed, "init", "-q", "-b", "main")
+    git(seed, "add", "-A")
+    git(seed, "commit", "-q", "-m", "fixture")
+    git(run_dir, "init", "-q", "--bare", "-b", "main", str(remote))
+    git(seed, "push", "-q", str(remote), "main")
+    git(run_dir, "clone", "-q", str(remote), str(clone))
+    git(clone, "worktree", "add", "-q", "-b", "factory/eval", str(wt), "origin/main")
+    change = case_dir / "change"
+    if change.exists():
+        shutil.copytree(change, wt, dirs_exist_ok=True)
+        for rel in case.get("delete", []):
+            (wt / rel).unlink()
+        git(wt, "add", "-A")
+        git(wt, "commit", "-q", "-m", "change under review")
+        git(wt, "push", "-q", "origin", "factory/eval")
+    return wt
+
+
+AGENT_SUFFIX = {
+    "builder": " Build round 1. Port: 5900. This is an evaluation run: there is no GitHub and no remote to push to. "
+               "Commit on the branch, skip the push and the pull request, and write build.md.",
+    "approver": " PR: #1. Final round: 1.",
+}
+
+
+def cmd_prepare(agent, name, run_id):
+    case_dir = EVALS / agent / name
+    if not (case_dir / "case.json").exists():
+        die(f"no case {agent}/{name}")
+    case = json.loads((case_dir / "case.json").read_text())
+    run_id = run_id or datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    run_dir = STATE / "runs" / run_id / f"{agent}__{name}"
+    if run_dir.exists():
+        shutil.rmtree(run_dir)
+    job_dir = run_dir / "job"
+    job_dir.mkdir(parents=True)
+    inputs = case_dir / "inputs"
+    if inputs.exists():
+        shutil.copytree(inputs, job_dir, dirs_exist_ok=True)
+    wt = build_worktree(case, case_dir, run_dir) if case.get("fixture") else None
+    clone = run_dir / "clone"
+    (job_dir / "job.json").write_text(json.dumps({"id": f"eval-{name}", "target": "eval", "issue": 1, "stage": "intake", "round": 1}))
+    fixture_dir = EVALS / "fixtures" / case["fixture"] if case.get("fixture") else None
+    notes = run_dir / "notes.md"
+    notes.write_text(read(fixture_dir / "NOTES.md") if fixture_dir and (fixture_dir / "NOTES.md").exists() else "# eval notes\n")
+    checks = run_dir / "checks.sh"
+    checks.write_text(read(fixture_dir / "checks.sh") if fixture_dir and (fixture_dir / "checks.sh").exists()
+                      else "#!/usr/bin/env bash\nexit 0\n")
+    checks.chmod(0o755)
+    (run_dir / "case.json").write_text(json.dumps({**case, "agent": agent, "case": name}, indent=2))
+    header = (f"Job: eval-{name}. Target: eval (eval/fixture). Job folder: {job_dir}/. Factory root: {ROOT}. "
+              f"Target clone: {clone if wt else 'none'}. Worktree: {wt or 'none'}. Branch: factory/eval. Base: origin/main. "
+              f"Issue: #1. Checks: {checks}. Notes: {notes}.")
+    prompt = header + AGENT_SUFFIX.get(agent, "")
+    if agent.startswith("reviewer-"):
+        prompt += " Review round 1."
+    print(json.dumps({"run_dir": str(run_dir), "agent": agent, "case": name, "subagent_type": agent, "prompt": prompt}, indent=2))
+
+
+def tests_discriminate(run_dir):
+    """Revert the non-test source files to the base in a copy and expect the checks to fail there."""
+    wt = run_dir / "worktree"
+    changed = set(git(wt, "diff", "--name-only", "origin/main", check=False).stdout.split())
+    changed |= {l[3:] for l in git(wt, "status", "--porcelain", check=False).stdout.splitlines()}
+    sources = [f for f in sorted(changed) if not TEST_RE.search(f)]
+    if not sources:
+        return False
+    tmp = run_dir / "revert"
+    shutil.rmtree(tmp, ignore_errors=True)
+    shutil.copytree(wt, tmp, ignore=shutil.ignore_patterns(".git", "node_modules"))
+    for f in sources:
+        base = git(wt, "show", f"origin/main:{f}", check=False)
+        target = tmp / f
+        if base.returncode == 0:
+            target.write_text(base.stdout)
+        elif target.exists():
+            target.unlink()
+    res = subprocess.run(["bash", str(run_dir / "checks.sh")], cwd=tmp, capture_output=True, text=True)
+    shutil.rmtree(tmp, ignore_errors=True)
+    return res.returncode != 0
+
+
+def run_expect(case, run_dir):
+    """[(name, ok, group)]: the case's expectations against what the agent produced. The group says which
+    criterion an expectation feeds (see case_map in evals/criteria.json)."""
+    job = run_dir / "job"
+    wt = run_dir / "worktree"
+    expect = case.get("expect", {})
+    checks = []
+    for fname, spec in (expect.get("files") or {}).items():
+        text = read(job / fname)
+        checks.append((f"{fname} exists", text is not None, "exists"))
+        if text is None:
+            continue
+        if "first_line" in spec:
+            checks.append((f"{fname} first line", bool(re.fullmatch(spec["first_line"], first_line(text))), "first_line"))
+        for key, values in (spec.get("headers") or {}).items():
+            checks.append((f"{fname} {key} in {values}", header_fields(text).get(key.upper()) in values, "headers"))
+        for h in spec.get("sections", []):
+            checks.append((f"{fname} has section {h}", bool(section_text(text, h)), "sections"))
+        for pat in spec.get("contains", []):
+            checks.append((f"{fname} mentions /{pat}/", bool(re.search(pat, text, re.I | re.S)), "contains"))
+        for pat in spec.get("not_contains", []):
+            checks.append((f"{fname} avoids /{pat}/", not re.search(pat, text, re.I | re.S), "not_contains"))
+        for h, pats in (spec.get("section_contains") or {}).items():
+            body = section_text(text, h) or ""
+            for pat in pats:
+                checks.append((f"{fname} {h} mentions /{pat}/", bool(re.search(pat, body, re.I | re.S)), "section_contains"))
+        for h, pats in (spec.get("section_not_contains") or {}).items():
+            body = section_text(text, h) or ""
+            for pat in pats:
+                checks.append((f"{fname} {h} avoids /{pat}/", not re.search(pat, body, re.I | re.S), "section_not_contains"))
+        if "min_numbered" in spec:
+            body = section_text(text, spec.get("numbered_in", "Acceptance criteria"))
+            checks.append((f"{fname} has {spec['min_numbered']}+ numbered items", len(numbered(body)) >= spec["min_numbered"], "min_numbered"))
+    w = expect.get("worktree") or {}
+    if w.get("checks_pass"):
+        res = subprocess.run(["bash", str(run_dir / "checks.sh")], cwd=wt, capture_output=True, text=True)
+        checks.append(("checks.sh passes in the worktree", res.returncode == 0, "worktree.checks_pass"))
+    if w.get("tests_discriminate"):
+        checks.append(("the tests fail when the change is reverted", tests_discriminate(run_dir), "worktree.tests_discriminate"))
+    for rel, pat in (w.get("file_matches") or {}).items():
+        checks.append((f"{rel} matches /{pat}/", bool(re.search(pat, read(wt / rel) or "", re.S)), "worktree.file_matches"))
+    if "files_unchanged" in w:
+        changed = set(git(wt, "diff", "--name-only", "origin/main", check=False).stdout.split())
+        changed |= {l[3:] for l in git(wt, "status", "--porcelain", check=False).stdout.splitlines()}
+        for rel in w["files_unchanged"]:
+            checks.append((f"{rel} left alone", rel not in changed, "worktree.files_unchanged"))
+    return checks
+
+
+def cmd_check(run_dir):
+    run_dir = Path(run_dir).resolve()
+    case = json.loads(read(run_dir / "case.json") or "{}")
+    if not case:
+        die(f"{run_dir} is not a prepared eval run")
+    agent = case["agent"]
+    job = run_dir / "job"
+    checks = run_expect(case, run_dir)
+    output_path = output_file(agent, {"dir": job})
+    jm = jobmod()
+    needle = f"Job folder: {job}/"
+    trs = []
+    for p in jm.transcripts_dir().glob("*/subagents/agent-*.jsonl"):
+        with p.open() as f:
+            head = f.readline()
+        if head and needle in jm.prompt_text(head):
+            trs.append(parse_transcript(p))
+    calls = [c for tr in trs for c in tr["calls"]]
+    final = trs[-1]["final"] if trs else ""
+    ctx = make_ctx(agent, job, output_path, calls, final, run_dir / "worktree", run_dir / "clone", case=case)
+    scored = evaluate(agent, ctx, checks=checks)
+    if not trs:   # nothing to say about how it worked without a transcript
+        scored["process"] = {k: (v if k == "format" else None) for k, v in scored["process"].items()}
+    passed = [ok for _, ok, _ in checks]
+    result = {
+        "agent": agent, "case": case["case"], "ts": now(), "model": trs[0]["model"] if trs else "",
+        "passed": bool(passed) and all(passed), "transcripts": len(trs),
+        "checks": [{"name": n, "ok": ok, "group": g} for n, ok, g in checks],
+        "format": [{"name": n, "ok": ok} for n, ok in format_checks(agent, ctx["text"])],
+        "process": scored["process"], "output": scored["output"],
+    }
+    (run_dir / "result.json").write_text(json.dumps(result, indent=2))
+    p = side_score(agent, "process", scored["process"])
+    mark = "PASS" if result["passed"] else "FAIL"
+    print(f"{agent}/{case['case']}: {mark} ({sum(passed)}/{len(passed)} expectations, process "
+          f"{'-' if p is None else f'{p:.0f}'}/100{'' if trs else ', no transcript found'})")
+    for n, ok, _ in checks:
+        if not ok:
+            print(f"  FAILED: {n}")
+    sys.exit(0 if result["passed"] else 1)
+
+
+def cmd_judge_prep(argv):
+    opts = dict(zip(argv[::2], argv[1::2]))
+    if "--run-dir" in opts:
+        run_dir = Path(opts["--run-dir"]).resolve()
+        case = json.loads(read(run_dir / "case.json") or "{}")
+        agent, subject, out = case["agent"], run_dir, run_dir / "judge.json"
+        worktree = run_dir / "worktree"
+    elif "--job" in opts and "--agent" in opts:
+        agent, jid = opts["--agent"], opts["--job"]
+        subject, out = FACTORY / "jobs" / jid, STATE / "judge" / f"{jid}__{agent}.json"
+        worktree = None
+    else:
+        die(__doc__.strip())
+    if agent not in AGENTS:
+        die(f"unknown agent {agent!r}")
+    judged = [c for c in agent_criteria(agent)["output"] if c["kind"] == "judge"]
+    out.parent.mkdir(parents=True, exist_ok=True)
+    rubric = out.parent / f"{out.stem}.rubric.json"
+    rubric.write_text(json.dumps({"agent": agent, "role": agent_criteria(agent)["role"], "scale": "0 (poor) to 5 (excellent)",
+                                  "criteria": [{"id": c["id"], "label": c["label"], "question": c["question"]} for c in judged]}, indent=2))
+    prompt = (f"Subject agent: {agent}. Subject folder: {subject}/. Worktree: {worktree if worktree and worktree.exists() else 'none'}. "
+              f"Rubric: {rubric}. Write the verdict to: {out}.")
+    print(json.dumps({"subagent_type": "eval-judge", "prompt": prompt, "verdict_path": str(out)}, indent=2))
+
+
+# ---- The criteria as a document --------------------------------------------
+
+DOC_INTRO = """# How the agents are evaluated
+
+Every agent has a **confidence score** from 0 to 100, built from two composite metrics: **process** (how the
+agent works) and **output** (how good what it produces is). Each agent is judged on criteria written for its own
+assignment, not on one generic list. This page is generated from `evals/criteria.json` by
+`factory/bin/eval docs`; edit the JSON, not this file.
+
+## What the research says, and how it is used here
+
+- **Grade what was produced, check the process only for must-have behaviours.** Anthropic's guidance on agent
+  evals separates outcome graders from transcript graders, calls rigid step-order checks "overly brittle", and
+  warns that an agent's claim must match the real state. So output criteria weigh more than process criteria
+  (60% against 40%), and the process criteria are things an agent must do (read before acting, run the checks,
+  stay in its lane), never a fixed sequence of steps.
+- **Rules first, a judge for the rest.** Whatever a rule can check (format, structure, whether a finding cites a
+  line, whether a test was weakened) is checked by a rule. What it cannot (is this finding real? is this spec
+  minimal?) goes to the `eval-judge` agent, one criterion per question, with an explicit `null` when it cannot
+  verify. Judge scores should be calibrated against a few hand-read transcripts.
+- **Do not reward the report.** Coding agents are known to edit tests or graders to pass (METR) and benchmark tests
+  can cover things the description never asked for (OpenAI). Hence: tests are never to be weakened, the builder's
+  evidence is compared with the diff, and the checks are re-run.
+- **Little evidence is not a good score.** A score from a handful of samples is pulled toward a neutral value
+  (the prior is worth 4 samples) and marked provisional below 3. The research also suggests reporting an interval
+  and treating fewer than about 30 cases as low confidence; the dashboard shows the sample counts.
+
+How the two metrics become one number is in the README ("Agent evals and confidence").
+
+## Honesty about the evidence
+
+Each criterion says whether it rests on a source (`source`) or on the authors' reasoning (`inference`), and each
+source says how well it was checked: `fetched` (the page was read), `search` (seen in search results only),
+`secondary` (a summary of the source) or `memory` (cited from memory). Most weights are the authors' choice. Several
+rules are heuristics (patterns in text) that are noisy on their own; the eval cases and the judge complete them.
+Some criteria measure behaviour the current agent prompts do not ask for yet (for example a severity and a CWE id
+on every security finding, or the topics a UX review should cover): a low score there is a gap in the prompt as much
+as a failure of the agent, and the fix is to ask for it in the agent's file.
+"""
+
+
+def pct(items):
+    total = sum(c["weight"] for c in items) or 1
+    return {c["id"]: round(100 * c["weight"] / total) for c in items}
+
+
+def docs_markdown():
+    doc = criteria_doc()
+    out = [DOC_INTRO.rstrip(), ""]
+    for agent in AGENTS:
+        spec = doc["agents"][agent]
+        out += [f"## {agent}", "", spec["role"], ""]
+        for side, title in (("process", "Process: how it works"), ("output", "Output: how good it is")):
+            weights = pct(spec[side])
+            out += [f"### {title}", "", "| Criterion | Weight | Kind | How it is measured | Basis |", "|---|---|---|---|---|"]
+            for c in spec[side]:
+                basis = "inference" if c["basis"] == "inference" and not c["sources"] else (
+                    "source: " + ", ".join(f"[{i}](#sources)" for i in c["sources"]) if c["sources"] else c["basis"])
+                out.append(f"| **{c['label']}**: {c['description']} | {weights[c['id']]}% | {c['kind']} | {c['measure']} | {basis} |")
+            out.append("")
+    out += ["## Sources", "", "| Id | Source | Checked |", "|---|---|---|"]
+    for sid, src in doc["sources"].items():
+        out.append(f"| `{sid}` | [{src['title']}]({src['url']}) | {src['status']} |")
+    out.append("")
+    return "\n".join(out)
+
+
+# ---- Reports ---------------------------------------------------------------
+
+
+def fmt(v):
+    return "  -" if v is None else f"{v:5.1f}"
+
+
+def cmd_report(as_json):
+    scores = compute_scores()
+    STATE.mkdir(parents=True, exist_ok=True)
+    (STATE / "scores.json").write_text(json.dumps(scores, indent=2) + "\n")
+    if as_json:
+        print(json.dumps(scores, indent=2))
+        return
+    print(f"{'agent':<18}{'confidence':>11}{'process':>9}{'output':>8}  samples (live+eval)  label")
+    for a in AGENTS:
+        r = scores["agents"][a]
+        n = r["samples"]
+        flag = " (provisional)" if r["provisional"] else ""
+        print(f"{a:<18}{fmt(r['confidence']):>11}{fmt(r['process']['score']):>9}{fmt(r['output']['score']):>8}  "
+              f"{n['live']:>4}+{n['eval']:<4}            {r['label'] or '-'}{flag}")
+    print("\nconfidence = process and output blended, pulled toward a prior when there is little evidence; "
+          "details: factory/bin/eval score <agent>")
+
+
+def cmd_score(agent):
+    if agent not in AGENTS:
+        die(f"unknown agent {agent!r} (known: {', '.join(AGENTS)})")
+    r = compute_scores()["agents"][agent]
+    print(f"{agent}: confidence {fmt(r['confidence']).strip()} ({r['label'] or 'no data'})"
+          f"{', provisional' if r['provisional'] else ''}; samples live {r['samples']['live']}, eval {r['samples']['eval']}")
+    print(f"role: {r['role']}")
+    for side, title in (("process", "process: how it works"), ("output", "output: how good it is")):
+        print(f"\n{title}  {fmt(r[side]['score']).strip()}")
+        for c in r[side]["criteria"]:
+            mark = "-" if c["score"] is None else f"{c['score']:5.1f}"
+            print(f"  {c['label']:<34}{mark:>6}  w{c['weight']:.2f} {c['kind']:<8}n={c['n']}")
+    for model, d in r["by_model"].items():
+        print(f"\nmodel {model}: {d['samples']} samples, confidence {fmt(d['confidence']).strip()}")
+    print("\ncriteria, sources and how each is measured: evals/criteria.json")
+
+
+def main(argv):
+    if not argv or argv[0] in {"-h", "--help"}:
+        print(__doc__.strip())
+    elif argv[0] == "report":
+        cmd_report("--json" in argv)
+    elif argv[0] == "score" and len(argv) == 2:
+        cmd_score(argv[1])
+    elif argv[0] == "cases":
+        for a, d in case_dirs(argv[1] if len(argv) > 1 else None):
+            case = json.loads((d / "case.json").read_text())
+            print(f"{a:<18}{d.name:<24}{case.get('description', '')}")
+    elif argv[0] == "prepare" and len(argv) in {3, 5}:
+        run_id = argv[4] if len(argv) == 5 and argv[3] == "--run" else None
+        cmd_prepare(argv[1], argv[2], run_id)
+    elif argv[0] == "check" and len(argv) == 2:
+        cmd_check(argv[1])
+    elif argv[0] == "judge-prep":
+        cmd_judge_prep(argv[1:])
+    elif argv[0] == "docs":
+        print(docs_markdown())
+    else:
+        die(f"bad arguments\n\n{__doc__.strip()}")
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])

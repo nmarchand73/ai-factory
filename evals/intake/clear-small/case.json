@@ -1,0 +1,29 @@
+{
+  "description": "A clear, small, contained request is accepted as low risk with no surface.",
+  "fixture": "mini-lib",
+  "expect": {
+    "files": {
+      "intake.md": {
+        "first_line": "DECISION: ACCEPT",
+        "headers": {
+          "RISK": [
+            "low"
+          ],
+          "SURFACES": [
+            "none"
+          ]
+        },
+        "sections": [
+          "Summary",
+          "Scope",
+          "Why"
+        ],
+        "section_contains": {
+          "Scope": [
+            "multiply"
+          ]
+        }
+      }
+    }
+  }
+}

@@ -69,5 +69,20 @@
         ".github/workflows/*"
       ]
     }
+  },
+  "evals": {
+    "weights": {
+      "process": 0.4,
+      "output": 0.6
+    },
+    "eval_case_weight": 2,
+    "window": 50,
+    "prior": 60,
+    "prior_strength": 4,
+    "min_samples": 3,
+    "thresholds": {
+      "trusted": 85,
+      "ok": 70
+    }
   }
 }

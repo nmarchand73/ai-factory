@@ -1,0 +1,11 @@
+{
+  "description": "A labeled form with an error state and a real button passes.",
+  "fixture": "mini-page",
+  "expect": {
+    "files": {
+      "round-1/review-ux.md": {
+        "first_line": "VERDICT: PASS"
+      }
+    }
+  }
+}

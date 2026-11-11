@@ -251,6 +251,45 @@
     display: flex; gap: 20px; flex-wrap: wrap;
   }
 
+  /* Agent confidence: one card per agent, two composite metrics behind the score */
+  #agents { padding: 6px 32px 0; }
+  .ag-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; cursor: pointer; padding: 6px 0; }
+  .ag-head h2 { margin: 0; font-size: 15px; font-weight: 650; }
+  .ag-head .sub { font-family: var(--mono); font-size: 11px; color: var(--faint); }
+  .ag-head .caret { color: var(--faint); transition: transform .15s; display: inline-block; }
+  #agents.closed .caret { transform: rotate(-90deg); }
+  #agents.closed .ag-grid, #agents.closed .ag-legend { display: none; }
+  .ag-legend { font-family: var(--mono); font-size: 11px; color: var(--muted); margin: 2px 0 10px; line-height: 1.6; }
+  .ag-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; padding-bottom: 6px; align-items: start; }
+  .acard {
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; cursor: pointer;
+  }
+  .acard:hover { background: var(--card-hover); }
+  .ag-top { display: flex; align-items: center; gap: 10px; }
+  .ag-name { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+  .ag-score { margin-left: auto; font-size: 26px; font-weight: 650; line-height: 1; font-variant-numeric: tabular-nums; }
+  .ag-score.pass { color: var(--pass); } .ag-score.active { color: var(--active); }
+  .ag-score.changes { color: var(--changes); } .ag-score.none { color: var(--faint); font-size: 14px; }
+  .ag-tags { display: flex; gap: 6px; margin: 6px 0 8px; font-family: var(--mono); font-size: 10.5px; color: var(--faint); flex-wrap: wrap; }
+  .ag-tag { border: 1px solid var(--line); border-radius: 99px; padding: 0 7px; }
+  .ag-tag.pass { color: var(--pass); border-color: color-mix(in srgb, var(--pass) 45%, transparent); }
+  .ag-tag.active { color: var(--active); border-color: color-mix(in srgb, var(--active) 45%, transparent); }
+  .ag-tag.changes { color: var(--changes); border-color: color-mix(in srgb, var(--changes) 45%, transparent); }
+  .ag-bar { display: grid; grid-template-columns: 54px 1fr 34px; gap: 8px; align-items: center; font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .ag-bar .track { height: 6px; border-radius: 99px; background: var(--line); overflow: hidden; }
+  .ag-bar .fill { display: block; height: 100%; border-radius: 99px; background: var(--active); }
+  .ag-bar .fill.pass { background: var(--pass); } .ag-bar .fill.changes { background: var(--changes); } .ag-bar .fill.bad { background: var(--human); }
+  .ag-bar b { color: var(--text); font-weight: 600; text-align: right; }
+  .ag-detail { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line); }
+  .ag-detail h4 { margin: 8px 0 2px; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  .acard.open { grid-column: span 2; }
+  .ag-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 22px; }
+  .ag-detail .ag-bar { grid-template-columns: 150px 1fr 28px; }
+  .ag-detail .ag-bar em { font-style: normal; color: var(--faint); font-size: 9.5px; margin-left: 4px; }
+  .ag-detail .ag-bar.na { opacity: .55; }
+  .ag-note { font-family: var(--mono); font-size: 10.5px; color: var(--faint); margin-top: 6px; line-height: 1.5; }
+  .ag-empty { font-family: var(--mono); font-size: 12px; color: var(--faint); padding: 4px 0 10px; }
+
   /* Swimlanes: one band per project, columns named once in a sticky row */
   .filters { display: flex; flex-wrap: wrap; gap: 8px; padding: 6px 32px 0; }
   .fchip {
@@ -308,7 +347,8 @@
     header { padding: 20px 16px 4px; }
     .banner { margin: 12px 16px 0; }
     .board { grid-template-columns: 1fr; padding: 16px 16px 32px; }
-    .filters, .lane-head, .lane-empty, .cost { padding-left: 16px; padding-right: 16px; }
+    .filters, .lane-head, .lane-empty, .cost, #agents { padding-left: 16px; padding-right: 16px; }
+    .acard.open { grid-column: auto; } .ag-cols { grid-template-columns: 1fr; }
     footer { padding: 0 16px 24px; }
     .d-head { padding: 16px; }
     .d-body { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
@@ -332,6 +372,7 @@
   </div>
 </header>
 <div id="banner"></div>
+<section id="agents" aria-label="Agent confidence"></section>
 <div class="filters" id="filters"></div>
 <div class="colhead" id="colhead"></div>
 <main id="lanes"></main>
@@ -390,6 +431,9 @@ const store = {
 let closedLanes = new Set(store.get('closed', []))
 let onlyLane = store.get('only', null)
 let showAllDone = new Set(store.get('allDone', []))
+let scores = null // evals/scores.json: the confidence of every agent
+let openAgents = new Set(store.get('openAgents', []))
+let agentsClosed = store.get('agentsClosed', false)
 let notifyOn = store.get('notify', false) && typeof Notification !== 'undefined' && Notification.permission === 'granted'
 let knownHuman = null // ids of the jobs that needed a human at the last poll (null before the first poll)
 const roundCache = new Map() // "<job>/<n>" -> verdicts of a finished round
@@ -495,6 +539,91 @@ function card(job, rounds) {
         : job.pr ? `merge PR #${job.pr} to approve<br>` : ''}or give feedback: /factory &lt;anything&gt;</div>` : ''}
     </article>`
 }
+
+// ---- Agent confidence --------------------------------------------------------
+const AGENT_ORDER = ['intake', 'spec-writer', 'builder', 'reviewer-code', 'reviewer-ux', 'reviewer-ui', 'reviewer-security', 'approver']
+const nice = (k) => k.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase())
+const labelTone = (l) => l === 'trusted' ? 'pass' : l === 'ok' ? 'active' : l === 'watch' ? 'changes' : ''
+const barTone = (v) => v >= 85 ? 'pass' : v >= 70 ? '' : v >= 50 ? 'changes' : 'bad'
+const bar = (label, v, help) => v == null ? '' :
+  `<div class="ag-bar" title="${esc(help || '')}"><span>${esc(label)}</span><span class="track"><i class="fill ${barTone(v)}" style="width:${Math.max(2, Math.min(100, v))}%"></i></span><b>${Math.round(v)}</b></div>`
+const KIND = { rule: 'rule', outcome: 'outcome', judge: 'judge' }
+function critRow(c) {
+  const src = (c.sources || []).map((id) => (scores.sources?.[id]?.title || id)).join('; ')
+  const help = `${c.description}\nMeasured: ${c.measure}\nWeight ${c.weight} · ${c.kind} · ${c.basis === 'source' ? 'based on: ' + (src || 'a source') : 'inference (no source)'}\n${c.n} sample${c.n === 1 ? '' : 's'}`
+  const v = c.score
+  return `<div class="ag-bar ${v == null ? 'na' : ''}" title="${esc(help)}"><span>${esc(c.label)} <em>${KIND[c.kind] || c.kind}${c.basis === 'source' ? ' ·src' : ''}</em></span>` +
+    `<span class="track">${v == null ? '' : `<i class="fill ${barTone(v)}" style="width:${Math.max(2, Math.min(100, v))}%"></i>`}</span><b>${v == null ? '–' : Math.round(v)}</b></div>`
+}
+
+function agentCard(name, a) {
+  const open = openAgents.has(name)
+  const tone = labelTone(a.label)
+  const n = a.samples || { live: 0, eval: 0 }
+  const metrics = (kind) => (a[kind].criteria || []).map(critRow).join('')
+  const models = Object.entries(a.by_model || {}).map(([m, d]) => `${esc(m.replace('claude-', ''))} ${d.confidence == null ? '-' : Math.round(d.confidence)} (${d.samples})`).join(' · ')
+  const detail = open ? `
+    <div class="ag-detail">
+      <div class="ag-note">${esc(a.role || '')}</div>
+      <div class="ag-cols"><div><h4>Process · how it works</h4>${metrics('process')}</div>
+      <div><h4>Output · how good it is</h4>${metrics('output')}</div></div>
+      <div class="ag-note">– = no evidence yet · judge criteria need a verdict (/factory eval) · hover a row for its definition, measure and sources</div>
+      ${models ? `<div class="ag-note">by model: ${models}</div>` : ''}
+    </div>` : ''
+  return `
+    <article class="acard ${open ? 'open' : ''}" data-agent="${esc(name)}" tabindex="0" aria-expanded="${open}">
+      <div class="ag-top">
+        <span class="ag-name">${esc(name)}</span>
+        <span class="ag-score ${a.confidence == null ? 'none' : tone}">${a.confidence == null ? 'no data' : Math.round(a.confidence)}</span>
+      </div>
+      <div class="ag-tags">
+        ${a.label ? `<span class="ag-tag ${tone}">${esc(a.label)}</span>` : ''}
+        ${a.provisional && a.confidence != null ? '<span class="ag-tag">provisional</span>' : ''}
+        <span>${n.live} live · ${n.eval} eval</span>
+      </div>
+      ${bar('Process', a.process.score, 'how the agent works')}
+      ${bar('Output', a.output.score, 'how good what it produced is')}
+      ${detail}
+    </article>`
+}
+
+let lastAgents = ''
+function renderAgents() {
+  const el = $('agents')
+  let html
+  if (!scores || !scores.agents) {
+    html = '<div class="ag-head"><span class="caret">▾</span><h2>Agent confidence</h2></div>' +
+      '<div class="ag-empty">No scores yet. Run <code>factory/bin/eval report</code> (it also runs at the end of /factory run).</div>'
+  } else {
+    const w = scores.settings?.weights || { process: 0.4, output: 0.6 }
+    const t = scores.settings?.thresholds || { trusted: 85, ok: 70 }
+    html = `<div class="ag-head" data-agents-toggle><span class="caret">▾</span><h2>Agent confidence</h2>
+        <span class="sub">process ${Math.round(w.process * 100)}% + output ${Math.round(w.output * 100)}% · trusted ≥ ${t.trusted}, ok ≥ ${t.ok} · updated ${esc((scores.updated || '').slice(11, 16))} UTC</span></div>
+      <div class="ag-legend">Process = how an agent works. Output = how good its work is. Each agent is judged on criteria written for its own assignment (open a card; hover a row for its definition, how it is measured and its sources). Little evidence pulls the score toward a neutral value, so a new agent is “provisional”.</div>
+      <div class="ag-grid">${AGENT_ORDER.filter((a) => scores.agents[a]).map((a) => agentCard(a, scores.agents[a])).join('')}</div>`
+  }
+  const key = html + agentsClosed
+  if (key !== lastAgents) {
+    lastAgents = key
+    el.className = agentsClosed ? 'closed' : ''
+    el.innerHTML = html
+  }
+}
+
+document.addEventListener('click', (e) => {
+  if (e.target.closest('[data-agents-toggle]')) {
+    agentsClosed = !agentsClosed; store.set('agentsClosed', agentsClosed); lastAgents = ''; renderAgents(); return
+  }
+  const card = e.target.closest('.acard')
+  if (card) {
+    const n = card.dataset.agent
+    openAgents.has(n) ? openAgents.delete(n) : openAgents.add(n)
+    store.set('openAgents', [...openAgents]); lastAgents = ''; renderAgents()
+  }
+})
+document.addEventListener('keydown', (e) => {
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.acard')) { e.preventDefault(); e.target.click() }
+})
 
 function columnHead(c) {
   return `<div class="col-head ${c.cls || ''}"><h2>${c.label}</h2><span class="who">${c.who}</span></div>`
@@ -690,6 +819,8 @@ async function poll() {
     jobs = await loadJobs()
     try { targets = JSON.parse(await fetchText('config.json')).targets || {} } catch { /* lanes then come from the jobs alone */ }
     try { overhead = Number(JSON.parse(await fetchText('jobs/_orchestration.json')).outside_jobs_usd) || 0 } catch { overhead = 0 }
+    try { scores = JSON.parse(await fetchText('evals/scores.json')) } catch { scores = null }
+    renderAgents()
     await render()
     if (openJobId) await refreshDrawer()
     status.className = 'status'

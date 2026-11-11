@@ -1,0 +1,14 @@
+{
+  "description": "A form with no label, no error state and a clickable div is sent back.",
+  "fixture": "mini-page",
+  "expect": {
+    "files": {
+      "round-1/review-ux.md": {
+        "first_line": "VERDICT: CHANGES",
+        "contains": [
+          "label"
+        ]
+      }
+    }
+  }
+}

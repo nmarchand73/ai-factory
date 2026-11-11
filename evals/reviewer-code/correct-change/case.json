@@ -1,0 +1,15 @@
+{
+  "description": "A correct, tested change passes.",
+  "fixture": "mini-lib",
+  "expect": {
+    "files": {
+      "round-1/review-code.md": {
+        "first_line": "VERDICT: PASS",
+        "sections": [
+          "Summary",
+          "Findings"
+        ]
+      }
+    }
+  }
+}

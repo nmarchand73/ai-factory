@@ -1,0 +1,14 @@
+{
+  "description": "A request that has nothing to do with the project is rejected with a reason.",
+  "fixture": "mini-lib",
+  "expect": {
+    "files": {
+      "intake.md": {
+        "first_line": "DECISION: REJECT",
+        "sections": [
+          "Why"
+        ]
+      }
+    }
+  }
+}

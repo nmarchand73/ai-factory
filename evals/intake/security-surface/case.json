@@ -1,0 +1,22 @@
+{
+  "description": "A change that builds SQL from input is flagged with the security surface.",
+  "fixture": "mini-lib",
+  "expect": {
+    "files": {
+      "intake.md": {
+        "first_line": "DECISION: (ACCEPT|NEEDS-INFO)",
+        "headers": {
+          "SURFACES": [
+            "security",
+            "ui, security",
+            "security, ui"
+          ],
+          "RISK": [
+            "medium",
+            "high"
+          ]
+        }
+      }
+    }
+  }
+}

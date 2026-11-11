@@ -30,6 +30,31 @@ every project's queue (`concurrency` jobs at a time, shared), `/factory run <pro
 - the tab title shows how many jobs need you, and an optional browser notification fires when one starts waiting;
 - the Done column shows the latest 5 jobs per project (the cost still counts all of them).
 
+## Agent evals and confidence
+
+Every agent has a confidence score (0-100) built from two composite metrics:
+
+- **process**, how it works;
+- **output**, how good what it produces is.
+
+The criteria are written for each agent's own assignment, not shared: an intake is judged on looking at the code
+before deciding, on treating the issue as data and on asking little; a builder on running the checks and never
+weakening a test; a security reviewer on tracing input to sinks and on findings that give vector, fix and CWE; an
+approver on re-reading the evidence and on naming the escalation triggers it checked. Each criterion is a rule on the
+transcript or the file, an outcome of the real job, or a score from the `eval-judge` agent, and says whether it rests
+on a source or on our own reasoning. They come from a research pass (Anthropic's agent-eval guidance, OWASP, DORA,
+Google's review guide, NN/g, WCAG, METR and others); see `docs/EVALS.md` and `evals/criteria.json`.
+
+Evidence comes from live jobs (free: job files and transcripts) and from eval cases, 21 replayable situations in
+`evals/` (at least one per agent). Little evidence pulls a score toward a neutral value, so a new agent shows as
+*provisional*.
+
+```bash
+factory/bin/eval report            # confidence of every agent; also fills the dashboard's Agents panel
+factory/bin/eval score builder     # every metric of one agent
+> /factory eval builder            # in Claude Code: replay an agent's cases, score them, call the judge
+```
+
 ## Models and settings
 
 `factory/config.json`: `concurrency`, `max_rounds`, reviewer models per risk (`routing`) and per surface
@@ -46,13 +71,14 @@ running at the time (use a session dedicated to the factory).
 ## Documentation
 
 Full manual (English and French, interactive): `docs/manuel-factory.html`.
-Tests: `python3 -m unittest tests/test_factory.py`.
+Tests: `python3 -m unittest tests/test_factory.py tests/test_eval.py`.
 
 ## Layout
 
 ```
 .claude/skills/factory, .claude/agents   the orchestrator and the 8 agents (a single copy)
-factory/                                  config.json, bin/{job,gate,route,target}, dashboard.html
+factory/                                  config.json, bin/{job,gate,route,target,eval}, dashboard.html
+evals/                                    eval cases, fixtures and judge rubrics per agent
 targets/<name>/checks.sh, notes.md        per-project checks and guidance (committed)
 targets/<name>/repo                       local clone of the project (gitignored)
 workspaces/<name>/<job>                   job worktrees (gitignored)

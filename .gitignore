@@ -5,3 +5,4 @@ node_modules/
 /factory/config.lock
 /factory/config.tmp
 __pycache__/
+/factory/evals/

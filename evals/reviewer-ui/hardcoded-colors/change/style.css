@@ -1,0 +1,12 @@
+:root {
+  --color-bg: #ffffff;
+  --color-text: #1d1b18;
+  --color-accent: #5b3fd1;
+  --space: 16px;
+}
+body { margin: 0; background: var(--color-bg); color: var(--color-text); font: 16px system-ui, sans-serif; }
+main { max-width: 640px; margin: 0 auto; padding: var(--space); }
+a, button { color: var(--color-accent); }
+
+form { background: #f4eefc; padding: 13px; }
+button { background: #ff00aa; color: #ffffff; }

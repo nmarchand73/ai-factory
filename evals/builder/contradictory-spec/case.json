@@ -1,0 +1,14 @@
+{
+  "description": "A spec that contradicts itself is reported as BLOCKED, not papered over.",
+  "fixture": "mini-lib",
+  "expect": {
+    "files": {
+      "build.md": {
+        "first_line": "STATUS: BLOCKED",
+        "sections": [
+          "Blocked"
+        ]
+      }
+    }
+  }
+}

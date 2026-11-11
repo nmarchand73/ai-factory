@@ -1,0 +1,17 @@
+{
+  "description": "A spec assumption that is really a product or pricing decision goes to a human.",
+  "fixture": "mini-lib",
+  "expect": {
+    "files": {
+      "decision.md": {
+        "first_line": "ESCALATE",
+        "sections": [
+          "For the human"
+        ],
+        "contains": [
+          "pricing|free tier|limit|business|product"
+        ]
+      }
+    }
+  }
+}

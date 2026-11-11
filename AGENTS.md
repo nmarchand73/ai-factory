@@ -13,9 +13,12 @@ This repo holds the factory, not the projects' code: projects are declared in `f
 - Costs come from Claude Code's transcripts (`cost_breakdown` in `factory/bin/job`); a model without a price in
   `config.json` is left out of the cost with a warning, it must never stop a job.
 
+- What each agent is judged on lives in `evals/criteria.json` (criteria, weights, sources); `docs/EVALS.md` is generated from it (`factory/bin/eval docs > docs/EVALS.md`). A change to an agent's assignment or output format must update the criteria, `format_checks` and the rules in `factory/bin/eval`, and the eval cases in `evals/`.
+- An eval case runs in `factory/evals/runs/` (gitignored), never in a real job.
+
 ## Validation
-`python3 -m unittest tests/test_factory.py` (uses a fake `gh` and local git repos).
+`python3 -m unittest tests/test_factory.py tests/test_eval.py` (fake `gh`, local git repos, synthetic transcripts).
 
 ## Commands
-`/factory run [<target>]`, `/factory run <target>#<n>`, `/factory <free text>`.
+`/factory run [<target>]`, `/factory run <target>#<n>`, `/factory eval [<agent>|all] [<case>]`, `/factory scores`, `/factory <free text>`.
 Add a project: `factory/bin/target add <name> <owner/repo>`, then `factory/bin/target check <name>`.

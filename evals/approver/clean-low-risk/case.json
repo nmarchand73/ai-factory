@@ -1,0 +1,16 @@
+{
+  "description": "A small, fully verified, low-risk change is approved.",
+  "fixture": "mini-lib",
+  "expect": {
+    "files": {
+      "decision.md": {
+        "first_line": "APPROVE",
+        "sections": [
+          "Summary",
+          "Why",
+          "Acceptance criteria"
+        ]
+      }
+    }
+  }
+}

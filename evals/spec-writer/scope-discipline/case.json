@@ -1,0 +1,27 @@
+{
+  "description": "What intake left out stays out: it appears under Out of scope, not in the requirements.",
+  "fixture": "mini-lib",
+  "expect": {
+    "files": {
+      "spec.md": {
+        "sections": [
+          "Out of scope"
+        ],
+        "contains": [
+          "RangeError"
+        ],
+        "section_contains": {
+          "Out of scope": [
+            "power|modulo|README"
+          ]
+        },
+        "section_not_contains": {
+          "Requirements": [
+            "modulo",
+            "power"
+          ]
+        }
+      }
+    }
+  }
+}

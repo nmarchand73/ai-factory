@@ -1,0 +1,14 @@
+{
+  "description": "Hard-coded colors and spacing instead of the design tokens are sent back.",
+  "fixture": "mini-page",
+  "expect": {
+    "files": {
+      "round-1/review-ui.md": {
+        "first_line": "VERDICT: CHANGES",
+        "contains": [
+          "token|variable|--color|--space"
+        ]
+      }
+    }
+  }
+}

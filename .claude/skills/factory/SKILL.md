@@ -1,6 +1,6 @@
 ---
 name: factory
-description: Run the software factory on GitHub issues. Use when the user types /factory run, /factory run <target>, /factory run <target>#<n>, or /factory followed by anything else (a question, feedback on a job, or a new feature). The session that runs it becomes the one orchestrator for every job.
+description: Run the software factory on GitHub issues. Use when the user types /factory run, /factory run <target>, /factory run <target>#<n>, /factory eval, /factory scores, or /factory followed by anything else (a question, feedback on a job, or a new feature). The session that runs it becomes the one orchestrator for every job.
 ---
 
 # Factory
@@ -18,6 +18,8 @@ tell the user; never work around it.
 /factory run <target>        the same, for one target
 /factory run <target>#<n>    run one issue of a target now (a bare <n> is fine when there is one target)
 /factory <anything>   talk to the factory: ask about jobs, give feedback, file a feature
+/factory eval [<agent>|all] [<case>]   replay the eval cases of an agent and score the runs
+/factory scores       the confidence score of every agent
 ```
 
 ## The pipeline
@@ -181,6 +183,8 @@ then moves the job to `merged`; stop any agents still running for it.
    review, each with its URL (`pr_url` in `job.json`) so the user can merge it
    in one click (merge one to approve it, or give feedback with `/factory`),
    and questions waiting on authors, each with its issue URL (`issue_url` in `job.json`).
+   Then run `factory/bin/eval report`: it prints the confidence score of every
+   agent and refreshes the dashboard's Agents panel.
 
 **Resuming.** State lives in files, so a new session picks up where a dead one
 stopped. For a `resume` job, run its stage's step again: `intake` and `spec`
@@ -196,6 +200,42 @@ as `resume`: run `factory/bin/job advance <id> intake` and go to **intake**.
 Run one issue with the same steps. If `factory/bin/job queue <target>` shows a job for
 it, resume that job; otherwise `factory/bin/job create <target> <n>`. Finish with the
 summary line for that job.
+
+## /factory eval
+
+Evals replay each agent against known situations (`evals/<agent>/<case>/`) and
+score the result. They cost tokens, so run them only when asked. Each case runs
+in its own scratch folder under `factory/evals/runs/`, never in a real job.
+
+`/factory eval` with no argument, or `all`, runs every case; `<agent>` runs
+that agent's cases; `<agent> <case>` runs one. List them with
+`factory/bin/eval cases [<agent>]`. Use one run id for the whole request
+(`--run <id>`, for example today's date and time). Cases are independent: run
+up to `concurrency` of them at once. For each case:
+
+1. `factory/bin/eval prepare <agent> <case> --run <id>` prints JSON with
+   `run_dir` and `prompt`. Don't edit the case's files.
+2. Spawn the agent in the background with `subagent_type` set to its name and
+   the `prompt` from the JSON **verbatim** (it already starts with the job
+   header). Pass no `model` unless the user asked to compare a model.
+3. When it returns, run `factory/bin/eval check <run_dir>`. It prints PASS or
+   FAIL with the expectations that failed, writes `result.json`, and records
+   the process metrics from the agent's transcript.
+4. Unless the user said to skip the judge: `factory/bin/eval judge-prep
+   --run-dir <run_dir>` prints JSON with `prompt`; spawn `eval-judge` with it
+   verbatim. It writes `judge.json` in the run folder.
+
+When every case is done, run `factory/bin/eval report` and show the table:
+the case results (PASS or FAIL per case) and the new confidence scores. Say
+which cases failed and why in one line each. To judge an agent's work in a
+real job instead, use `factory/bin/eval judge-prep --job <id> --agent <agent>`
+and spawn `eval-judge` the same way.
+
+## /factory scores
+
+Run `factory/bin/eval report` and show the table. For one agent, run
+`factory/bin/eval score <agent>` to show each process and output metric.
+Explain a low score from those metrics, not from guesses.
 
 ## /factory <anything>
 
