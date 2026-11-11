@@ -178,8 +178,9 @@ then moves the job to `merged`; stop any agents still running for it.
    `resume` lines you aren't already running and its `new` lines.
 4. When nothing is queued or running, print `factory/bin/job summary <ids>`
    for the jobs this run touched, then list what waits on a human: PRs to
-   review (merge one to approve it, or give feedback with `/factory`) and
-   questions waiting on authors.
+   review, each with its URL (`pr_url` in `job.json`) so the user can merge it
+   in one click (merge one to approve it, or give feedback with `/factory`),
+   and questions waiting on authors, each with its issue URL (`issue_url` in `job.json`).
 
 **Resuming.** State lives in files, so a new session picks up where a dead one
 stopped. For a `resume` job, run its stage's step again: `intake` and `spec`

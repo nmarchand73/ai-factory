@@ -283,6 +283,29 @@ class Factory(unittest.TestCase):
         self.assertIn("orchestration while no job was running", out)
         self.assertRegex(out, r"Orchestr\.\s+\$")
 
+    def test_queue_gives_the_pr_url_for_a_job_that_needs_a_human(self):
+        self.add_issue("me/alpha", 13, "Needs me")
+        job_id = self.bin("job", "create", "alpha", "13").stdout.strip()
+        path = self.root / "factory" / "jobs" / job_id / "job.json"
+        job = json.loads(path.read_text())
+        job.update(stage="needs-human", pr=21, pr_url="https://github.com/me/alpha/pull/21")
+        path.write_text(json.dumps(job))
+        st = self.gh_state()
+        st.setdefault("prs", {}).setdefault("me/alpha", {})["21"] = {"head": job["branch"], "state": "OPEN"}
+        self.state.write_text(json.dumps(st))
+        out = self.bin("job", "queue", "alpha").stdout
+        self.assertIn("merge https://github.com/me/alpha/pull/21, or give feedback", out)
+
+    def test_queue_gives_the_issue_url_for_a_job_waiting_for_its_author(self):
+        self.add_issue("me/alpha", 14, "Question")
+        job_id = self.bin("job", "create", "alpha", "14").stdout.strip()
+        path = self.root / "factory" / "jobs" / job_id / "job.json"
+        job = json.loads(path.read_text())
+        job["stage"] = "needs-info"
+        path.write_text(json.dumps(job))
+        out = self.bin("job", "queue", "alpha").stdout
+        self.assertIn("waiting for the author: https://github.com/me/alpha/issues/14", out)
+
     def test_unknown_target_is_refused(self):
         res = self.bin("job", "create", "nope", "1", ok=False)
         self.assertNotEqual(res.returncode, 0)
