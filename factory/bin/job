@@ -15,7 +15,7 @@ Usage:
   job reject <job>               needs-info or needs-human → rejected, with your reason (stdin) as rejection.md
   job agents <job> <json>        record the routed agent set (called by factory/bin/route)
   job sync <job>                 refresh reviews, gate and cost from the job's files
-  job summary [<job>...]         table of jobs: issue, stage, PR, cost, time
+  job summary [<job>...]         table of jobs (issue, stage, PR, cost, time) and the cost per project, step and agent
 
 <job> is a job id (004-dark-mode), `<target>#<issue>` (notes#12), or a bare
 issue number (12) when the factory has a single target.
@@ -301,17 +301,145 @@ def prompt_text(line):
     return " ".join(b.get("text", "") for b in content if isinstance(b, dict))
 
 
-def cost_usd(job):
+_unpriced = set()
+
+
+def agent_type(path):
+    """The agent that wrote a transcript, from the agent-<id>.meta.json Claude Code writes beside it."""
+    try:
+        return json.loads(path.with_name(path.stem + ".meta.json").read_text()).get("agentType") or "unknown"
+    except (OSError, ValueError):
+        return "unknown"
+
+
+def usage_cost(model, u):
+    """Dollars for one message's token usage, or None when the model has no price."""
+    prices = CONFIG["prices_usd_per_mtok"]
+    if model not in prices:
+        # A model without a price must not stop the factory: leave it out of the cost and say so.
+        if model not in _unpriced:
+            _unpriced.add(model)
+            print(f"job: no price for model {model} in factory/config.json prices_usd_per_mtok; "
+                  "its tokens are left out of the cost", file=sys.stderr)
+        return None
+    p = prices[model]
+    split = u.get("cache_creation") or {}
+    write_1h = split.get("ephemeral_1h_input_tokens", 0)
+    write_5m = u.get("cache_creation_input_tokens", 0) - write_1h
+    return (u.get("input_tokens", 0) * p["input"]
+            + u.get("output_tokens", 0) * p["output"]
+            + write_5m * p["cache_write_5m"]
+            + write_1h * p["cache_write_1h"]
+            + u.get("cache_read_input_tokens", 0) * p["cache_read"]) / 1e6
+
+
+def parse_ts(text):
+    return datetime.fromisoformat(text.replace("Z", "+00:00"))
+
+
+def starts_factory(entry):
+    """True for the session line where /factory is first used (the skill tool, or the slash command)."""
+    msg = entry.get("message")
+    content = msg.get("content") if isinstance(msg, dict) else None
+    if isinstance(content, str):
+        return "<command-name>/factory" in content or "<command-name>factory" in content
+    if isinstance(content, list):
+        for block in content:
+            if not isinstance(block, dict):
+                continue
+            if block.get("type") == "tool_use" and block.get("name") == "Skill" \
+                    and (block.get("input") or {}).get("skill") == "factory":
+                return True
+            if block.get("type") == "text" and ("<command-name>/factory" in block.get("text", "")
+                                                 or "<command-name>factory" in block.get("text", "")):
+                return True
+    return False
+
+
+def orchestration_events():
+    """(time, dollars) of every orchestrator message sent after /factory was first used in a session.
+
+    The orchestrator is the Claude Code session that runs /factory; its own tokens are in the
+    session transcript <config>/projects/<project>/<session>.jsonl, not in the sub-agents' files.
+    Anything else done in that session after /factory counts too, so use a session for the factory."""
+    events = []
+    for path in sorted(transcripts_dir().glob("*.jsonl")):
+        started, seen = False, set()
+        with path.open() as f:
+            for line in f:
+                if not started and "factory" not in line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                except ValueError:
+                    continue
+                if not started:
+                    started = starts_factory(entry)
+                    if not started:
+                        continue
+                msg = entry.get("message")
+                if entry.get("type") != "assistant" or not isinstance(msg, dict) or not msg.get("usage"):
+                    continue
+                if msg.get("id") in seen or not entry.get("timestamp"):
+                    continue
+                seen.add(msg.get("id"))
+                usd = usage_cost(msg.get("model", ""), msg["usage"])
+                if usd:
+                    events.append((parse_ts(entry["timestamp"]), usd))
+    return sorted(events)
+
+
+def job_windows():
+    """(job id, start, end or None) of every job, read straight from job.json (no locks)."""
+    out = []
+    if JOBS.exists():
+        for d in sorted(JOBS.iterdir()):
+            try:
+                j = json.loads((d / "job.json").read_text())
+                out.append((j["id"], parse_ts(j["started"]), parse_ts(j["ended"]) if j.get("ended") else None))
+            except (OSError, ValueError, KeyError):
+                continue
+    return out
+
+
+_orchestration = None
+
+
+def orchestration_costs():
+    """({job id: dollars}, dollars outside every job) for the orchestrator's own tokens.
+
+    A message is split equally between the jobs running when it was sent (one that is
+    waiting on a human or an author is not running); one sent while no job runs is overhead."""
+    global _orchestration
+    if _orchestration is None:
+        windows = job_windows()
+        shares, overhead = {}, 0.0
+        for t, usd in orchestration_events():
+            active = [w[0] for w in windows if w[1] <= t and (w[2] is None or t <= w[2])]
+            if not active:
+                overhead += usd
+                continue
+            for jid in active:
+                shares[jid] = shares.get(jid, 0.0) + usd / len(active)
+        _orchestration = (shares, overhead)
+        if JOBS.exists():
+            (JOBS / "_orchestration.json").write_text(json.dumps(
+                {"outside_jobs_usd": round(overhead, 4), "updated": now()}, indent=2) + "\n")
+    return _orchestration
+
+
+def cost_breakdown(job):
     """API-equivalent cost of every subagent whose prompt names this job's folder.
 
-    Claude Code writes each subagent's messages, with model and token usage, to
-    <config>/projects/<project>/<session>/subagents/agent-<id>.jsonl. Every
-    factory prompt starts with `Job folder: <path>`, which ties a transcript to
-    its job across sessions.
+    Returns (total, {agent type: cost}) in dollars. Claude Code writes each
+    subagent's messages, with model and token usage, to
+    <config>/projects/<project>/<session>/subagents/agent-<id>.jsonl, and the
+    agent's type to agent-<id>.meta.json. Every factory prompt starts with
+    `Job folder: <path>`, which ties a transcript to its job across sessions.
+    The orchestrator's own tokens are added under "orchestrator" (see orchestration_costs).
     """
     needle = f"Job folder: {job_dir(job['id'])}/"
-    prices = CONFIG["prices_usd_per_mtok"]
-    total = 0.0
+    by_agent = {}
     for path in transcripts_dir().glob("*/subagents/agent-*.jsonl"):
         with path.open() as f:
             first = f.readline()
@@ -323,23 +451,18 @@ def cost_usd(job):
                 msg = entry.get("message")
                 if entry.get("type") == "assistant" and isinstance(msg, dict) and msg.get("usage"):
                     usage_by_message[msg["id"]] = (msg["model"], msg["usage"])
+        agent = agent_type(path)
         for model, u in usage_by_message.values():
             tokens = (u.get("input_tokens", 0) + u.get("output_tokens", 0)
                       + u.get("cache_creation_input_tokens", 0) + u.get("cache_read_input_tokens", 0))
-            if tokens == 0:
-                continue
-            if model not in prices:
-                die(f"no price for model {model} in factory/config.json prices_usd_per_mtok")
-            p = prices[model]
-            split = u.get("cache_creation") or {}
-            write_1h = split.get("ephemeral_1h_input_tokens", 0)
-            write_5m = u.get("cache_creation_input_tokens", 0) - write_1h
-            total += (u.get("input_tokens", 0) * p["input"]
-                      + u.get("output_tokens", 0) * p["output"]
-                      + write_5m * p["cache_write_5m"]
-                      + write_1h * p["cache_write_1h"]
-                      + u.get("cache_read_input_tokens", 0) * p["cache_read"]) / 1e6
-    return round(total, 2)
+            usd = usage_cost(model, u) if tokens else None
+            if usd:
+                by_agent[agent] = by_agent.get(agent, 0.0) + usd
+    share = orchestration_costs()[0].get(job["id"], 0.0)
+    if share:
+        by_agent["orchestrator"] = share
+    by_agent = {a: round(c, 4) for a, c in sorted(by_agent.items())}
+    return round(sum(by_agent.values()), 4), by_agent
 
 
 # ---- Sync: fields derived from files ---------------------------------------
@@ -367,7 +490,7 @@ def sync(job):
                 line = first_line(rd / f"review-{r}.md")
                 m = re.fullmatch(r"VERDICT:\s*(PASS|CHANGES)", line or "")
                 job["reviews"][r] = m.group(1) if m else ("pending" if line is None else "invalid")
-    job["cost_usd"] = cost_usd(job)
+    job["cost_usd"], job["cost_by_agent"] = cost_breakdown(job)
     return job
 
 
@@ -590,7 +713,7 @@ def cmd_create(target, number):
         "worktree": str(ROOT / "workspaces" / target / job_id),
         "stage": "intake", "round": 0, "round_limit": CONFIG["max_rounds"],
         "intake": None, "agents": None, "gate": None, "reviews": {},
-        "cost_usd": 0.0, "started": now(), "ended": None,
+        "cost_usd": 0.0, "cost_by_agent": {}, "started": now(), "ended": None,
     }
     write_issue_md(job)
     save(job)
@@ -742,6 +865,58 @@ def elapsed(job):
     return f"{minutes // 60}h{minutes % 60:02d}m" if minutes >= 60 else f"{minutes}m"
 
 
+COST_STEPS = [("intake", "Intake"), ("spec", "Spec"), ("build", "Build"), ("review", "Review"),
+              ("approve", "Approve"), ("orchestration", "Orchestr."), ("other", "Other")]
+STEP_OF_AGENT = {"intake": "intake", "spec-writer": "spec", "builder": "build", "approver": "approve",
+                 "orchestrator": "orchestration"}
+
+
+def money(c):
+    return f"${c:.3f}" if 0 < c < 0.01 else f"${c:.2f}"
+
+
+def cost_by_project(jobs):
+    """{target: {"total": usd, "jobs": n, "steps": {step: {"total": usd, "agents": {agent: usd}}}}}.
+
+    Same spread as the dashboard: a job's cost goes to the step of the agent that spent it, and
+    a job without per-agent figures (older jobs) goes under "other"."""
+    out = {}
+    for j in jobs:
+        p = out.setdefault(j["target"], {"total": 0.0, "jobs": 0, "steps": {}})
+        p["jobs"] += 1
+        p["total"] += j["cost_usd"]
+        by = dict(j.get("cost_by_agent") or {})
+        rest = j["cost_usd"] - sum(by.values())
+        if rest > 0.0005:
+            by["unattributed"] = rest
+        for agent, usd in by.items():
+            step = "review" if agent.startswith("reviewer-") else STEP_OF_AGENT.get(agent, "other")
+            st = p["steps"].setdefault(step, {"total": 0.0, "agents": {}})
+            st["total"] += usd
+            st["agents"][agent] = st["agents"].get(agent, 0.0) + usd
+    return out
+
+
+def print_cost_by_project(jobs):
+    spread = cost_by_project(jobs)
+    if not spread:
+        return
+    print("\ncost by project, step and agent (API-equivalent; Orchestr. = the /factory session, "
+          "split between the jobs running at the time):")
+    for target, p in sorted(spread.items()):
+        print(f"{target}  {money(p['total'])}  ({p['jobs']} job{'s' if p['jobs'] != 1 else ''})")
+        for step, label in COST_STEPS:
+            st = p["steps"].get(step)
+            if not st:
+                continue
+            agents = " · ".join(f"{a.removeprefix('reviewer-')} {money(c)[1:]}"
+                                for a, c in sorted(st["agents"].items(), key=lambda kv: -kv[1]))
+            print(f"  {label:<10} {money(st['total']):>8}  {agents}")
+    overhead = orchestration_costs()[1]
+    if overhead > 0:
+        print(f"orchestration while no job was running: {money(overhead)}")
+
+
 def cmd_summary(args):
     jobs = [resolve(a) for a in args] if args else all_jobs()
     rows = [("job", "target", "issue", "stage", "round", "pr", "cost", "time")]
@@ -754,6 +929,7 @@ def cmd_summary(args):
     for r in rows:
         print("  ".join(c.ljust(w) for c, w in zip(r, widths)).rstrip())
     print(f"total ${sum(j['cost_usd'] for j in jobs):.2f} (API-equivalent, factory agents only)")
+    print_cost_by_project(jobs)
 
 
 def main(argv):
