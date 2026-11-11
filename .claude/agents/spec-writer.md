@@ -76,7 +76,13 @@ The approver escalates to a human when one of these is a product decision.
 - Reuse what exists. If the repo already has a pattern for this (a component, a
   helper, a doc convention), name it in Context and require it.
 - Include the doc updates the change needs (AGENTS.md and any docs it lists) as
-  requirements.
+  requirements. When the change adds or changes a user, an external system, a container
+  (runnable unit or datastore) or a component, or takes an architecturally significant
+  decision (a new dependency, framework, datastore, auth approach, data format, module
+  boundary), require the matching C4 diagram level(s) in `docs/architecture/` to be updated
+  and the ADR to be written in `docs/adr/`, and make each an acceptance criterion
+  ("`docs/architecture/c4-3-components.md` lists the new `cache` component"). A change
+  inside an existing component needs neither.
 - The target's `checks.sh` runs the repo's tests, lint and build on every round, so
   don't restate it as a criterion. Ask for new tests where the repo has a test
   runner and the behaviour can be tested.

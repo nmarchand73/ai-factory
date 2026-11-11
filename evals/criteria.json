@@ -146,6 +146,31 @@
       "title": "tau-bench: agent evaluation and pass^k",
       "url": "https://arxiv.org/abs/2406.12045",
       "status": "fetched"
+    },
+    "c4-diagrams": {
+      "title": "The C4 model: diagrams (system context, containers, components, code; context and container recommended as a minimum)",
+      "url": "https://c4model.com/diagrams",
+      "status": "fetched"
+    },
+    "c4-abstractions": {
+      "title": "The C4 model: abstractions (software system, container, component, code)",
+      "url": "https://c4model.com/abstractions",
+      "status": "fetched"
+    },
+    "madr": {
+      "title": "MADR: Markdown Architectural Decision Records (template, NNNN-title-with-dashes.md)",
+      "url": "https://adr.github.io/madr/",
+      "status": "fetched"
+    },
+    "nygard-adr": {
+      "title": "Michael Nygard: Documenting Architecture Decisions (what is architecturally significant; Context, Decision, Status, Consequences; supersede, never rewrite)",
+      "url": "https://www.cognitect.com/blog/2011/11/15/documenting-architecture-decisions",
+      "status": "fetched"
+    },
+    "mermaid-c4": {
+      "title": "Mermaid: C4 diagrams (C4Context, C4Container, C4Component, Rel)",
+      "url": "https://mermaid.js.org/syntax/c4.html",
+      "status": "fetched"
     }
   },
   "agents": {
@@ -548,6 +573,16 @@
             "openai-swe"
           ],
           "question": "Is it the smallest change that meets the scope, with ambiguous or product calls listed as Assumptions rather than silently decided?"
+        },
+        {
+          "id": "docs_in_spec",
+          "label": "Documentation required in the spec",
+          "kind": "rule",
+          "weight": 0.08,
+          "description": "A spec for a change that adds a component, a dependency, a datastore or an integration requires the matching C4 update and ADR, as a requirement or an acceptance criterion.",
+          "measure": "Structural words in Requirements and Acceptance criteria against a mention of C4, ADR, architecture or docs/. Not applicable otherwise.",
+          "basis": "inference",
+          "sources": []
         }
       ],
       "case_map": {
@@ -558,7 +593,7 @@
       }
     },
     "builder": {
-      "role": "Implements the spec on a branch, runs the project's checks, commits, and writes a report with evidence per acceptance criterion, or reports BLOCKED when the spec cannot be met.",
+      "role": "Implements the spec on a branch, runs the project's checks, commits, and writes a report with evidence per acceptance criterion, or reports BLOCKED when the spec cannot be met, and leaves the application's architecture documentation (C4 diagrams levels 1 to 3, ADRs) true.",
       "process": [
         {
           "id": "format",
@@ -662,6 +697,19 @@
           "basis": "source",
           "sources": [
             "google-small"
+          ]
+        },
+        {
+          "id": "docs_read_first",
+          "label": "Reads the architecture docs first",
+          "kind": "rule",
+          "weight": 0.1,
+          "description": "When the project already has C4 diagrams or ADRs it reads them before it changes anything, so the update fits what is there.",
+          "measure": "Reads of docs/architecture or docs/adr before the first write. Not applicable when the project has none.",
+          "basis": "source",
+          "sources": [
+            "c4-diagrams",
+            "nygard-adr"
           ]
         }
       ],
@@ -794,6 +842,111 @@
             "google-looking"
           ],
           "question": "Is the code correct, simple and consistent with the repo's conventions, with meaningful rather than coincidental tests?"
+        },
+        {
+          "id": "docs_declared",
+          "label": "Documentation reported",
+          "kind": "rule",
+          "weight": 0.04,
+          "description": "build.md has a Documentation section with one line each for C4 level 1, level 2, level 3 and the ADR, saying updated, unchanged (why) or the ADR's path.",
+          "measure": "The four lines in the Documentation section.",
+          "basis": "inference",
+          "sources": []
+        },
+        {
+          "id": "c4_complete",
+          "label": "C4 diagrams complete",
+          "kind": "rule",
+          "weight": 0.08,
+          "description": "The branch has a C4 diagram for each of levels 1 (context), 2 (containers) and 3 (components) as Mermaid, with elements and relationships, and a table of real paths at level 3.",
+          "measure": "The Mermaid keywords C4Context, C4Container and C4Component in docs/architecture, elements and Rel lines, a path table at level 3.",
+          "basis": "source",
+          "sources": [
+            "c4-diagrams",
+            "c4-abstractions",
+            "mermaid-c4"
+          ]
+        },
+        {
+          "id": "c4_in_sync",
+          "label": "Diagram matches the code",
+          "kind": "rule",
+          "weight": 0.08,
+          "description": "Every new source module appears in the level 3 diagram and no deleted module is still listed.",
+          "measure": "New and deleted source files in the diff against the paths and names in the level 3 file. Not applicable when no module was added or removed.",
+          "basis": "source",
+          "sources": [
+            "c4-abstractions"
+          ]
+        },
+        {
+          "id": "docs_follow_change",
+          "label": "Docs follow the change",
+          "kind": "rule",
+          "weight": 0.1,
+          "description": "A structural change (a new or removed module, a new dependency, new infrastructure, a new top-level directory) updates the diagrams in the same branch; a change that touches nothing structural leaves them alone.",
+          "measure": "Structural signals in the diff against the files changed under docs/architecture.",
+          "basis": "source",
+          "sources": [
+            "c4-diagrams",
+            "nygard-adr"
+          ]
+        },
+        {
+          "id": "adr_for_decisions",
+          "label": "ADR for real decisions",
+          "kind": "rule",
+          "weight": 0.08,
+          "description": "A new dependency, new infrastructure or a new top-level area comes with an ADR in the same branch.",
+          "measure": "Decision signals in the diff (manifest dependencies, Dockerfile, workflows, Terraform, migrations, new top-level directory) against ADR files added under docs/adr. Not applicable when there is no signal.",
+          "basis": "source",
+          "sources": [
+            "nygard-adr",
+            "madr"
+          ]
+        },
+        {
+          "id": "adr_well_formed",
+          "label": "ADR well formed",
+          "kind": "rule",
+          "weight": 0.05,
+          "description": "Each new ADR is named NNNN-title-with-dashes.md and has a status, Context, Decision, Consequences and Alternatives considered.",
+          "measure": "The file name and the sections of each ADR added.",
+          "basis": "source",
+          "sources": [
+            "madr",
+            "nygard-adr"
+          ]
+        },
+        {
+          "id": "docs_accuracy",
+          "label": "Diagrams tell the truth",
+          "kind": "judge",
+          "weight": 0.08,
+          "description": "The diagrams describe what the code does, at the right level (people and external systems at 1, runnable units at 2, components of one container at 3), with no invented element, names taken from the code and a verb phrase on every relationship.",
+          "measure": "Judge rubric (0 to 5): read the diagrams against the code in the worktree.",
+          "basis": "source",
+          "sources": [
+            "c4-diagrams",
+            "c4-abstractions",
+            "llm-judge"
+          ],
+          "question": "Do the C4 diagrams in docs/architecture describe what the code in the worktree really does? Check each level is at its own level of abstraction (1: people and external systems, 2: runnable or deployable containers with technology, 3: components of one container with real paths), that no element is invented or missing, that names are the names in the code and that every relationship has a verb phrase."
+        },
+        {
+          "id": "adr_quality",
+          "label": "ADR worth reading",
+          "kind": "judge",
+          "weight": 0.05,
+          "description": "A new ADR records one significant decision with its real context, why this option, honest consequences including the negative ones and a real alternative that was rejected.",
+          "measure": "Judge rubric (0 to 5).",
+          "basis": "source",
+          "sources": [
+            "nygard-adr",
+            "madr",
+            "llm-judge"
+          ],
+          "question": "For each ADR added in the branch: is it one architecturally significant decision (not routine code), is the context neutral and specific, does the decision say what was chosen in a full sentence, are the consequences honest (negatives included), and is there at least one real alternative with the reason it was not chosen? Score 5 when a newcomer could understand why from the file alone; score null when no ADR was added."
         }
       ],
       "case_map": {
@@ -901,6 +1054,16 @@
           "measure": "A grep, test or other command besides the diff when the verdict is CHANGES.",
           "basis": "inference",
           "sources": []
+        },
+        {
+          "id": "docs_checked",
+          "label": "Checks the architecture docs",
+          "kind": "rule",
+          "weight": 0.12,
+          "description": "When the change adds or removes a module or makes a structural decision, the review says something about the C4 diagrams or the ADR.",
+          "measure": "The review mentions C4, ADR, architecture or docs/ when the diff has structural signals. Not applicable otherwise.",
+          "basis": "inference",
+          "sources": []
         }
       ],
       "output": [
@@ -993,6 +1156,19 @@
             "aacr"
           ],
           "question": "Reading the diff yourself, did the review miss a real problem? Score 0 or 1 if it approved a bug."
+        },
+        {
+          "id": "docs_gap_caught",
+          "label": "Missing docs sent back",
+          "kind": "rule",
+          "weight": 0.12,
+          "description": "A structural change with no matching diagram update or no ADR gets a CHANGES verdict that says so.",
+          "measure": "Structural signals and missing docs in the diff against the verdict and its text. Not applicable when the docs are in place.",
+          "basis": "source",
+          "sources": [
+            "c4-diagrams",
+            "nygard-adr"
+          ]
         }
       ],
       "case_map": {

@@ -23,7 +23,7 @@ includes `factory/jobs/`. Never rebuild it from other paths.
 The worktree is a checkout of the job branch in `<root>/workspaces/<target>/<job-id>` inside the factory repo you start in (the "Factory root" in your prompt). All code changes happen there. Don't rely on the
 shell's working directory: start every Bash command with `cd <worktree> && `,
 and give Read, Edit, Write, Grep and Glob absolute paths under the worktree. The job folder is in the factory repo; `build.md` is the only file you write there.
-Never edit anything else in the factory repo, and never touch the target clone
+Documentation for the application goes in the worktree like code. Never edit anything else in the factory repo, and never touch the target clone
 (`<root>/targets/<target>/repo`): they belong to the factory and to other jobs.
 
 ## Read first
@@ -81,6 +81,70 @@ command you ran and its result, or what the page showed.
   you're done. Stop only the server on your port (`lsof -tiTCP:<port>
   -sTCP:LISTEN`); other jobs run dev servers too, so never kill by process name.
 
+## Document
+
+The documentation of the application is part of the change: every branch leaves the architecture
+docs true. They live in the worktree, in `docs/architecture/` and `docs/adr/`, unless AGENTS.md or
+`notes.md` name another place or format; then follow that. Read what is there (the three diagrams and
+the ADR titles) before you change code.
+
+**C4 diagrams**, in Mermaid so GitHub renders them. One file per level:
+
+- `docs/architecture/c4-1-context.md`, level 1: the system as one box, its users and the external
+  systems it talks to. No technology detail.
+- `docs/architecture/c4-2-containers.md`, level 2: the runnable or deployable units (web app, API,
+  worker, database, CLI, library), each with its technology, and how they talk to each other.
+- `docs/architecture/c4-3-components.md`, level 3: for each container, the components inside it
+  (modules, packages, major classes), each with its responsibility and relationships, then a table
+  `Component | Path | Responsibility` with real paths.
+
+Each file is a short description, one Mermaid block (`C4Context`, `C4Container` or `C4Component`
+with `Person`, `System`, `Container`, `Component` and `Rel` lines) and nothing else. Every element
+has a name and a one-line description (a technology too, at levels 2 and 3), every `Rel` a verb
+phrase. Names in the diagrams are the names in the code. Document what exists on this branch, never
+what is planned or guessed.
+
+- No diagrams yet: create all three for the whole application, from the code as it is on the base
+  branch, then add this change. Keep level 3 to the main components.
+- After you implement, ask of each level whether the change adds, removes, renames or rewires
+  something at it: a user or external system (1), a container or datastore (2), a component, its
+  responsibility or its dependencies (3). Update every level it touches, in the same branch.
+- A change that touches none (a fix inside a component, copy, styling, tests) leaves the diagrams
+  alone. Don't rewrite docs for the sake of it; say so in build.md.
+
+**ADRs** (architecture decision records). Write one for each architecturally significant decision
+in this change: a new dependency, framework or datastore; an auth approach; an API or data format;
+a module boundary; a data model change; a pattern other code will follow; a choice between viable
+approaches. One decision per record. Not for routine code.
+
+- `docs/adr/NNNN-title-with-dashes.md`, NNNN the next free number (4 digits).
+- Format:
+
+  ```markdown
+  # <short title of the decision>
+
+  - Status: Accepted
+  - Date: <YYYY-MM-DD>
+  - Job: <job id>, issue #<n>
+
+  ## Context
+  The forces and facts behind the decision, neutral.
+
+  ## Decision
+  We will ...
+
+  ## Consequences
+  What gets easier and what gets harder.
+
+  ## Alternatives considered
+  - <option>: why it was not chosen
+  ```
+
+- Never rewrite an accepted ADR to change its decision. Write a new ADR and set the old one's
+  status to `Superseded by NNNN`.
+
+Commit the docs with the change they describe.
+
 ## Commit, push, PR
 
 - Commit on the job branch with short one-line messages in the style of
@@ -110,6 +174,12 @@ STATUS: READY
 ## Changes
 The files changed and what each change does.
 
+## Documentation
+- C4 level 1: updated | unchanged (why)
+- C4 level 2: updated | unchanged (why)
+- C4 level 3: updated | unchanged (why)
+- ADR: docs/adr/NNNN-title.md | none (no architecturally significant decision)
+
 ## Acceptance criteria
 1. [x] <criterion>: <evidence>
 2. [x] ...
@@ -125,6 +195,9 @@ review finding and what you did about it, or why you didn't change anything.
 
 `## Summary` is 3 to 5 short bullets a human can skim on the dashboard. The
 detail goes in the sections below it.
+
+`## Documentation` always has the four lines, each `updated` or `unchanged` with the reason, and
+each ADR you wrote by path. A BLOCKED build.md doesn't need it.
 
 Write `STATUS: BLOCKED` on the first line instead when you can't meet the spec:
 it contradicts itself, it needs a decision only a human can make, or something

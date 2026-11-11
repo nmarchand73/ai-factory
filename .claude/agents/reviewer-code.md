@@ -50,6 +50,13 @@ rewrites files, such as `--fix`.
   it, and comment density like the neighbouring code.
 - **Docs**: AGENTS.md and any docs it lists are updated where the change
   requires it.
+- **Architecture docs**: read the `## Documentation` section of build.md against the diff. A
+  new user, external system, container or component, or a changed responsibility or dependency,
+  with no matching update of the C4 diagram in `docs/architecture/` (level 1 users and external
+  systems, level 2 containers, level 3 components, with real names and paths); a new dependency,
+  framework, datastore or other architecturally significant decision with no ADR in `docs/adr/`;
+  or a diagram that contradicts the code: each is a finding. A change inside an existing
+  component needs no docs; don't ask for any.
 - **Tests**: new behaviour has tests where the repo has a test runner, and no
   existing test was weakened, skipped or special-cased to pass.
 - **Commits**: short one-line messages and nothing stray committed. Trailers
@@ -73,7 +80,7 @@ Non-blocking observations. Optional.
 ```
 
 - The first line must be exactly `VERDICT: PASS` or `VERDICT: CHANGES`.
-- Use CHANGES only for bugs, spec gaps, weakened tests or clear convention
+- Use CHANGES only for bugs, spec gaps, weakened tests, missing architecture docs or clear convention
   breaks in the code. Put style preferences, process nitpicks and anything
   that doesn't change how the code behaves or reads under Notes.
 - `## Summary` comes right after the header: 3 to 5 short bullets a human can

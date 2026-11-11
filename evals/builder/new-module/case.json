@@ -1,0 +1,40 @@
+{
+  "description": "A new component and an architectural decision: the builder updates the C4 level 3 diagram, writes an ADR and reports both in build.md.",
+  "fixture": "mini-lib",
+  "expect": {
+    "files": {
+      "build.md": {
+        "first_line": "STATUS: READY",
+        "sections": [
+          "Changes",
+          "Documentation",
+          "Acceptance criteria",
+          "Validation",
+          "Log"
+        ],
+        "section_contains": {
+          "Documentation": [
+            "C4 level 3: updated",
+            "ADR: docs/adr/0002"
+          ]
+        }
+      }
+    },
+    "worktree": {
+      "checks_pass": true,
+      "tests_discriminate": true,
+      "file_matches": {
+        "src/cache.js": "export function createCache",
+        "docs/architecture/c4-3-components.md": "cache[\\s\\S]*src/cache\\.js"
+      },
+      "added_min": {
+        "docs/adr/": 1
+      },
+      "files_unchanged": [
+        "src/index.js",
+        "package.json",
+        "docs/adr/0001-record-architecture-decisions.md"
+      ]
+    }
+  }
+}

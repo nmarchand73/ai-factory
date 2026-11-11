@@ -201,6 +201,10 @@ def format_checks(agent, text):
         else:
             for name in ("Changes", "Validation", "Log"):
                 ok(f"{name} section", section_text(text, name))
+            doc = section_text(text, "Documentation") or ""
+            ok("Documentation covers C4 levels 1 to 3 and the ADR",
+               all(re.search(rf"^\s*[-*] {re.escape(k)}:\s*\S", doc, re.M | re.I)
+                   for k in ("C4 level 1", "C4 level 2", "C4 level 3", "ADR")))
             ok("criteria are checked off with evidence",
                re.search(r"^\s*\d+\. \[[x ]\] .+: .+", section_text(text, "Acceptance criteria") or "", re.M))
     elif agent.startswith("reviewer-"):
@@ -616,6 +620,16 @@ def r_out_of_scope(ctx):
     return (listed / len(items)) * (0.5 if leaked else 1.0)
 
 
+@rule("docs_in_spec")
+def r_docs_in_spec(ctx):
+    text = ctx["text"] or ""
+    body = (section_text(text, "Requirements") or "") + "\n" + (section_text(text, "Acceptance criteria") or "")
+    structural = re.search(r"new (module|component|service|package|class|endpoint|route|table|queue)|add(s|ed)? (a |an )?\w* ?(module|service|component|dependency|database|datastore|endpoint)|dependenc(y|ies)|database|datastore|integrat|third.party|authenticat", body, re.I)
+    if not structural:
+        return None
+    return 1.0 if re.search(r"C4|ADR|architecture|diagram|docs/", body) else 0.0
+
+
 # -- builder
 
 @rule("runs_checks")
@@ -678,6 +692,182 @@ def r_diff_minimal(ctx):
     return share(files, lambda f: TEST_RE.search(f) or f in spec or f.rsplit("/", 1)[-1] in spec)
 
 
+# -- application documentation: C4 diagrams and ADRs in the worktree
+
+C4_KEYWORDS = {1: "C4Context", 2: "C4Container", 3: "C4Component"}
+MANIFESTS = {"package.json", "requirements.txt", "pyproject.toml", "go.mod", "Cargo.toml", "Gemfile", "pom.xml", "build.gradle"}
+INFRA_RE = re.compile(r"(^|/)(Dockerfile|docker-compose[\w.-]*\.ya?ml|[\w.-]+\.tf|k8s/.*\.ya?ml|\.github/workflows/.*)$|(^|/)(migrations?|schema)/")
+ARCH_DIR, ADR_DIR = "docs/architecture/", "docs/adr/"
+
+
+def worktree_of(ctx):
+    wt = ctx.get("worktree")
+    return Path(wt) if wt and Path(wt).exists() and (Path(wt) / ".git").exists() else None
+
+
+def name_status(wt):
+    """{path: 'A'|'M'|'D'}: what the branch changes against origin/main, uncommitted work included."""
+    out = {}
+    for line in git(wt, "diff", "--name-status", "origin/main", check=False).stdout.splitlines():
+        parts = line.split("\t")
+        if len(parts) >= 2:
+            out[parts[-1]] = parts[0][0] if parts[0][0] in "AMD" else "M"
+    for line in git(wt, "status", "--porcelain", check=False).stdout.splitlines():
+        code, path = line[:2], line[3:]
+        out.setdefault(path, "A" if "?" in code or "A" in code else "D" if "D" in code else "M")
+    return out
+
+
+def added_files(wt):
+    return sorted(f for f, st in name_status(wt).items() if st == "A")
+
+
+def new_dependencies(wt, changes):
+    found = []
+    for f, st in changes.items():
+        if f.rsplit("/", 1)[-1] not in MANIFESTS:
+            continue
+        if f.endswith("package.json"):
+            base = json.loads(git(wt, "show", f"origin/main:{f}", check=False).stdout or "{}") if st != "A" else {}
+            head = json.loads(read(wt / f) or "{}")
+            for sect in ("dependencies", "devDependencies", "peerDependencies", "optionalDependencies"):
+                found += [f"{k}" for k in (head.get(sect) or {}) if k not in (base.get(sect) or {})]
+        else:
+            diff = git(wt, "diff", "origin/main", "--", f, check=False).stdout
+            found += [l[1:].strip() for l in diff.splitlines()
+                      if l.startswith("+") and not l.startswith("+++") and l[1:].strip() and not l[1:].strip().startswith("#")]
+    return found
+
+
+def doc_state(ctx):
+    """What the branch changes that calls for documentation, and what it changed in the docs. None without a worktree."""
+    if "doc_state" in ctx:
+        return ctx["doc_state"]
+    wt = worktree_of(ctx)
+    state = None
+    if wt:
+        ch = name_status(wt)
+        base = set(git(wt, "ls-tree", "-r", "--name-only", "origin/main", check=False).stdout.split())
+        is_src = lambda f: SOURCE_EXT.search(f) and not TEST_RE.search(f) and not f.startswith("docs/")
+        base_dirs = {f.rsplit("/", 1)[0] for f in base if "/" in f}
+        new_src = sorted(f for f, st in ch.items() if st == "A" and is_src(f))
+        new_dirs = sorted({f.split("/")[0] for f in new_src if "/" in f and f.split("/")[0] not in {b.split("/")[0] for b in base_dirs}})
+        state = {
+            "wt": wt, "new_modules": new_src, "deleted_modules": sorted(f for f, st in ch.items() if st == "D" and is_src(f)),
+            "deps": new_dependencies(wt, ch), "infra": sorted(f for f, st in ch.items() if st != "D" and INFRA_RE.search(f)),
+            "new_dirs": new_dirs, "c4_changed": sorted(f for f in ch if f.startswith(ARCH_DIR)),
+            "adr_added": sorted(f for f, st in ch.items() if st == "A" and f.startswith(ADR_DIR) and f.endswith(".md")),
+            "base_has_docs": any(f.startswith((ARCH_DIR, ADR_DIR)) for f in base),
+        }
+    ctx["doc_state"] = state
+    return state
+
+
+def decision_signals(st):
+    return st["deps"] + st["infra"] + st["new_dirs"]
+
+
+def c4_files(wt):
+    """{level: text} of the C4 diagrams found under docs/architecture (by Mermaid keyword)."""
+    levels = {}
+    for p in sorted((wt / ARCH_DIR).glob("**/*.md")) if (wt / ARCH_DIR).exists() else []:
+        text = p.read_text()
+        for lv, kw in C4_KEYWORDS.items():
+            if kw in text:
+                levels[lv] = levels.get(lv, "") + "\n" + text
+    return levels
+
+
+@rule("docs_read_first")
+def r_docs_read_first(ctx):
+    st = doc_state(ctx)
+    if st is None or not st["base_has_docs"]:
+        return None
+    blob = "\n".join(call_text(c) for c in before_first_write(ctx["calls"]))
+    return 1.0 if re.search(r"docs/(architecture|adr)|c4-|/adr/", blob) else 0.0
+
+
+@rule("docs_declared")
+def r_docs_declared(ctx):
+    doc = section_text(ctx["text"], "Documentation")
+    if ctx["text"] and first_line(ctx["text"]) == "STATUS: BLOCKED":
+        return None
+    if not doc:
+        return 0.0
+    keys = ("C4 level 1", "C4 level 2", "C4 level 3", "ADR")
+    have = [bool(re.search(rf"^\s*[-*] {k}:\s*(updated|unchanged|none|docs/adr/\S+)", doc, re.M | re.I)) for k in keys]
+    return sum(have) / len(keys)
+
+
+@rule("c4_complete")
+def r_c4_complete(ctx):
+    st = doc_state(ctx)
+    if st is None:
+        return None
+    levels = c4_files(st["wt"])
+    ok = []
+    for lv in (1, 2, 3):
+        t = levels.get(lv, "")
+        good = bool(t) and len(re.findall(r"\bRel(_\w+)?\(", t)) >= 1 and bool(re.search(r"\b(Person|System|Container|Component)(_\w+)?\(", t))
+        if lv == 3:
+            good = good and bool(re.search(r"^\|.*[\w-]+/[\w./-]+.*\|", t, re.M))   # a path table row
+        ok.append(good)
+    return sum(ok) / 3
+
+
+@rule("c4_in_sync")
+def r_c4_in_sync(ctx):
+    st = doc_state(ctx)
+    if st is None or not (st["new_modules"] or st["deleted_modules"]):
+        return None
+    text = c4_files(st["wt"]).get(3, "").lower()
+    rows = [(f.lower().rsplit("/", 1)[-1].rsplit(".", 1)[0], f.lower()) for f in st["new_modules"]]
+    present = [1.0 if (path in text or name in text) else 0.0 for name, path in rows]
+    gone = [0.0 if f.lower() in text else 1.0 for f in st["deleted_modules"]]
+    return sum(present + gone) / len(present + gone)
+
+
+@rule("docs_follow_change")
+def r_docs_follow_change(ctx):
+    st = doc_state(ctx)
+    if st is None:
+        return None
+    needs = []
+    if st["new_modules"] or st["deleted_modules"]:
+        needs.append(any(f.endswith(("c4-3-components.md",)) or "component" in f for f in st["c4_changed"]))
+    if st["deps"] or st["infra"] or st["new_dirs"]:
+        needs.append(bool(st["c4_changed"]))
+    if not needs:
+        return 1.0   # nothing structural: leaving the diagrams alone is right
+    return sum(needs) / len(needs)
+
+
+@rule("adr_for_decisions")
+def r_adr_for_decisions(ctx):
+    st = doc_state(ctx)
+    if st is None or not decision_signals(st):
+        return None
+    return 1.0 if st["adr_added"] else 0.0
+
+
+ADR_NAME = re.compile(r"^docs/adr/\d{4}-[a-z0-9][a-z0-9-]*\.md$")
+
+
+@rule("adr_well_formed")
+def r_adr_well_formed(ctx):
+    st = doc_state(ctx)
+    if st is None or not st["adr_added"]:
+        return None
+    rows = []
+    for f in st["adr_added"]:
+        t = read(st["wt"] / f) or ""
+        checks = [bool(ADR_NAME.match(f)), bool(re.search(r"^[-*]?\s*Status:\s*(Proposed|Accepted|Superseded|Deprecated)", t, re.M | re.I)),
+                  bool(section_text(t, "Context")), bool(section_text(t, "Decision")), bool(section_text(t, "Consequences")),
+                  bool(section_text(t, "Alternatives considered") or section_text(t, "Considered Options") or section_text(t, "Alternatives"))]
+        rows.append(sum(checks) / len(checks))
+    return sum(rows) / len(rows)
+
+
 # -- reviewers
 
 @rule("verdict_consistent")
@@ -687,6 +877,27 @@ def r_verdict_consistent(ctx):
     if first == "VERDICT: PASS":
         return 1.0 if n == 0 else 0.0
     return 1.0 if first == "VERDICT: CHANGES" and n >= 1 else 0.0
+
+
+@rule("docs_checked")
+def r_docs_checked(ctx):
+    st = doc_state(ctx)
+    if st is None or not (st["new_modules"] or decision_signals(st) or st["deleted_modules"]):
+        return None
+    return 1.0 if re.search(r"C4|ADR|architecture|diagram|docs/", ctx["text"] or "") else 0.0
+
+
+@rule("docs_gap_caught")
+def r_docs_gap_caught(ctx):
+    st = doc_state(ctx)
+    if st is None:
+        return None
+    gap = ((st["new_modules"] or st["deleted_modules"]) and not any("component" in f for f in st["c4_changed"])) \
+        or (decision_signals(st) and not st["adr_added"])
+    if not gap:
+        return None
+    first = first_line(ctx["text"])
+    return 1.0 if first == "VERDICT: CHANGES" and re.search(r"C4|ADR|architecture|diagram|docs/", ctx["text"] or "") else 0.0
 
 
 @rule("context_coverage")
@@ -1463,6 +1674,12 @@ def run_expect(case, run_dir):
         checks.append(("the tests fail when the change is reverted", tests_discriminate(run_dir), "worktree.tests_discriminate"))
     for rel, pat in (w.get("file_matches") or {}).items():
         checks.append((f"{rel} matches /{pat}/", bool(re.search(pat, read(wt / rel) or "", re.S)), "worktree.file_matches"))
+    for prefix, n in (w.get("added_min") or {}).items():
+        added = [f for f in added_files(wt) if f.startswith(prefix)]
+        checks.append((f"at least {n} new file(s) under {prefix}", len(added) >= n, "worktree.added_min"))
+    for prefix in w.get("added_none") or []:
+        added = [f for f in added_files(wt) if f.startswith(prefix)]
+        checks.append((f"no new file under {prefix}", not added, "worktree.added_none"))
     if "files_unchanged" in w:
         changed = set(git(wt, "diff", "--name-only", "origin/main", check=False).stdout.split())
         changed |= {l[3:] for l in git(wt, "status", "--porcelain", check=False).stdout.splitlines()}
@@ -1617,6 +1834,9 @@ def cmd_report(as_json, cycle=None):
     STATE.mkdir(parents=True, exist_ok=True)
     if not cycle:   # the dashboard shows the sliding window; a cycle's own scores go to its snapshot
         (STATE / "scores.json").write_text(json.dumps(scores, indent=2) + "\n")
+        m = FACTORY / "bin" / "metrics"   # the health board shows agent confidence too
+        if m.exists():
+            subprocess.run([sys.executable, str(m), "write"], capture_output=True, check=False)
     if as_json:
         print(json.dumps(scores, indent=2))
         return

@@ -540,6 +540,12 @@ class Cases(Harness):
 ## Changes
 src/index.js
 
+## Documentation
+- C4 level 1: unchanged (no new user or external system)
+- C4 level 2: unchanged (same package)
+- C4 level 3: unchanged (multiply joins the existing index component)
+- ADR: none (no architecturally significant decision)
+
 ## Acceptance criteria
 1. [x] multiply exists: seen in the file
 2. [x] tests pass: ran them
@@ -559,6 +565,78 @@ Done.
         self.assertEqual(result["output"]["tests_discriminate"], 1.0)   # the tests fail when the change is reverted
         self.assertEqual(result["output"]["status_honest"], 1.0)
         self.assertEqual(result["process"]["format"], 1.0)
+        self.assertEqual(result["output"]["docs_declared"], 1.0)
+        self.assertEqual(result["output"]["docs_follow_change"], 1.0)   # nothing structural: the diagrams stay as they are
+        self.assertEqual(result["output"]["c4_complete"], 1.0)
+        self.assertIsNone(result["output"]["adr_for_decisions"])
+        self.assertIsNone(result["output"]["c4_in_sync"])
+
+    def new_module_run(self, with_docs):
+        d = self.prepare("builder", "new-module")
+        run = Path(d["run_dir"])
+        wt = run / "worktree"
+        src = SRC / "evals" / "reviewer-code" / "docs-updated" / "change"
+        shutil.copy(src / "src" / "cache.js", wt / "src" / "cache.js")
+        shutil.copy(src / "test" / "cache.test.js", wt / "test" / "cache.test.js")
+        if with_docs:
+            shutil.copy(src / "docs" / "architecture" / "c4-3-components.md", wt / "docs" / "architecture" / "c4-3-components.md")
+            shutil.copy(src / "docs" / "adr" / "0002-keep-the-cache-in-memory.md", wt / "docs" / "adr" / "0002-keep-the-cache-in-memory.md")
+        doc = ("- C4 level 1: unchanged (no new user)\n- C4 level 2: unchanged (same package)\n- C4 level 3: updated (cache)\n"
+               "- ADR: docs/adr/0002-keep-the-cache-in-memory.md") if with_docs else \
+              "- C4 level 1: unchanged (x)\n- C4 level 2: unchanged (x)\n- C4 level 3: unchanged (small)\n- ADR: none (x)"
+        (run / "job" / "build.md").write_text(f"STATUS: READY\n\n# Build: cache\n\n## Summary\n- a\n- b\n- c\n\n## Changes\nsrc/cache.js\n\n"
+                                              f"## Documentation\n{doc}\n\n## Acceptance criteria\n1. [x] one: seen\n\n## Validation\nnpm test passed.\n\n## Log\n### Round 1\nDone.\n")
+        res = self.eval("check", str(run), ok=False)
+        return res, json.loads((run / "result.json").read_text())
+
+    def test_a_new_component_with_its_c4_update_and_adr_scores_full_marks(self):
+        res, result = self.new_module_run(True)
+        self.assertIn("PASS", res.stdout, res.stdout)
+        o = result["output"]
+        for k in ("docs_declared", "c4_complete", "c4_in_sync", "docs_follow_change", "adr_well_formed"):
+            self.assertEqual(o[k], 1.0, k)
+        self.assertIsNone(o["adr_for_decisions"])   # a new module in an existing directory is a component, not a dependency or new area
+
+    def test_a_new_component_without_docs_is_caught(self):
+        res, result = self.new_module_run(False)
+        self.assertIn("FAIL", res.stdout)
+        o = result["output"]
+        self.assertEqual(o["c4_in_sync"], 0.0)
+        self.assertEqual(o["docs_follow_change"], 0.0)
+        self.assertIsNone(o["adr_for_decisions"])     # a new module alone is a component, not a decision
+
+    def test_a_new_dependency_needs_an_adr_and_a_bad_adr_scores_low(self):
+        d = self.prepare("builder", "add-multiply")
+        run = Path(d["run_dir"])
+        wt = run / "worktree"
+        pkg = json.loads((wt / "package.json").read_text())
+        pkg["dependencies"] = {"left-pad": "1.0.0"}
+        (wt / "package.json").write_text(json.dumps(pkg))
+        fresh = lambda: EV.make_ctx("builder", run / "job", run / "job" / "build.md", [], "", wt, run / "clone")
+        self.assertEqual(EV.RULES["adr_for_decisions"](fresh()), 0.0)       # a dependency with no ADR
+        (wt / "docs" / "adr" / "0002-left-pad.md").write_text("# Use left-pad\n\nWe like it.\n")
+        job = fresh()
+        self.assertEqual(EV.RULES["adr_for_decisions"](job), 1.0)
+        self.assertLess(EV.RULES["adr_well_formed"](job), 0.5)             # no status, consequences or alternatives
+
+    def test_the_reviewer_must_send_back_missing_docs_but_not_ask_for_docs_that_exist(self):
+        for case, verdict, want in (("missing-docs", "VERDICT: CHANGES\n\n## Summary\n- a\n- b\n- c\n\n## Findings\n1. docs/architecture/c4-3-components.md does not list the new cache component and there is no ADR.\n", 1.0),
+                                    ("missing-docs", "VERDICT: PASS\n\n## Summary\n- a\n- b\n- c\n\n## Findings\nNone.\n", 0.0),
+                                    ("docs-updated", "VERDICT: PASS\n\n## Summary\n- a\n- b\n- c\n\n## Findings\nNone.\n", None)):
+            d = self.prepare("reviewer-code", case, run=f"r-{case}-{want}")
+            run = Path(d["run_dir"])
+            out = run / "job" / "round-1" / "review-code.md"
+            out.parent.mkdir(parents=True, exist_ok=True)
+            out.write_text(verdict)
+            ctx_ = EV.make_ctx("reviewer-code", run / "job", out, [], "", run / "worktree", run / "clone")
+            self.assertEqual(EV.RULES["docs_gap_caught"](ctx_), want, case)
+
+    def test_docs_reviewer_cases_seed_a_missing_and_a_present_update(self):
+        for case, expect_docs in (("missing-docs", False), ("docs-updated", True)):
+            d = self.prepare("reviewer-code", case)
+            wt = Path(d["run_dir"]) / "worktree"
+            self.assertTrue((wt / "src" / "cache.js").exists())
+            self.assertEqual("cache" in (wt / "docs" / "architecture" / "c4-3-components.md").read_text().lower(), expect_docs)
 
     def test_check_uses_the_transcript_for_process_metrics(self):
         d = self.prepare("intake", "clear-small")

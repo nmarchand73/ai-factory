@@ -85,49 +85,59 @@ Turns an accepted issue and its scope into a specification: context citing real 
 
 | Criterion | Weight | Kind | How it is measured | Basis |
 |---|---|---|---|---|
-| **No vague words**: No unverifiable words such as fast, appropriate, user-friendly, etc., and/or, as needed. | 13% | rule | Count of vague terms; 5 or more scores zero. | source: [iso29148](#sources) |
-| **Atomic requirements**: Each requirement says one thing (no and or but joining two). | 11% | rule | Share of requirements without a conjunction outside code spans. | source: [iso29148](#sources) |
-| **Every requirement is verified**: Each requirement is covered by at least one acceptance criterion. | 13% | rule | Share of requirements sharing an identifier or key words with some criterion. | source: [iso29148](#sources) |
-| **Criteria are observable**: Acceptance criteria state observable behaviour or a command whose result can be checked, not implementation steps. | 13% | rule | Share of criteria with an observable verb, a value or a command. | source: [cucumber](#sources) |
-| **What intake left out stays out**: Everything intake left out is listed under Out of scope and none of it appears among the requirements. | 13% | rule | Left-out items from intake.md against the Out of scope and Requirements sections. | source: [invest](#sources) |
-| **The builder can build from it**: The builder was not blocked by the spec and could check off the criteria. | 11% | outcome | Build status not BLOCKED and share of criteria checked off. | inference |
-| **Testable criteria**: Every criterion is checkable by someone who only has the repo. | 11% | judge | Judge, 0 to 5. | source: [cucumber](#sources), [iso29148](#sources) |
-| **Grounded in the repo**: The Context cites real files and reuses the project's existing patterns. | 8% | judge | Judge, 0 to 5. | source: [google-looking](#sources) |
-| **No gold plating**: It is the smallest change that meets the scope; product decisions are surfaced as assumptions. | 8% | judge | Judge, 0 to 5. | source: [invest](#sources), [openai-swe](#sources) |
+| **No vague words**: No unverifiable words such as fast, appropriate, user-friendly, etc., and/or, as needed. | 12% | rule | Count of vague terms; 5 or more scores zero. | source: [iso29148](#sources) |
+| **Atomic requirements**: Each requirement says one thing (no and or but joining two). | 10% | rule | Share of requirements without a conjunction outside code spans. | source: [iso29148](#sources) |
+| **Every requirement is verified**: Each requirement is covered by at least one acceptance criterion. | 12% | rule | Share of requirements sharing an identifier or key words with some criterion. | source: [iso29148](#sources) |
+| **Criteria are observable**: Acceptance criteria state observable behaviour or a command whose result can be checked, not implementation steps. | 12% | rule | Share of criteria with an observable verb, a value or a command. | source: [cucumber](#sources) |
+| **What intake left out stays out**: Everything intake left out is listed under Out of scope and none of it appears among the requirements. | 12% | rule | Left-out items from intake.md against the Out of scope and Requirements sections. | source: [invest](#sources) |
+| **The builder can build from it**: The builder was not blocked by the spec and could check off the criteria. | 10% | outcome | Build status not BLOCKED and share of criteria checked off. | inference |
+| **Testable criteria**: Every criterion is checkable by someone who only has the repo. | 10% | judge | Judge, 0 to 5. | source: [cucumber](#sources), [iso29148](#sources) |
+| **Grounded in the repo**: The Context cites real files and reuses the project's existing patterns. | 7% | judge | Judge, 0 to 5. | source: [google-looking](#sources) |
+| **No gold plating**: It is the smallest change that meets the scope; product decisions are surfaced as assumptions. | 7% | judge | Judge, 0 to 5. | source: [invest](#sources), [openai-swe](#sources) |
+| **Documentation required in the spec**: A spec for a change that adds a component, a dependency, a datastore or an integration requires the matching C4 update and ADR, as a requirement or an acceptance criterion. | 8% | rule | Structural words in Requirements and Acceptance criteria against a mention of C4, ADR, architecture or docs/. Not applicable otherwise. | inference |
 
 ## builder
 
-Implements the spec on a branch, runs the project's checks, commits, and writes a report with evidence per acceptance criterion, or reports BLOCKED when the spec cannot be met.
+Implements the spec on a branch, runs the project's checks, commits, and writes a report with evidence per acceptance criterion, or reports BLOCKED when the spec cannot be met, and leaves the application's architecture documentation (C4 diagrams levels 1 to 3, ADRs) true.
 
 ### Process: how it works
 
 | Criterion | Weight | Kind | How it is measured | Basis |
 |---|---|---|---|---|
-| **Output format**: build.md starts with STATUS: READY or BLOCKED, has a Summary, and either Changes, Acceptance criteria checked off with evidence, Validation and Log, or a Blocked section. | 11% | rule | Parse the file against that format. | inference |
-| **Reads the spec first**: It reads the spec and the project docs before editing. | 11% | rule | spec.md and AGENTS.md read before the first write. | source: [anthropic-evals](#sources), [bacchelli](#sources) |
-| **Stays in its lane**: It edits only the job's worktree and build.md, never the factory, the target clone or the checks. | 11% | rule | Every Write or Edit path against the allowed paths. | inference |
+| **Output format**: build.md starts with STATUS: READY or BLOCKED, has a Summary, and either Changes, Acceptance criteria checked off with evidence, Validation and Log, or a Blocked section. | 10% | rule | Parse the file against that format. | inference |
+| **Reads the spec first**: It reads the spec and the project docs before editing. | 10% | rule | spec.md and AGENTS.md read before the first write. | source: [anthropic-evals](#sources), [bacchelli](#sources) |
+| **Stays in its lane**: It edits only the job's worktree and build.md, never the factory, the target clone or the checks. | 10% | rule | Every Write or Edit path against the allowed paths. | inference |
 | **Few failing tool calls**: Tool calls that fail (wrong paths, errors) are rare. | 5% | rule | Share of tool calls that returned an error. | source: [anthropic-evals](#sources) |
 | **Reasonable cost**: Cost stays near the typical run of the same agent; a trend, not a gate. | 5% | rule | Cost against the median of the same agent: full marks up to 1.5 times, zero at 4 times. | source: [anthropic-evals](#sources) |
 | **One-line reply**: It ends with the STATUS line of build.md and nothing else. | 5% | rule | Final message against the expected line. | inference |
-| **Runs the checks itself**: It runs the project's checks (checks.sh or the test command) before reporting. | 21% | rule | A Bash call running checks.sh: 1; a test command: 0.6; none: 0. | source: [anthropic-evals](#sources) |
-| **Never weakens a test**: It does not delete, skip or loosen existing tests, or edit the checks, to get a pass. | 26% | rule | Edits to test files that remove assertions or add skips, and edits to the checks, over all edits to tests. | source: [metr](#sources), [openai-swe](#sources) |
+| **Runs the checks itself**: It runs the project's checks (checks.sh or the test command) before reporting. | 19% | rule | A Bash call running checks.sh: 1; a test command: 0.6; none: 0. | source: [anthropic-evals](#sources) |
+| **Never weakens a test**: It does not delete, skip or loosen existing tests, or edit the checks, to get a pass. | 24% | rule | Edits to test files that remove assertions or add skips, and edits to the checks, over all edits to tests. | source: [metr](#sources), [openai-swe](#sources) |
 | **Commits its work**: It commits on its branch instead of leaving a dirty tree. | 5% | rule | A git commit in the transcript. | source: [google-small](#sources) |
+| **Reads the architecture docs first**: When the project already has C4 diagrams or ADRs it reads them before it changes anything, so the update fits what is there. | 10% | rule | Reads of docs/architecture or docs/adr before the first write. Not applicable when the project has none. | source: [c4-diagrams](#sources), [nygard-adr](#sources) |
 
 ### Output: how good it is
 
 | Criterion | Weight | Kind | How it is measured | Basis |
 |---|---|---|---|---|
-| **Checks pass**: The project's checks pass on the final commit. | 24% | outcome | Live: the last gate passed. Eval: checks.sh is re-run in the worktree. | source: [anthropic-evals](#sources) |
-| **Tests would catch a regression**: The new or changed tests fail when the change is reverted. | 10% | outcome | Eval: revert the source files to the base and expect the checks to fail. | source: [openai-swe](#sources) |
-| **Evidence for each criterion**: Every acceptance criterion in the report is checked off with the command or observation that proves it. | 11% | rule | Share of criteria with a non-trivial evidence text. | source: [anthropic-evals](#sources) |
-| **The report matches the diff**: The files the report lists as changed are the files that really changed. | 8% | rule | Eval: report paths against git diff. | source: [anthropic-evals](#sources) |
-| **Small, scoped diff**: Every changed file is traceable to the spec or is a test. | 10% | rule | Share of changed files named in the spec or under tests. | source: [google-small](#sources) |
-| **Honest status**: It reports READY when the spec is met and BLOCKED, with the reason, when it cannot be. | 10% | outcome | Eval: the status line against the case (a contradictory spec must be BLOCKED). | source: [anthropic-evals](#sources), [metr](#sources) |
-| **Converges quickly**: The job reached a merge in few rounds. | 6% | outcome | Live: 1 round = 1, 2 = 0.67, 3 = 0.33, escalated for rounds = 0. | inference |
-| **Green at the first gate**: The checks pass in round 1. | 4% | outcome | Live: round-1 gate result. | inference |
-| **No protected file touched**: No file under protected paths was changed. | 4% | outcome | Live: no round reports protected changes. | inference |
-| **Does what the spec asks**: The change does what the spec asks, nothing more. | 10% | judge | Judge, 0 to 5. | source: [google-small](#sources) |
-| **Good code**: The code is correct, simple and consistent with the repo's conventions. | 6% | judge | Judge, 0 to 5. | source: [google-looking](#sources) |
+| **Checks pass**: The project's checks pass on the final commit. | 16% | outcome | Live: the last gate passed. Eval: checks.sh is re-run in the worktree. | source: [anthropic-evals](#sources) |
+| **Tests would catch a regression**: The new or changed tests fail when the change is reverted. | 6% | outcome | Eval: revert the source files to the base and expect the checks to fail. | source: [openai-swe](#sources) |
+| **Evidence for each criterion**: Every acceptance criterion in the report is checked off with the command or observation that proves it. | 7% | rule | Share of criteria with a non-trivial evidence text. | source: [anthropic-evals](#sources) |
+| **The report matches the diff**: The files the report lists as changed are the files that really changed. | 5% | rule | Eval: report paths against git diff. | source: [anthropic-evals](#sources) |
+| **Small, scoped diff**: Every changed file is traceable to the spec or is a test. | 6% | rule | Share of changed files named in the spec or under tests. | source: [google-small](#sources) |
+| **Honest status**: It reports READY when the spec is met and BLOCKED, with the reason, when it cannot be. | 6% | outcome | Eval: the status line against the case (a contradictory spec must be BLOCKED). | source: [anthropic-evals](#sources), [metr](#sources) |
+| **Converges quickly**: The job reached a merge in few rounds. | 4% | outcome | Live: 1 round = 1, 2 = 0.67, 3 = 0.33, escalated for rounds = 0. | inference |
+| **Green at the first gate**: The checks pass in round 1. | 2% | outcome | Live: round-1 gate result. | inference |
+| **No protected file touched**: No file under protected paths was changed. | 2% | outcome | Live: no round reports protected changes. | inference |
+| **Does what the spec asks**: The change does what the spec asks, nothing more. | 6% | judge | Judge, 0 to 5. | source: [google-small](#sources) |
+| **Good code**: The code is correct, simple and consistent with the repo's conventions. | 4% | judge | Judge, 0 to 5. | source: [google-looking](#sources) |
+| **Documentation reported**: build.md has a Documentation section with one line each for C4 level 1, level 2, level 3 and the ADR, saying updated, unchanged (why) or the ADR's path. | 2% | rule | The four lines in the Documentation section. | inference |
+| **C4 diagrams complete**: The branch has a C4 diagram for each of levels 1 (context), 2 (containers) and 3 (components) as Mermaid, with elements and relationships, and a table of real paths at level 3. | 5% | rule | The Mermaid keywords C4Context, C4Container and C4Component in docs/architecture, elements and Rel lines, a path table at level 3. | source: [c4-diagrams](#sources), [c4-abstractions](#sources), [mermaid-c4](#sources) |
+| **Diagram matches the code**: Every new source module appears in the level 3 diagram and no deleted module is still listed. | 5% | rule | New and deleted source files in the diff against the paths and names in the level 3 file. Not applicable when no module was added or removed. | source: [c4-abstractions](#sources) |
+| **Docs follow the change**: A structural change (a new or removed module, a new dependency, new infrastructure, a new top-level directory) updates the diagrams in the same branch; a change that touches nothing structural leaves them alone. | 6% | rule | Structural signals in the diff against the files changed under docs/architecture. | source: [c4-diagrams](#sources), [nygard-adr](#sources) |
+| **ADR for real decisions**: A new dependency, new infrastructure or a new top-level area comes with an ADR in the same branch. | 5% | rule | Decision signals in the diff (manifest dependencies, Dockerfile, workflows, Terraform, migrations, new top-level directory) against ADR files added under docs/adr. Not applicable when there is no signal. | source: [nygard-adr](#sources), [madr](#sources) |
+| **ADR well formed**: Each new ADR is named NNNN-title-with-dashes.md and has a status, Context, Decision, Consequences and Alternatives considered. | 3% | rule | The file name and the sections of each ADR added. | source: [madr](#sources), [nygard-adr](#sources) |
+| **Diagrams tell the truth**: The diagrams describe what the code does, at the right level (people and external systems at 1, runnable units at 2, components of one container at 3), with no invented element, names taken from the code and a verb phrase on every relationship. | 5% | judge | Judge rubric (0 to 5): read the diagrams against the code in the worktree. | source: [c4-diagrams](#sources), [c4-abstractions](#sources), [llm-judge](#sources) |
+| **ADR worth reading**: A new ADR records one significant decision with its real context, why this option, honest consequences including the negative ones and a real alternative that was rejected. | 3% | judge | Judge rubric (0 to 5). | source: [nygard-adr](#sources), [madr](#sources), [llm-judge](#sources) |
 
 ## reviewer-code
 
@@ -137,26 +147,28 @@ Reviews a branch for correctness, spec conformance, simplicity, weakened tests a
 
 | Criterion | Weight | Kind | How it is measured | Basis |
 |---|---|---|---|---|
-| **Output format**: The review starts with VERDICT: PASS or CHANGES, has a Summary and a Findings section whose numbered items cite a path. | 12% | rule | Parse the file against that format. | inference |
-| **Reads the spec and the build report**: It reads the spec, the build report and the project docs before reviewing. | 12% | rule | spec.md, build.md and AGENTS.md read before the first write. | source: [anthropic-evals](#sources), [bacchelli](#sources) |
-| **Stays in its lane**: It writes only its own review file and never edits code. | 12% | rule | Every Write or Edit path against the allowed paths. | inference |
-| **Few failing tool calls**: Tool calls that fail (wrong paths, errors) are rare. | 6% | rule | Share of tool calls that returned an error. | source: [anthropic-evals](#sources) |
-| **Reasonable cost**: Cost stays near the typical run of the same agent; a trend, not a gate. | 6% | rule | Cost against the median of the same agent: full marks up to 1.5 times, zero at 4 times. | source: [anthropic-evals](#sources) |
-| **One-line reply**: It ends with the VERDICT line and nothing else. | 6% | rule | Final message against the expected line. | inference |
-| **Reads the whole file**: It reads every changed file in full, not only the diff, and the context around it. | 31% | rule | Share of changed files whose name appears in a read or command. | source: [bacchelli](#sources), [google-looking](#sources) |
-| **Checks before it blocks**: Before sending CHANGES it ran a command or a search to confirm the problem. | 12% | rule | A grep, test or other command besides the diff when the verdict is CHANGES. | inference |
+| **Output format**: The review starts with VERDICT: PASS or CHANGES, has a Summary and a Findings section whose numbered items cite a path. | 11% | rule | Parse the file against that format. | inference |
+| **Reads the spec and the build report**: It reads the spec, the build report and the project docs before reviewing. | 11% | rule | spec.md, build.md and AGENTS.md read before the first write. | source: [anthropic-evals](#sources), [bacchelli](#sources) |
+| **Stays in its lane**: It writes only its own review file and never edits code. | 11% | rule | Every Write or Edit path against the allowed paths. | inference |
+| **Few failing tool calls**: Tool calls that fail (wrong paths, errors) are rare. | 5% | rule | Share of tool calls that returned an error. | source: [anthropic-evals](#sources) |
+| **Reasonable cost**: Cost stays near the typical run of the same agent; a trend, not a gate. | 5% | rule | Cost against the median of the same agent: full marks up to 1.5 times, zero at 4 times. | source: [anthropic-evals](#sources) |
+| **One-line reply**: It ends with the VERDICT line and nothing else. | 5% | rule | Final message against the expected line. | inference |
+| **Reads the whole file**: It reads every changed file in full, not only the diff, and the context around it. | 27% | rule | Share of changed files whose name appears in a read or command. | source: [bacchelli](#sources), [google-looking](#sources) |
+| **Checks before it blocks**: Before sending CHANGES it ran a command or a search to confirm the problem. | 11% | rule | A grep, test or other command besides the diff when the verdict is CHANGES. | inference |
+| **Checks the architecture docs**: When the change adds or removes a module or makes a structural decision, the review says something about the C4 diagrams or the ADR. | 13% | rule | The review mentions C4, ADR, architecture or docs/ when the diff has structural signals. Not applicable otherwise. | inference |
 
 ### Output: how good it is
 
 | Criterion | Weight | Kind | How it is measured | Basis |
 |---|---|---|---|---|
-| **Verdict matches the findings**: PASS has no finding; CHANGES has at least one. | 11% | rule | Rule on the verdict and the Findings section. | source: [google-comments](#sources) |
-| **Actionable findings**: Every finding cites path:line and says what to change. | 22% | rule | Share of findings with a path:line and a fix verb. | source: [bosu](#sources), [google-comments](#sources) |
-| **Blocks only on substance**: Style preferences are notes, not blocking findings. | 13% | rule | Share of findings that are not style-only. | source: [google-comments](#sources), [bosu](#sources) |
-| **Catches the planted defect**: A planted bug, weakened test or convention break is sent back and named; a correct change passes. | 24% | outcome | Eval cases with a planted defect must be CHANGES and name it; clean cases must be PASS. | source: [aacr](#sources), [bosu](#sources) |
-| **The verdict held up**: A CHANGES led to a fix in the next round; a PASS was not followed by escalation or feedback. | 11% | outcome | Live: the later rounds and the job's outcome. | source: [bosu](#sources) |
-| **Real findings only**: Every finding is a real defect, spec gap, weakened test or convention break. | 9% | judge | Judge, 0 to 5. | source: [bosu](#sources), [aacr](#sources) |
-| **Nothing missed**: Reading the diff yourself, no real problem was missed. | 9% | judge | Judge, 0 to 5. | source: [aacr](#sources) |
+| **Verdict matches the findings**: PASS has no finding; CHANGES has at least one. | 10% | rule | Rule on the verdict and the Findings section. | source: [google-comments](#sources) |
+| **Actionable findings**: Every finding cites path:line and says what to change. | 20% | rule | Share of findings with a path:line and a fix verb. | source: [bosu](#sources), [google-comments](#sources) |
+| **Blocks only on substance**: Style preferences are notes, not blocking findings. | 12% | rule | Share of findings that are not style-only. | source: [google-comments](#sources), [bosu](#sources) |
+| **Catches the planted defect**: A planted bug, weakened test or convention break is sent back and named; a correct change passes. | 22% | outcome | Eval cases with a planted defect must be CHANGES and name it; clean cases must be PASS. | source: [aacr](#sources), [bosu](#sources) |
+| **The verdict held up**: A CHANGES led to a fix in the next round; a PASS was not followed by escalation or feedback. | 10% | outcome | Live: the later rounds and the job's outcome. | source: [bosu](#sources) |
+| **Real findings only**: Every finding is a real defect, spec gap, weakened test or convention break. | 8% | judge | Judge, 0 to 5. | source: [bosu](#sources), [aacr](#sources) |
+| **Nothing missed**: Reading the diff yourself, no real problem was missed. | 8% | judge | Judge, 0 to 5. | source: [aacr](#sources) |
+| **Missing docs sent back**: A structural change with no matching diagram update or no ADR gets a CHANGES verdict that says so. | 12% | rule | Structural signals and missing docs in the diff against the verdict and its text. Not applicable when the docs are in place. | source: [c4-diagrams](#sources), [nygard-adr](#sources) |
 
 ## reviewer-ux
 
@@ -338,4 +350,9 @@ At the end of a cycle, finds where scores fell short and why, traces each gap to
 | `geval` | [G-Eval: LLM evaluation with chain-of-thought and form filling](https://arxiv.org/abs/2303.16634) | fetched |
 | `llm-judge` | [Zheng et al., Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena](https://arxiv.org/abs/2306.05685) | fetched |
 | `tau-bench` | [tau-bench: agent evaluation and pass^k](https://arxiv.org/abs/2406.12045) | fetched |
+| `c4-diagrams` | [The C4 model: diagrams (system context, containers, components, code; context and container recommended as a minimum)](https://c4model.com/diagrams) | fetched |
+| `c4-abstractions` | [The C4 model: abstractions (software system, container, component, code)](https://c4model.com/abstractions) | fetched |
+| `madr` | [MADR: Markdown Architectural Decision Records (template, NNNN-title-with-dashes.md)](https://adr.github.io/madr/) | fetched |
+| `nygard-adr` | [Michael Nygard: Documenting Architecture Decisions (what is architecturally significant; Context, Decision, Status, Consequences; supersede, never rewrite)](https://www.cognitect.com/blog/2011/11/15/documenting-architecture-decisions) | fetched |
+| `mermaid-c4` | [Mermaid: C4 diagrams (C4Context, C4Container, C4Component, Rel)](https://mermaid.js.org/syntax/c4.html) | fetched |
 
