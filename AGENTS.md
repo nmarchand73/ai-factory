@@ -9,16 +9,21 @@ This repo holds the factory, not the projects' code: projects are declared in `f
 - Never edit `targets/*/repo` or `workspaces/` by hand: only the scripts touch them.
 - A target's checks live in `targets/<name>/checks.sh` (non-interactive, never rewrites files).
 - The dashboard only reads files under `factory/`: `config.json`, `jobs/<id>/job.json` and its round files, and
-  `jobs/_orchestration.json`. A new field in `job.json` is written by `factory/bin/job` and read by `factory/dashboard.html`.
+  `jobs/_orchestration.json`, `evals/scores.json` and `evolution/board.json`. A new field in `job.json` is written by `factory/bin/job` and read by `factory/dashboard.html`.
 - Costs come from Claude Code's transcripts (`cost_breakdown` in `factory/bin/job`); a model without a price in
   `config.json` is left out of the cost with a warning, it must never stop a job.
 
 - What each agent is judged on lives in `evals/criteria.json` (criteria, weights, sources); `docs/EVALS.md` is generated from it (`factory/bin/eval docs > docs/EVALS.md`). A change to an agent's assignment or output format must update the criteria, `format_checks` and the rules in `factory/bin/eval`, and the eval cases in `evals/`.
 - An eval case runs in `factory/evals/runs/` (gitignored), never in a real job.
+- `factory/bin/evolve` is the only writer of `factory/evolution/` (committed: registry, versions, cycles, audit trail). A skill, an
+  agent or a target's `notes.md` changes only through `evolve apply` after `evolve decide ... approve` for that change; never edit
+  a skill's active file to "fix" a plan, never approve for the user. `eval-judge`, `retrospective`, `factory/bin/*`,
+  `evals/criteria.json` and `factory/config.json` are protected: the retrospective may not change them. A new field in the plan
+  format updates `shape_errors` in `evolve`, the retrospective's criteria and its eval cases.
 
 ## Validation
-`python3 -m unittest tests/test_factory.py tests/test_eval.py` (fake `gh`, local git repos, synthetic transcripts).
+`python3 -m unittest tests/test_factory.py tests/test_eval.py tests/test_evolve.py` (fake `gh`, local git repos, synthetic transcripts).
 
 ## Commands
-`/factory run [<target>]`, `/factory run <target>#<n>`, `/factory eval [<agent>|all] [<case>]`, `/factory scores`, `/factory <free text>`.
+`/factory run [<target>]`, `/factory run <target>#<n>`, `/factory eval [<agent>|all] [<case>]`, `/factory scores`, `/factory retro [<cycle>]`, `/factory evolve [rollback <skill> <version>]`, `/factory <free text>`.
 Add a project: `factory/bin/target add <name> <owner/repo>`, then `factory/bin/target check <name>`.

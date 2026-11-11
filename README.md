@@ -45,7 +45,7 @@ transcript or the file, an outcome of the real job, or a score from the `eval-ju
 on a source or on our own reasoning. They come from a research pass (Anthropic's agent-eval guidance, OWASP, DORA,
 Google's review guide, NN/g, WCAG, METR and others); see `docs/EVALS.md` and `evals/criteria.json`.
 
-Evidence comes from live jobs (free: job files and transcripts) and from eval cases, 21 replayable situations in
+Evidence comes from live jobs (free: job files and transcripts) and from eval cases, 24 replayable situations in
 `evals/` (at least one per agent). Little evidence pulls a score toward a neutral value, so a new agent shows as
 *provisional*.
 
@@ -53,6 +53,21 @@ Evidence comes from live jobs (free: job files and transcripts) and from eval ca
 factory/bin/eval report            # confidence of every agent; also fills the dashboard's Agents panel
 factory/bin/eval score builder     # every metric of one agent
 > /factory eval builder            # in Claude Code: replay an agent's cases, score them, call the judge
+```
+
+## Self-improvement
+
+After each `/factory run` (a *cycle*), a `retrospective` agent reads the cycle's scores, metrics and feedback, traces each
+gap to an agent, the orchestrator or an upstream agent, and writes an improvement plan. You approve or reject **each change on
+its own** (rejections are logged with your reason); an approved change becomes a new version of the skill (the previous one is
+kept, any version can be restored) and the next cycle measures whether it worked. The Evolution board on the dashboard shows
+versions, scores before and after, and the audit trail. The grader, the retrospective itself, the scripts, the criteria and the
+config can never be changed by it. See `docs/EVOLUTION.md`.
+
+```bash
+factory/bin/evolve status                      # proposed, approved, deployed, measured changes
+factory/bin/evolve trace agent:builder         # every version of a skill and the gap behind each
+> /factory evolve rollback agent:builder 1.0   # in Claude Code: restore an earlier version
 ```
 
 ## Models and settings
@@ -71,13 +86,13 @@ running at the time (use a session dedicated to the factory).
 ## Documentation
 
 Full manual (English and French, interactive): `docs/manuel-factory.html`.
-Tests: `python3 -m unittest tests/test_factory.py tests/test_eval.py`.
+Tests: `python3 -m unittest tests/test_factory.py tests/test_eval.py tests/test_evolve.py`.
 
 ## Layout
 
 ```
-.claude/skills/factory, .claude/agents   the orchestrator and the 8 agents (a single copy)
-factory/                                  config.json, bin/{job,gate,route,target,eval}, dashboard.html
+.claude/skills/factory, .claude/agents   the orchestrator and the 9 agents (a single copy)
+factory/                                  config.json, bin/{job,gate,route,target,eval,evolve}, dashboard.html, evolution/ (versions, cycles, audit)
 evals/                                    eval cases, fixtures and judge rubrics per agent
 targets/<name>/checks.sh, notes.md        per-project checks and guidance (committed)
 targets/<name>/repo                       local clone of the project (gitignored)
