@@ -19,11 +19,14 @@ target, **watch** is within 25% of it, **bad** is further off. The targets are s
 | | Escalation rate | accepted jobs that needed a human |
 | Agents | Average / weakest confidence | from `eval report` (process and output criteria, see `docs/EVALS.md`) |
 | | Eval cases passing | latest run of each eval case; the board also shows coverage and the age of the last eval |
-| Cost | Cost per merged job | API-equivalent cost of merged jobs |
+| | Security review rate | reviewed jobs where the security reviewer ran (routed by intake or added by `route --diff`); 0 means the lens is never exercised |
+| | Shared browser tool | `agent-browser` or `factory/bin/browse` is available, so agents don't each write a browser script |
+| Cost | Cost per merged job | API-equivalent cost of merged jobs; jobs from before cost tracking (no skill versions) are left out |
 | | Cost of jobs not merged | spend on rejected jobs, as a share of all spend |
-| | Orchestrator overhead | orchestrator spend while no job was running |
+| | Orchestrator overhead | orchestrator spend while no job was running, in sessions that ran jobs (up to an hour after the last one); time a job waits for a person is not billed to it |
 | Vitality | Stuck jobs | a job waiting on a person over 24 h, on an author over 72 h, or in a running stage over 4 h (`metrics.stuck_hours`) |
 | | Idle for | time since any job changed stage |
+| | Empty cycles | cycles closed with no job: closed too early or opened by mistake |
 | | Changes that delivered | of the measured skill changes, the share that delivered (see `docs/EVOLUTION.md`) |
 
 It also shows weekly trends (8 weeks: throughput, lead time, first-pass yield, escalation rate, cost per merged job), the stuck
