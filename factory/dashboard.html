@@ -108,9 +108,14 @@
     text-transform: uppercase; color: var(--human); white-space: nowrap;
   }
   .feature { font-size: 13px; line-height: 1.4; margin: 0 0 6px; }
-  .links { display: flex; gap: 10px; font-family: var(--mono); font-size: 11px; }
-  .links a { color: var(--active); text-decoration: none; }
-  .links a:hover { text-decoration: underline; }
+  .links { display: flex; gap: 6px; font-family: var(--mono); font-size: 11px; }
+  .links { flex-wrap: wrap; }
+  .links a {
+    white-space: nowrap; flex: none; color: var(--active); text-decoration: none; padding: 1px 6px; border-radius: 99px;
+    border: 1px solid color-mix(in srgb, var(--active) 40%, transparent);
+  }
+  .links a::after { content: ' ↗'; opacity: .7; }
+  .links a:hover { background: color-mix(in srgb, var(--active) 16%, transparent); }
   .meta { display: flex; gap: 10px; margin-top: 8px; font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
   .meta .risk-high { color: var(--human); } .meta .risk-medium { color: var(--changes); }
   .chip.gate { flex: 0 0 38px; }
@@ -136,6 +141,16 @@
     background: color-mix(in srgb, var(--changes) 16%, transparent);
   }
   .chip.bad { border: 1px solid var(--human); color: var(--human); }
+  .mergelink {
+    display: block; margin-bottom: 6px; padding: 5px 8px; border-radius: 6px; text-align: center;
+    background: color-mix(in srgb, var(--human) 18%, transparent); color: var(--human);
+    border: 1px solid color-mix(in srgb, var(--human) 55%, transparent); text-decoration: none; font-weight: 600;
+  }
+  .mergelink.ask {
+    background: color-mix(in srgb, var(--changes) 16%, transparent); color: var(--changes);
+    border-color: color-mix(in srgb, var(--changes) 55%, transparent);
+  }
+  .mergelink:hover { background: color-mix(in srgb, var(--human) 30%, transparent); }
   .hint {
     margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line);
     font-family: var(--mono); font-size: 10.5px; color: var(--muted); line-height: 1.6;
@@ -259,7 +274,8 @@
   .lane-head .caret { color: var(--faint); transition: transform .15s; display: inline-block; }
   .lane.closed .caret { transform: rotate(-90deg); }
   .lane-head .name { font-size: 15px; font-weight: 650; }
-  .lane-head .repo { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+  .lane-head .repo { font-family: var(--mono); font-size: 12px; color: var(--muted); text-decoration: none; }
+  .lane-head .repo:hover { color: var(--active); text-decoration: underline; }
   .lane-head .stats { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--muted); display: flex; gap: 14px; }
   .lane-head .stats .alert { color: var(--human); font-weight: 600; }
   .lane.closed .board { display: none; }
@@ -474,7 +490,9 @@ function card(job, rounds) {
       <div class="links">${links(job)}</div>
       ${rounds.length ? `<div class="rounds">${rounds.join('')}</div>` : ''}
       <div class="meta">${meta}</div>
-      ${human ? `<div class="hint">${job.pr ? `merge PR #${job.pr} to approve<br>` : ''}or give feedback: /factory &lt;anything&gt;</div>` : ''}
+      ${job.stage === 'needs-info' && job.issue_url ? `<div class="hint"><a class="mergelink ask" href="${esc(job.issue_url)}" target="_blank" rel="noopener">Open issue #${job.issue} to answer ↗</a></div>` : ''}
+      ${human ? `<div class="hint">${job.pr_url ? `<a class="mergelink" href="${esc(job.pr_url)}" target="_blank" rel="noopener">Open PR #${job.pr} to merge ↗</a>`
+        : job.pr ? `merge PR #${job.pr} to approve<br>` : ''}or give feedback: /factory &lt;anything&gt;</div>` : ''}
     </article>`
 }
 
@@ -553,17 +571,17 @@ function laneHtml(name, laneJobs, byJob, unknown) {
   const empty = `<div class="lane-empty">No jobs yet. Label an issue of this project <code>factory</code> and run /factory run ${esc(name)}.</div>`
   return `
     <section class="lane ${closed ? 'closed' : ''} ${unknown ? 'unknown' : ''}" data-lane="${esc(name)}">
-      <button class="lane-head" type="button" aria-expanded="${!closed}" data-toggle="${esc(name)}">
+      <div class="lane-head" role="button" tabindex="0" aria-expanded="${!closed}" data-toggle="${esc(name)}">
         <span class="caret">▾</span>
         <span class="name">${esc(unknown ? name + ' (unknown target)' : name)}</span>
-        ${repo ? `<span class="repo">${esc(repo)}</span>` : ''}
+        ${repo ? `<a class="repo" href="https://github.com/${esc(repo)}" target="_blank" rel="noopener" title="Open ${esc(repo)} on GitHub">${esc(repo)} ↗</a>` : ''}
         <span class="stats">
           <span>${running} running</span>
           <span class="${needsHuman ? 'alert' : ''}">${needsHuman} needs human</span>
           <span>${merged} merged</span>
           <span>${money(cost)}</span>
         </span>
-      </button>
+      </div>
       ${costHtml(laneJobs)}
       ${laneJobs.length ? `<div class="board">${cols}</div>` : empty}
     </section>`
@@ -612,7 +630,11 @@ async function render() {
   if (knownHuman && notifyOn) {
     for (const j of waiting) {
       if (!knownHuman.has(j.id)) {
-        try { new Notification(`${j.target ? j.target + ' · ' : ''}${j.id} needs you`, { body: j.title }) } catch { /* ignored */ }
+        try {
+          const n = new Notification(`${j.target ? j.target + ' · ' : ''}${j.id} needs you`, { body: j.title })
+          const url = j.pr_url || j.issue_url // a click opens the PR to merge, or the issue
+          if (url) n.onclick = () => window.open(url, '_blank', 'noopener')
+        } catch { /* ignored */ }
       }
     }
   }
@@ -638,7 +660,12 @@ if (typeof Notification !== 'undefined') {
   })
 }
 
+document.addEventListener('keydown', (e) => {
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.lane-head')) { e.preventDefault(); e.target.click() }
+})
+
 document.addEventListener('click', (e) => {
+  if (e.target.closest('.lane-head a')) return // a link inside the header opens GitHub, it doesn't collapse the lane
   const toggle = e.target.closest('[data-toggle]')
   if (toggle) {
     const n = toggle.dataset.toggle
