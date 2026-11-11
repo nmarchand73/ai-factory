@@ -197,6 +197,15 @@ class Factory(unittest.TestCase):
         self.assertEqual(self.job_json(job_id)["stage"], "rejected")
         self.assertNotIn("factory", self.gh_state()["issues"]["me/alpha"]["5"]["labels"])
 
+    def test_target_add_refuses_an_empty_repo(self):
+        st = self.gh_state()
+        st["repos"] = {"me/empty": {"viewerPermission": "ADMIN", "defaultBranchRef": None}}
+        self.state.write_text(json.dumps(st))
+        res = self.bin("target", "add", "empty", "me/empty", ok=False)
+        self.assertNotEqual(res.returncode, 0)
+        self.assertIn("no commits yet", res.stderr)
+        self.assertNotIn("empty", json.loads((self.root / "factory" / "config.json").read_text())["targets"])
+
     def test_unknown_target_is_refused(self):
         res = self.bin("job", "create", "nope", "1", ok=False)
         self.assertNotEqual(res.returncode, 0)

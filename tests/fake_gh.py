@@ -34,6 +34,9 @@ issues = state.setdefault("issues", {}).setdefault(repo or "-", {})
 prs = state.setdefault("prs", {}).setdefault(repo or "-", {})
 cmd = argv[:2]
 
+if cmd == ["repo", "view"]:
+    r = state.get("repos", {}).get(argv[2], {"viewerPermission": "WRITE", "defaultBranchRef": {"name": "main"}})
+    done(r)
 if cmd == ["api", "user"]:
     done(state.get("user", "tester"))
 if cmd == ["issue", "list"]:
