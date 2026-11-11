@@ -13,7 +13,7 @@ This repo holds the factory, not the projects' code: projects are declared in `f
 - Costs come from Claude Code's transcripts (`cost_breakdown` in `factory/bin/job`); a model without a price in
   `config.json` is left out of the cost with a warning, it must never stop a job.
 
-- Agent scores come from `factory/bin/eval`; a change to an agent's output format must update `format_checks` there and the eval cases in `evals/`.
+- What each agent is judged on lives in `evals/criteria.json` (criteria, weights, sources); `docs/EVALS.md` is generated from it (`factory/bin/eval docs > docs/EVALS.md`). A change to an agent's assignment or output format must update the criteria, `format_checks` and the rules in `factory/bin/eval`, and the eval cases in `evals/`.
 - An eval case runs in `factory/evals/runs/` (gitignored), never in a real job.
 
 ## Validation

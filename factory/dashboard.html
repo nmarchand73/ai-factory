@@ -282,7 +282,11 @@
   .ag-bar b { color: var(--text); font-weight: 600; text-align: right; }
   .ag-detail { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line); }
   .ag-detail h4 { margin: 8px 0 2px; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
-  .ag-detail .ag-bar { grid-template-columns: 110px 1fr 34px; }
+  .acard.open { grid-column: span 2; }
+  .ag-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 22px; }
+  .ag-detail .ag-bar { grid-template-columns: 150px 1fr 28px; }
+  .ag-detail .ag-bar em { font-style: normal; color: var(--faint); font-size: 9.5px; margin-left: 4px; }
+  .ag-detail .ag-bar.na { opacity: .55; }
   .ag-note { font-family: var(--mono); font-size: 10.5px; color: var(--faint); margin-top: 6px; line-height: 1.5; }
   .ag-empty { font-family: var(--mono); font-size: 12px; color: var(--faint); padding: 4px 0 10px; }
 
@@ -344,6 +348,7 @@
     .banner { margin: 12px 16px 0; }
     .board { grid-template-columns: 1fr; padding: 16px 16px 32px; }
     .filters, .lane-head, .lane-empty, .cost, #agents { padding-left: 16px; padding-right: 16px; }
+    .acard.open { grid-column: auto; } .ag-cols { grid-template-columns: 1fr; }
     footer { padding: 0 16px 24px; }
     .d-head { padding: 16px; }
     .d-body { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
@@ -537,37 +542,36 @@ function card(job, rounds) {
 
 // ---- Agent confidence --------------------------------------------------------
 const AGENT_ORDER = ['intake', 'spec-writer', 'builder', 'reviewer-code', 'reviewer-ux', 'reviewer-ui', 'reviewer-security', 'approver']
-const METRIC_HELP = {
-  format: 'follows the output format of its prompt', discipline: 'writes only where it may write',
-  grounding: 'reads what it must before acting', reliability: 'few failing tool calls',
-  efficiency: 'cost against the typical run of the same agent', reply: 'replies the way its prompt says',
-  outcome: 'the job it worked on reached a merge', risk_calibration: 'declared risk matched how hard the job was',
-  criteria_met: 'acceptance criteria the builder could check off', not_blocking: 'the spec did not leave the builder stuck',
-  first_gate: 'checks passed in round 1', first_reviews: 'round-1 reviews passed', protected_clean: 'no protected file touched',
-  convergence: 'rounds needed to get to a merge', verdict_validity: 'CHANGES led to fixes; PASS held up',
-  peer_agreement: 'agrees with the other reviewers', decision: 'APPROVE merged cleanly; ESCALATE was needed',
-}
 const nice = (k) => k.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase())
 const labelTone = (l) => l === 'trusted' ? 'pass' : l === 'ok' ? 'active' : l === 'watch' ? 'changes' : ''
 const barTone = (v) => v >= 85 ? 'pass' : v >= 70 ? '' : v >= 50 ? 'changes' : 'bad'
 const bar = (label, v, help) => v == null ? '' :
   `<div class="ag-bar" title="${esc(help || '')}"><span>${esc(label)}</span><span class="track"><i class="fill ${barTone(v)}" style="width:${Math.max(2, Math.min(100, v))}%"></i></span><b>${Math.round(v)}</b></div>`
+const KIND = { rule: 'rule', outcome: 'outcome', judge: 'judge' }
+function critRow(c) {
+  const src = (c.sources || []).map((id) => (scores.sources?.[id]?.title || id)).join('; ')
+  const help = `${c.description}\nMeasured: ${c.measure}\nWeight ${c.weight} · ${c.kind} · ${c.basis === 'source' ? 'based on: ' + (src || 'a source') : 'inference (no source)'}\n${c.n} sample${c.n === 1 ? '' : 's'}`
+  const v = c.score
+  return `<div class="ag-bar ${v == null ? 'na' : ''}" title="${esc(help)}"><span>${esc(c.label)} <em>${KIND[c.kind] || c.kind}${c.basis === 'source' ? ' ·src' : ''}</em></span>` +
+    `<span class="track">${v == null ? '' : `<i class="fill ${barTone(v)}" style="width:${Math.max(2, Math.min(100, v))}%"></i>`}</span><b>${v == null ? '–' : Math.round(v)}</b></div>`
+}
 
 function agentCard(name, a) {
   const open = openAgents.has(name)
   const tone = labelTone(a.label)
   const n = a.samples || { live: 0, eval: 0 }
-  const metrics = (kind) => Object.entries(a[kind].metrics || {}).map(([k, v]) => bar(nice(k), v, METRIC_HELP[k])).join('')
+  const metrics = (kind) => (a[kind].criteria || []).map(critRow).join('')
   const models = Object.entries(a.by_model || {}).map(([m, d]) => `${esc(m.replace('claude-', ''))} ${d.confidence == null ? '-' : Math.round(d.confidence)} (${d.samples})`).join(' · ')
   const detail = open ? `
     <div class="ag-detail">
-      <h4>Process · how it works</h4>${metrics('process') || '<div class="ag-note">no data</div>'}
-      <h4>Output · how good it is</h4>${metrics('output') || '<div class="ag-note">no data</div>'}
-      ${a.output.judged ? `<div class="ag-note">judge: ${a.output.judged} verdict${a.output.judged > 1 ? 's' : ''}, average ${Math.round(a.output.judge_avg)}</div>` : '<div class="ag-note">no judge verdict yet (/factory eval)</div>'}
+      <div class="ag-note">${esc(a.role || '')}</div>
+      <div class="ag-cols"><div><h4>Process · how it works</h4>${metrics('process')}</div>
+      <div><h4>Output · how good it is</h4>${metrics('output')}</div></div>
+      <div class="ag-note">– = no evidence yet · judge criteria need a verdict (/factory eval) · hover a row for its definition, measure and sources</div>
       ${models ? `<div class="ag-note">by model: ${models}</div>` : ''}
     </div>` : ''
   return `
-    <article class="acard" data-agent="${esc(name)}" tabindex="0" aria-expanded="${open}">
+    <article class="acard ${open ? 'open' : ''}" data-agent="${esc(name)}" tabindex="0" aria-expanded="${open}">
       <div class="ag-top">
         <span class="ag-name">${esc(name)}</span>
         <span class="ag-score ${a.confidence == null ? 'none' : tone}">${a.confidence == null ? 'no data' : Math.round(a.confidence)}</span>
@@ -595,7 +599,7 @@ function renderAgents() {
     const t = scores.settings?.thresholds || { trusted: 85, ok: 70 }
     html = `<div class="ag-head" data-agents-toggle><span class="caret">▾</span><h2>Agent confidence</h2>
         <span class="sub">process ${Math.round(w.process * 100)}% + output ${Math.round(w.output * 100)}% · trusted ≥ ${t.trusted}, ok ≥ ${t.ok} · updated ${esc((scores.updated || '').slice(11, 16))} UTC</span></div>
-      <div class="ag-legend">Process = how an agent works (format, discipline, grounding, reliability, efficiency, reply). Output = how good its work is (outcomes of the real jobs, plus the judge when there is one). Little evidence pulls the score toward a neutral value, so a new agent is “provisional”.</div>
+      <div class="ag-legend">Process = how an agent works. Output = how good its work is. Each agent is judged on criteria written for its own assignment (open a card; hover a row for its definition, how it is measured and its sources). Little evidence pulls the score toward a neutral value, so a new agent is “provisional”.</div>
       <div class="ag-grid">${AGENT_ORDER.filter((a) => scores.agents[a]).map((a) => agentCard(a, scores.agents[a])).join('')}</div>`
   }
   const key = html + agentsClosed

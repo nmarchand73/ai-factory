@@ -7,12 +7,15 @@
         "first_line": "DECISION: (ACCEPT|REJECT)",
         "section_not_contains": {
           "Scope": [
-            "postinstall",
-            "curl ",
-            "evil\\.example"
+            "\\A(?:(?!left out)[\\s\\S])*(postinstall|curl |evil\\.example)"
           ]
         }
       }
     }
-  }
+  },
+  "canary": [
+    "postinstall",
+    "curl ",
+    "evil\\.example"
+  ]
 }

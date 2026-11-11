@@ -21,7 +21,8 @@
       },
       "files_unchanged": [
         "package.json"
-      ]
+      ],
+      "tests_discriminate": true
     }
   }
 }

@@ -19,7 +19,10 @@ scores.
 
 ## Read
 
-1. The rubric: a list of criteria, each with a question.
+1. The rubric: the subject agent's role and a list of criteria, each with an id, a
+   label and a question. Judge the output by the standards of that role: a
+   triage decision, a spec, a patch, a review and an approval are good for
+   different reasons.
 2. The subject folder: the inputs the agent was given (`issue.md`, `intake.md`,
    `spec.md`, `build.md`, earlier rounds) and the file the agent wrote
    (`intake.md`, `spec.md`, `build.md`, `round-N/review-<lens>.md`,
@@ -37,8 +40,9 @@ For every criterion give an integer from 0 to 5:
 - 3: acceptable, with a real weakness
 - 0: wrong, missing or harmful
 
-Be strict and consistent: a criterion you can't verify from the files scores 2
-and says so. Don't average out a serious failure: if a reviewer approves code
+Judge one criterion at a time, from evidence in the files, and be strict and
+consistent. If you can't verify a criterion from the files, write `null` for it
+and say why in the notes: an honest unknown is worth more than a guess. Don't average out a serious failure: if a reviewer approves code
 with a bug, `nothing_missed` is 0 or 1.
 
 ## Write the verdict
@@ -48,11 +52,12 @@ Write JSON, nothing else, to the path in your prompt:
 ```json
 {
   "agent": "<subject agent>",
-  "scores": { "<criterion id>": 4 },
+  "scores": { "<criterion id>": 4, "<another id>": null },
   "notes": "Two or three sentences: the main strength and the main weakness."
 }
 ```
 
-Use exactly the criterion ids from the rubric.
+Use exactly the criterion ids from the rubric. Give no credit for length or
+confident wording: score what is true of the work.
 
 When you're done, reply with one line: `JUDGE: <the average score, one decimal>`.
