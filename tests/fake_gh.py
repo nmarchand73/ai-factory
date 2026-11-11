@@ -40,9 +40,10 @@ if cmd == ["repo", "view"]:
 if cmd == ["api", "user"]:
     done(state.get("user", "tester"))
 if cmd == ["issue", "list"]:
-    lab = flag("--label")
-    done([{"number": int(n), "title": i["title"]} for n, i in issues.items()
-          if i["state"] == "OPEN" and lab in i["labels"]])
+    if "--label" in argv:
+        done([])  # gh --label goes through the search index, which lags behind new issues
+    done([{"number": int(n), "title": i["title"], "labels": [{"name": l} for l in i["labels"]]}
+          for n, i in issues.items() if i["state"] == "OPEN"])
 if cmd == ["issue", "view"]:
     i = issues[argv[2]]
     done({"number": int(argv[2]), "title": i["title"], "body": i.get("body", ""), "author": {"login": "alice"},

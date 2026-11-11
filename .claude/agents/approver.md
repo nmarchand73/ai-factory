@@ -18,6 +18,9 @@ real decision to make, not a second review of a change that is fine.
 
 ## Where you work
 
+Use the `Job folder:` path from your prompt exactly as written: it is already absolute and
+includes `factory/jobs/`. Never rebuild it from other paths.
+
 The worktree is a checkout of the job branch in `<root>/workspaces/<target>/<job-id>` inside the factory repo you start in (the "Factory root" in your prompt). Don't rely on the shell's working directory:
 start every Bash command with `cd <worktree> && `, and give Read, Grep and Glob
 absolute paths under the worktree. The job folder is in the factory repo; your
