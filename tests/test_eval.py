@@ -386,6 +386,69 @@ None.
         self.assertTrue(r["role"])
 
 
+class Retrospective(unittest.TestCase):
+    """The retrospective's plan is judged against the cycle's input.json and the skill files it names."""
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.skill = self.tmp / "builder.md"
+        self.skill.write_text("---\nname: builder\n---\n\nCommit your work when done.\n")
+        inp = {"scores": {"builder": {"criteria": {"runs_checks": {"score": 40, "n": 4}, "format": {"score": 95, "n": 4}}}},
+               "metrics": {"avg_rounds": 2.0}, "feedback": [{"job": "003-x", "file": "jobs/003-x/decision.md", "text": "x"}],
+               "changes_to_review": [{"key": "c001/ch1"}],
+               "skills": {"agent:builder": {"path": str(self.skill), "version": "1.0"}}}
+        (self.tmp / "input.json").write_text(json.dumps(inp))
+
+    def plan(self, **change):
+        c = {"id": "ch1", "gap": {"summary": "no checks", "evidence": "runs_checks 40 (n=4), jobs/003-x/decision.md"},
+             "old": "Commit your work when done.", "new": "Run checks.sh, then commit your work when done.",
+             "expected_impact": {"criterion": "runs_checks", "direction": "up", "delta": 25}, "priority": "P1", "confidence": "medium"}
+        c.update(change)
+        return json.dumps({"previous_changes_review": [{"change": "c001/ch1", "verdict": "delivered", "evidence": "40 -> 70"}],
+                           "agents": {"builder": {"issues": [{"gap": "runs_checks", "evidence": "runs_checks 40", "root_cause": "prompt"}], "changes": [c]}},
+                           "orchestrator": {"issues": [], "changes": []}, "system": []})
+
+    def run_rule(self, rid, text, calls=None):
+        return EV.RULES[rid](ctx("retrospective", text, calls or [], job_dir=self.tmp))
+
+    def test_a_sound_plan_scores_full_marks(self):
+        text = self.plan()
+        for rid in ("gaps_traced", "gaps_have_evidence", "changes_exact", "impact_measurable", "no_invented_work",
+                    "protected_untouched", "prioritised", "prior_changes_reviewed"):
+            self.assertEqual(self.run_rule(rid, text), 1.0, rid)
+        self.assertTrue(all(ok for _, ok in EV.format_checks("retrospective", text)))
+
+    def test_an_old_text_that_is_not_in_the_skill_is_not_exact(self):
+        self.assertEqual(self.run_rule("changes_exact", self.plan(old="text that is not there")), 0.0)
+
+    def test_a_change_on_a_healthy_criterion_is_invented_work(self):
+        text = self.plan(expected_impact={"criterion": "format", "direction": "up", "delta": 5}, gap={"summary": "x", "evidence": "format 95"})
+        self.assertEqual(self.run_rule("no_invented_work", text), 0.0)
+
+    def test_evidence_without_numbers_or_a_source_is_not_evidence(self):
+        self.assertEqual(self.run_rule("gaps_have_evidence", self.plan(gap={"summary": "x", "evidence": "it seems weak"})), 0.5)
+
+    def test_an_unknown_criterion_is_not_measurable(self):
+        text = self.plan(expected_impact={"criterion": "vibes", "direction": "up", "delta": 5})
+        self.assertAlmostEqual(self.run_rule("impact_measurable", text), 2 / 3)
+
+    def test_protected_targets_and_missing_reviews_are_caught(self):
+        self.assertEqual(self.run_rule("protected_untouched", self.plan(target="agent:eval-judge")), 0.0)
+        bare = json.loads(self.plan())
+        bare["previous_changes_review"] = []
+        self.assertEqual(self.run_rule("prior_changes_reviewed", json.dumps(bare)), 0.0)
+
+    def test_it_must_read_the_skill_before_it_writes(self):
+        text = self.plan()
+        reads = [call("Read", file_path=str(self.tmp / "input.json")), call("Read", file_path=str(self.skill)),
+                 call("Write", file_path=str(self.tmp / "plan.json"))]
+        self.assertEqual(self.run_rule("reads_skills_before_change", text, reads), 1.0)
+        self.assertEqual(self.run_rule("reads_skills_before_change", text, [reads[0], reads[2]]), 0.0)
+
+    def test_the_reply_counts_the_changes(self):
+        self.assertEqual(EV.expected_reply("retrospective", self.plan()), "RETRO: 1 changes")
+
+
 class Harness(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp()).resolve()

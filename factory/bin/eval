@@ -17,6 +17,7 @@ exist) and eval cases (evals/<agent>/<case>/, replayed on demand with /factory e
 
 Usage:
   eval report [--json]                 score every agent, write factory/evals/scores.json
+  eval report --cycle ID --json        the same over the live jobs of one factory cycle only (writes nothing)
   eval score <agent>                   one agent in detail, metric by metric
   eval cases [<agent>]                 list the eval cases
   eval prepare <agent> <case> [--run ID]
@@ -48,7 +49,7 @@ STATE = FACTORY / "evals"         # runs, judge verdicts, scores.json: runtime, 
 CONFIG = json.loads((FACTORY / "config.json").read_text())
 
 AGENTS = ["intake", "spec-writer", "builder", "reviewer-code", "reviewer-ux", "reviewer-ui",
-          "reviewer-security", "approver"]
+          "reviewer-security", "approver", "retrospective"]
 
 DEFAULTS = {
     "weights": {"process": 0.4, "output": 0.6},
@@ -136,6 +137,33 @@ def header_fields(text):
     return out
 
 
+def plan_of(text):
+    try:
+        plan = json.loads(text or "")
+    except ValueError:
+        return None
+    return plan if isinstance(plan, dict) else None
+
+
+_evolve = None
+
+
+def evolve_module():
+    """factory/bin/evolve as a module: the retrospective's plan is validated by the code that applies it."""
+    global _evolve
+    if _evolve is None:
+        import importlib.machinery
+        import importlib.util
+        loader = importlib.machinery.SourceFileLoader("factory_evolve", str(FACTORY / "bin" / "evolve"))
+        _evolve = importlib.util.module_from_spec(importlib.util.spec_from_loader("factory_evolve", loader))
+        loader.exec_module(_evolve)
+    return _evolve
+
+
+def plan_changes(plan):
+    return [dict(c, target=c.get("target", skill)) for skill, _, c in evolve_module().walk_changes(plan)]
+
+
 def format_checks(agent, text):
     """[(name, ok)]: does the file follow the format its agent's prompt asks for?"""
     if not text:
@@ -182,6 +210,11 @@ def format_checks(agent, text):
         ok("Findings section", findings)
         if first == "VERDICT: CHANGES":
             ok("findings are numbered and cite a path", re.search(r"^\s*\d+\. \S+[:.]\S*", findings or "", re.M))
+    elif agent == "retrospective":
+        plan = plan_of(text)
+        ok("plan.json is a JSON object", plan is not None)
+        errors = evolve_module().shape_errors(plan) if plan is not None else ["not a plan"]
+        ok("the plan has every section and every change is complete", not errors)
     elif agent == "approver":
         ok("first line is APPROVE or ESCALATE", re.fullmatch(r"APPROVE|ESCALATE", first))
         ok("Summary has 3 to 5 bullets", 3 <= len(bullets(summary)) <= 5)
@@ -254,6 +287,7 @@ REQUIRED_READS = {
     "builder": [r"spec\.md", r"AGENTS\.md|CLAUDE\.md"],
     "reviewer": [r"spec\.md", r"build\.md", r"AGENTS\.md|CLAUDE\.md"],
     "approver": [r"spec\.md", r"build\.md", r"AGENTS\.md|CLAUDE\.md"],
+    "retrospective": [r"input\.json"],
 }
 
 
@@ -298,6 +332,9 @@ def reliability_score(calls):
 
 def expected_reply(agent, text):
     first = first_line(text)
+    if agent == "retrospective":
+        plan = plan_of(text)
+        return None if plan is None else f"RETRO: {len(plan_changes(plan))} changes"
     if agent == "spec-writer":
         return "SPEC: " + first.removeprefix("# ").strip() if first.startswith("# ") else None
     return first or None
@@ -864,6 +901,153 @@ def realised_risk(j):
     return 0 if j["round"] <= 1 else 1
 
 
+# -- retrospective
+
+def retro_input(ctx):
+    return json.loads(read(Path(ctx["job_dir"]) / "input.json") or "{}")
+
+
+def skill_text(inp, skill):
+    path = ((inp.get("skills") or {}).get(skill) or {}).get("path")
+    if not path:
+        return None
+    p = Path(path)
+    return read(p if p.is_absolute() else ROOT / p)
+
+
+def criterion_scores(inp, agent):
+    return ((inp.get("scores") or {}).get(agent) or {}).get("criteria") or {}
+
+
+@rule("reads_skills_before_change")
+def r_reads_skills(ctx):
+    plan = plan_of(ctx["text"])
+    inp = retro_input(ctx)
+    changes = plan_changes(plan) if plan else []
+    if not changes:
+        return 1.0
+    before = "\n".join(call_text(c) for c in before_first_write(ctx["calls"]))
+    paths = {c["target"]: ((inp.get("skills") or {}).get(c["target"]) or {}).get("path", "") for c in changes}
+    return sum(1 for t, pth in paths.items() if pth and Path(pth).name in before) / len(paths)
+
+
+@rule("prior_changes_reviewed")
+def r_prior_reviewed(ctx):
+    plan = plan_of(ctx["text"]) or {}
+    todo = [c["key"] for c in retro_input(ctx).get("changes_to_review", [])]
+    if not todo:
+        return None
+    done = {r.get("change") for r in plan.get("previous_changes_review") or []}
+    return sum(1 for k in todo if k in done or k.split("/")[-1] in done) / len(todo)
+
+
+@rule("gaps_traced")
+def r_gaps_traced(ctx):
+    plan, inp = plan_of(ctx["text"]), retro_input(ctx)
+    if not plan:
+        return 0.0
+    rows = []
+    for name, sec in (plan.get("agents") or {}).items():
+        for i in (sec or {}).get("issues", []):
+            known = i.get("gap") in criterion_scores(inp, name) or "feedback" in str(i.get("gap")).lower()
+            cause = re.match(r"(prompt|skill|orchestrat|input)", str(i.get("root_cause", "")), re.I)
+            rows.append((bool(known) + bool(cause)) / 2)
+    return sum(rows) / len(rows) if rows else None
+
+
+@rule("gaps_have_evidence")
+def r_gaps_evidence(ctx):
+    plan, inp = plan_of(ctx["text"]), retro_input(ctx)
+    if not plan:
+        return 0.0
+    ids = {cid for a in (inp.get("scores") or {}).values() for cid in a.get("criteria", {})}
+    refs = {f["file"] for f in inp.get("feedback", [])} | {f["job"] for f in inp.get("feedback", [])}
+    texts = [i.get("evidence", "") for sec in (plan.get("agents") or {}).values() for i in (sec or {}).get("issues", [])]
+    texts += [str((c.get("gap") or {}).get("evidence", "")) for c in plan_changes(plan)]
+    if not texts:
+        return None
+    def grounded(t):
+        return bool(re.search(r"\d", t)) and (any(i in t for i in ids) or any(r in t for r in refs))
+    return sum(1 for t in texts if grounded(str(t))) / len(texts)
+
+
+@rule("changes_exact")
+def r_changes_exact(ctx):
+    plan, inp = plan_of(ctx["text"]), retro_input(ctx)
+    changes = plan_changes(plan) if plan else []
+    if not changes:
+        return None
+    rows = []
+    for c in changes:
+        text = skill_text(inp, c["target"])
+        if text is None or not c.get("old") or text.count(c["old"]) != 1 or c.get("new") == c.get("old"):
+            rows.append(0.0)
+        else:
+            rows.append(1.0 if len(c["new"]) - len(c["old"]) <= 600 else 0.5)
+    return sum(rows) / len(rows)
+
+
+@rule("impact_measurable")
+def r_impact(ctx):
+    plan, inp = plan_of(ctx["text"]), retro_input(ctx)
+    changes = plan_changes(plan) if plan else []
+    if not changes:
+        return None
+    rows = []
+    for c in changes:
+        ei = c.get("expected_impact") or {}
+        agent = c["target"].partition(":")[2] if c["target"].startswith("agent:") else None
+        known = (ei.get("criterion") in criterion_scores(inp, agent) or ei.get("criterion") in {"process", "output", "confidence"}) \
+            if agent else ei.get("criterion") in (inp.get("metrics") or {}) | {"overall": 1}
+        rows.append((bool(known) + isinstance(ei.get("delta"), (int, float)) + (ei.get("direction") in {"up", "down"})) / 3)
+    return sum(rows) / len(rows)
+
+
+@rule("no_invented_work")
+def r_not_invented(ctx):
+    plan, inp = plan_of(ctx["text"]), retro_input(ctx)
+    if not plan:
+        return 0.0
+    ok = ((CONFIG.get("evals") or {}).get("thresholds") or DEFAULTS["thresholds"])["ok"]
+    changes = plan_changes(plan)
+    feedback = bool(inp.get("feedback"))
+    gaps = [(a, cid) for a, d in (inp.get("scores") or {}).items() for cid, c in d.get("criteria", {}).items()
+            if c.get("score") is not None and c["score"] < ok and c.get("n", 0) >= 1]
+    if not changes:
+        return 1.0 if not gaps and not feedback else 0.5
+    rows = []
+    for c in changes:
+        agent = c["target"].partition(":")[2]
+        gap = c.get("gap") or {}
+        cid = (c.get("expected_impact") or {}).get("criterion")
+        score = (criterion_scores(inp, agent).get(cid) or {}).get("score")
+        rows.append(1.0 if (score is not None and score < ok) or (feedback and re.search(r"feedback|escalat|decision", str(gap), re.I)) else 0.0)
+    return sum(rows) / len(rows)
+
+
+@rule("protected_untouched")
+def r_protected(ctx):
+    plan = plan_of(ctx["text"])
+    if not plan:
+        return 0.0
+    bad = [c for c in plan_changes(plan) if c["target"].partition(":")[2] in evolve_module().PROTECTED_AGENTS
+           or re.search(r"criteria\.json|config\.json|factory/bin/", str(c["target"]))]
+    return 0.0 if bad else 1.0
+
+
+@rule("prioritised")
+def r_prioritised(ctx):
+    plan = plan_of(ctx["text"])
+    if not plan:
+        return 0.0
+    items = plan_changes(plan) + list(plan.get("system") or [])
+    if not items:
+        return None
+    valid = sum(1 for i in items if i.get("priority") in {"P1", "P2", "P3"} and i.get("confidence") in {"low", "medium", "high"}) / len(items)
+    ranked = len(items) < 3 or len({i.get("priority") for i in items}) > 1
+    return valid * (1.0 if ranked else 0.8)
+
+
 # ---- Outcome criteria: what happened to the job afterwards -------------------
 
 
@@ -984,6 +1168,8 @@ def output_file(agent, j):
         return d / "build.md"
     if agent == "approver":
         return d / "decision.md"
+    if agent == "retrospective":
+        return d / "plan.json"
     lens = agent[9:]
     files = sorted(d.glob(f"round-*/review-{lens}.md"), key=lambda p: int(p.parent.name.split("-")[1]))
     return files[-1] if files else d / "round-1" / f"review-{lens}.md"
@@ -1039,7 +1225,8 @@ def live_samples():
             cost = sum(tr["cost"] for tr in trs)
             costs[agent].append(cost)
             samples.append({"source": "live", "agent": agent, "job": j["id"], "ts": j["started"] or "", "model": trs[0]["model"],
-                            "cost": cost, "process": merged["process"], "output": merged["output"]})
+                            "cost": cost, "process": merged["process"], "output": merged["output"],
+                            "cycle": raw.get("cycle"), "versions": raw.get("skill_versions") or {}})
     for s in samples:
         if "efficiency" in s["process"]:
             s["process"]["efficiency"] = efficiency_score(s["cost"], costs[s["agent"]])
@@ -1116,9 +1303,10 @@ def _blend(ps, os_, s):
     return round((len(ps) * raw + s["prior_strength"] * s["prior"]) / (len(ps) + s["prior_strength"]), 1)
 
 
-def compute_scores():
+def compute_scores(cycle=None):
+    """Scores over the sliding window; with a cycle, over the live samples of that cycle only (no eval cases)."""
     s = settings()
-    samples = live_samples() + eval_samples()
+    samples = [x for x in live_samples() if x.get("cycle") == cycle] if cycle else live_samples() + eval_samples()
     agents = {a: aggregate(a, [x for x in samples if x["agent"] == a], s) for a in AGENTS}
     sources = criteria_doc().get("sources", {})
     return {"updated": now(), "settings": {k: s[k] for k in ("weights", "eval_case_weight", "thresholds", "min_samples", "prior", "prior_strength")},
@@ -1171,6 +1359,7 @@ AGENT_SUFFIX = {
     "builder": " Build round 1. Port: 5900. This is an evaluation run: there is no GitHub and no remote to push to. "
                "Commit on the branch, skip the push and the pull request, and write build.md.",
     "approver": " PR: #1. Final round: 1.",
+    "retrospective": " Cycle: c-eval. The cycle folder is the job folder: read input.json there and write plan.json there.",
 }
 
 
@@ -1188,6 +1377,8 @@ def cmd_prepare(agent, name, run_id):
     inputs = case_dir / "inputs"
     if inputs.exists():
         shutil.copytree(inputs, job_dir, dirs_exist_ok=True)
+    if agent == "retrospective" and (job_dir / "input.json").exists():   # the case's skill files live in the job folder
+        (job_dir / "input.json").write_text((job_dir / "input.json").read_text().replace("{{JOB}}", str(job_dir)))
     wt = build_worktree(case, case_dir, run_dir) if case.get("fixture") else None
     clone = run_dir / "clone"
     (job_dir / "job.json").write_text(json.dumps({"id": f"eval-{name}", "target": "eval", "issue": 1, "stage": "intake", "round": 1}))
@@ -1421,10 +1612,11 @@ def fmt(v):
     return "  -" if v is None else f"{v:5.1f}"
 
 
-def cmd_report(as_json):
-    scores = compute_scores()
+def cmd_report(as_json, cycle=None):
+    scores = compute_scores(cycle)
     STATE.mkdir(parents=True, exist_ok=True)
-    (STATE / "scores.json").write_text(json.dumps(scores, indent=2) + "\n")
+    if not cycle:   # the dashboard shows the sliding window; a cycle's own scores go to its snapshot
+        (STATE / "scores.json").write_text(json.dumps(scores, indent=2) + "\n")
     if as_json:
         print(json.dumps(scores, indent=2))
         return
@@ -1460,7 +1652,7 @@ def main(argv):
     if not argv or argv[0] in {"-h", "--help"}:
         print(__doc__.strip())
     elif argv[0] == "report":
-        cmd_report("--json" in argv)
+        cmd_report("--json" in argv, argv[argv.index("--cycle") + 1] if "--cycle" in argv else None)
     elif argv[0] == "score" and len(argv) == 2:
         cmd_score(argv[1])
     elif argv[0] == "cases":

@@ -691,6 +691,17 @@ def next_job_id(title):
     return job_id
 
 
+def evolution_stamp():
+    """The open cycle and the versions of the skills the job starts with (written by factory/bin/evolve, read here)."""
+    evo = FACTORY / "evolution"
+    try:
+        cycle = json.loads((evo / "current.json").read_text()).get("cycle")
+        reg = json.loads((evo / "registry.json").read_text())
+    except (OSError, ValueError):
+        return {"cycle": None, "skill_versions": {}}
+    return {"cycle": cycle, "skill_versions": {k: v["current"] for k, v in reg.get("skills", {}).items()}}
+
+
 def cmd_create(target, number):
     use_target(target)
     existing = [j for j in all_jobs() if j["target"] == target and j["issue"] == int(number)]
@@ -714,6 +725,7 @@ def cmd_create(target, number):
         "stage": "intake", "round": 0, "round_limit": CONFIG["max_rounds"],
         "intake": None, "agents": None, "gate": None, "reviews": {},
         "cost_usd": 0.0, "cost_by_agent": {}, "started": now(), "ended": None,
+        **evolution_stamp(),
     }
     write_issue_md(job)
     save(job)

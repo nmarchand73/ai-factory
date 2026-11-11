@@ -1,0 +1,707 @@
+#!/usr/bin/env python3
+"""Self-improvement of the factory: cycles, retrospective plans, human-approved skill changes, versions.
+
+A cycle is one /factory run. When it ends the retrospective agent reads the cycle's scores, metrics and
+feedback and proposes changes to agents, to the orchestrator skill and to a target's notes. Nothing changes
+until a person approves that change, one by one. Each approved change is versioned (the previous version stays
+as an immutable snapshot, the new one becomes active, any version can be restored) and is measured against its
+expected effect in the following cycles. This script is the only writer of factory/evolution/.
+
+Usage:
+  evolve init                          register every skill at its current content (v1.0) and detect manual edits
+  evolve cycle start                   open a cycle (or print the open one); jobs created meanwhile belong to it
+  evolve cycle close [ID]              score the cycle, snapshot it, measure earlier changes, write input.json
+  evolve cycle show [ID]               print a cycle's status
+  evolve plan check ID                 validate cycles/ID/plan.json, render plan.md, log the proposals
+  evolve plan show ID                  print plan.md
+  evolve decide ID CHANGE approve|reject [--reason TEXT] [--by NAME]
+                                       a change is decided on its own; a rejection needs a reason
+  evolve apply ID CHANGE               deploy an approved change as a new version of its skill
+  evolve rollback SKILL VERSION [--reason TEXT] [--by NAME]
+                                       restore an earlier version as a new version (history is never rewritten)
+  evolve measure ID                    compare each deployed change with its expected effect, using cycle ID
+  evolve trace SKILL                   every version of a skill and the gap behind each
+  evolve status                        open cycle, pending proposals, deployed changes
+  evolve board                         regenerate factory/evolution/board.json (the dashboard reads it)
+
+Skills are named agent:<name>, skill:factory and notes:<target>. The grader (eval-judge), the retrospective
+agent itself, the scripts, the criteria and the config are protected: the system never edits its own judge.
+"""
+import difflib
+import hashlib
+import json
+import os
+import re
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+FACTORY = ROOT / "factory"
+EVO = FACTORY / "evolution"
+CONFIG = json.loads((FACTORY / "config.json").read_text())
+PROTECTED_AGENTS = {"eval-judge", "retrospective"}
+PRIORITIES = {"P1", "P2", "P3"}
+CONFIDENCES = {"low", "medium", "high"}
+
+
+def settings():
+    s = {"max_changes_per_cycle": 3, "measure_min_samples": 3, "delivered_fraction": 0.5, "regression_points": 3}
+    s.update(CONFIG.get("evolution", {}))
+    return s
+
+
+def die(msg):
+    print(f"evolve: {msg}", file=sys.stderr)
+    sys.exit(1)
+
+
+def now():
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def read(p):
+    try:
+        return Path(p).read_text()
+    except OSError:
+        return None
+
+
+def write(p, text):
+    p = Path(p)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    tmp = p.with_name(p.name + ".tmp")
+    tmp.write_text(text)
+    tmp.replace(p)
+
+
+def write_json(p, obj):
+    write(p, json.dumps(obj, indent=2) + "\n")
+
+
+def load_json(p, default):
+    t = read(p)
+    return json.loads(t) if t else default
+
+
+def sha(text):
+    return hashlib.sha256(text.encode()).hexdigest()
+
+
+def operator():
+    return os.environ.get("FACTORY_OPERATOR") or os.environ.get("USER") or "operator"
+
+
+# ---- Skills in scope -------------------------------------------------------
+
+
+def scope():
+    """{skill id: path} of what the retrospective may change."""
+    out = {}
+    for p in sorted((ROOT / ".claude" / "agents").glob("*.md")):
+        if p.stem not in PROTECTED_AGENTS:
+            out[f"agent:{p.stem}"] = p
+    skill = ROOT / ".claude" / "skills" / "factory" / "SKILL.md"
+    if skill.exists():
+        out["skill:factory"] = skill
+    for t in sorted(CONFIG.get("targets", {})):
+        notes = ROOT / "targets" / t / "notes.md"
+        if notes.exists():
+            out[f"notes:{t}"] = notes
+    return out
+
+
+def rel(p):
+    return str(Path(p).relative_to(ROOT))
+
+
+def snap_path(skill, version):
+    return EVO / "versions" / skill.replace(":", "__") / f"v{version}.md"
+
+
+def bump(version):
+    major, _, minor = version.partition(".")
+    return f"{major}.{int(minor or 0) + 1}"
+
+
+def vkey(version):
+    major, _, minor = version.partition(".")
+    return (int(major), int(minor or 0))
+
+
+def unified(old, new, skill, a, b):
+    return "".join(difflib.unified_diff(old.splitlines(True), new.splitlines(True), f"{skill} v{a}", f"{skill} v{b}"))
+
+
+# ---- Registry and audit trail ----------------------------------------------
+
+
+def registry():
+    return load_json(EVO / "registry.json", {"skills": {}})
+
+
+def save_registry(reg):
+    write_json(EVO / "registry.json", reg)
+
+
+def audit():
+    return [json.loads(l) for l in (read(EVO / "audit.jsonl") or "").splitlines() if l.strip()]
+
+
+def log(event, **fields):
+    EVO.mkdir(parents=True, exist_ok=True)
+    row = {"ts": now(), "event": event, **fields}
+    with (EVO / "audit.jsonl").open("a") as f:
+        f.write(json.dumps(row) + "\n")
+    return row
+
+
+def changes_state():
+    """Replay the audit trail: {cycle/change: {...stages...}}. The last event of a change is its status."""
+    state = {}
+    for e in audit():
+        if "change" not in e:
+            continue
+        key = f"{e['cycle']}/{e['change']}"
+        c = state.setdefault(key, {"cycle": e["cycle"], "change": e["change"], "stages": []})
+        c["stages"].append({k: v for k, v in e.items() if k not in {"cycle", "change"}})
+        c["status"] = e["event"]
+        if e["event"] == "proposed":
+            c.update({"skill": e["skill"], "gap": e.get("gap"), "priority": e.get("priority"),
+                      "confidence": e.get("confidence"), "expected_impact": e.get("expected_impact"),
+                      "summary": e.get("summary")})
+        if e["event"] == "deployed":
+            c["version"] = e["version"]
+        if e["event"] == "measured":
+            c["verdict"] = e["verdict"]
+            c["measure"] = {k: e.get(k) for k in ("before", "after", "delta", "n_after", "measured_in")}
+    return state
+
+
+def sync(reg=None):
+    """Make the registry match the files: register new skills at v1.0, record manual edits as versions."""
+    reg = reg or registry()
+    changed = False
+    for skill, path in scope().items():
+        text = path.read_text()
+        entry = reg["skills"].get(skill)
+        if entry is None:
+            reg["skills"][skill] = {"path": rel(path), "current": "1.0", "versions": [{
+                "version": "1.0", "date": now(), "cycle": None, "kind": "baseline", "sha256": sha(text),
+                "gap": None, "diff": "", "approved_by": None, "expected_effect": None}]}
+            write(snap_path(skill, "1.0"), text)
+            log("registered", skill=skill, version="1.0")
+            changed = True
+        elif sha(text) != entry["versions"][-1]["sha256"]:
+            prev = entry["versions"][-1]
+            prev_text = read(snap_path(skill, entry["current"])) or ""
+            v = bump(entry["current"])
+            entry["versions"].append({
+                "version": v, "date": now(), "cycle": (load_json(EVO / "current.json", {}) or {}).get("cycle"),
+                "kind": "external_edit", "sha256": sha(text), "gap": None,
+                "diff": unified(prev_text, text, skill, prev["version"], v), "approved_by": None, "expected_effect": None})
+            entry["current"] = v
+            write(snap_path(skill, v), text)
+            log("external_edit", skill=skill, version=v)
+            changed = True
+    if changed:
+        save_registry(reg)
+    return reg
+
+
+# ---- Cycles ----------------------------------------------------------------
+
+
+def cycle_dir(cid):
+    return EVO / "cycles" / cid
+
+
+def current_cycle():
+    return (load_json(EVO / "current.json", {}) or {}).get("cycle")
+
+
+def cmd_init():
+    sync()
+    print(f"{len(registry()['skills'])} skills registered in {rel(EVO)}/registry.json")
+
+
+def cmd_cycle_start():
+    reg = sync()
+    cur = current_cycle()
+    if cur and (load_json(cycle_dir(cur) / "cycle.json", {}) or {}).get("status") == "open":
+        print(cur)
+        return
+    n = len(list((EVO / "cycles").glob("c*"))) + 1 if (EVO / "cycles").exists() else 1
+    cid = f"c{n:03d}"
+    write_json(cycle_dir(cid) / "cycle.json", {
+        "id": cid, "status": "open", "started": now(), "closed": None,
+        "skill_versions": {k: v["current"] for k, v in reg["skills"].items()}})
+    write_json(EVO / "current.json", {"cycle": cid})
+    log("cycle_started", cycle=cid)
+    print(cid)
+
+
+def jobs_of(cid):
+    out = []
+    jobs = FACTORY / "jobs"
+    for d in sorted(jobs.iterdir()) if jobs.exists() else []:
+        j = load_json(d / "job.json", None)
+        if j and j.get("cycle") == cid:
+            out.append((d, j))
+    return out
+
+
+def run_eval_report(cid):
+    import subprocess
+    res = subprocess.run([sys.executable, str(FACTORY / "bin" / "eval"), "report", "--cycle", cid, "--json"],
+                         capture_output=True, text=True)
+    if res.returncode != 0:
+        die(f"eval report failed: {res.stderr.strip()}")
+    subprocess.run([sys.executable, str(FACTORY / "bin" / "eval"), "report"], capture_output=True, text=True)
+    return json.loads(res.stdout)
+
+
+def mean(vals):
+    vals = [v for v in vals if v is not None]
+    return round(sum(vals) / len(vals), 1) if vals else None
+
+
+def agent_snapshot(a):
+    crit = {}
+    for side in ("process", "output"):
+        for c in a[side]["criteria"]:
+            crit[c["id"]] = {"score": c["score"], "n": c["n"], "side": side, "label": c["label"], "weight": c["weight"]}
+    return {"confidence": a["confidence"], "label": a["label"], "process": a["process"]["score"],
+            "output": a["output"]["score"], "n": a["samples"]["live"], "criteria": crit}
+
+
+def cmd_cycle_close(cid):
+    reg = sync()
+    cid = cid or current_cycle() or die("no open cycle")
+    meta = load_json(cycle_dir(cid) / "cycle.json", None) or die(f"no cycle {cid}")
+    scores = run_eval_report(cid)
+    jobs = jobs_of(cid)
+    agents = {a: agent_snapshot(v) for a, v in scores["agents"].items() if v["samples"]["live"]}
+    escalated = [j for d, j in jobs if j.get("stage") == "needs-human" or (read(d / "decision.md") or "").startswith("ESCALATE")]
+    metrics = {
+        "jobs": len(jobs), "merged": sum(1 for _, j in jobs if j.get("stage") == "merged"),
+        "escalation_rate": round(len(escalated) / len(jobs), 3) if jobs else None,
+        "avg_rounds": mean([j.get("round", 0) for _, j in jobs]),
+        "cost_per_job_usd": mean([j.get("cost_usd") for _, j in jobs]),
+    }
+    overall = mean([a["confidence"] for a in agents.values()])
+    feedback = []
+    for d, j in jobs:
+        for name in sorted(p.name for p in d.glob("feedback-*.md")) + ["rejection.md", "decision.md"]:
+            text = read(d / name)
+            if text and (name != "decision.md" or text.startswith("ESCALATE")):
+                feedback.append({"job": j["id"], "file": f"jobs/{j['id']}/{name}", "text": text.strip()})
+    state = changes_state()
+    pending = [{"key": k, "skill": c["skill"], "expected_impact": c.get("expected_impact"), "gap": c.get("gap"),
+                "version": c.get("version"), "verdict": c.get("verdict")}
+               for k, c in state.items() if c["status"] in {"deployed", "measured"}]
+    snap = {"cycle": cid, "ts": now(), "overall": overall, "metrics": metrics, "agents": agents,
+            "skill_versions": meta["skill_versions"]}
+    hist = [h for h in (json.loads(l) for l in (read(EVO / "history.jsonl") or "").splitlines() if l.strip()) if h["cycle"] != cid]
+    hist.append(snap)
+    write(EVO / "history.jsonl", "".join(json.dumps(h) + "\n" for h in hist))
+    write_json(cycle_dir(cid) / "input.json", {
+        "cycle": cid, "closed": now(), "overall": overall, "metrics": metrics, "scores": agents,
+        "feedback": feedback, "changes_to_review": pending,
+        "skills": {k: {"path": v["path"], "version": v["current"]} for k, v in reg["skills"].items()},
+        "limits": {"max_changes": settings()["max_changes_per_cycle"], "protected": sorted(PROTECTED_AGENTS) +
+                   ["factory/bin/*", "evals/criteria.json", "factory/config.json"]},
+        "history": [{"cycle": h["cycle"], "overall": h["overall"]} for h in hist]})
+    meta.update({"status": "closed", "closed": now()})
+    write_json(cycle_dir(cid) / "cycle.json", meta)
+    log("cycle_closed", cycle=cid, overall=overall, jobs=len(jobs))
+    measure(cid)
+    board()
+    print(f"cycle {cid} closed: {len(jobs)} jobs, overall confidence {overall}, input: {rel(cycle_dir(cid))}/input.json")
+
+
+# ---- Plan: validate, render ------------------------------------------------
+
+
+def frontmatter(text):
+    m = re.match(r"---\n.*?\n---\n", text, re.S)
+    return m.group(0) if m else ""
+
+
+def patched(skill, path_text, old, new):
+    """The text after replacing `old` (exactly once) by `new`, or an error string."""
+    if not old:
+        return None, "old must not be empty"
+    n = path_text.count(old)
+    if n != 1:
+        return None, f"old text matches {n} times in {skill} (it must match exactly once)"
+    out = path_text.replace(old, new)
+    if frontmatter(out) != frontmatter(path_text):
+        return None, "the front matter (name, tools, model) must not change"
+    return out, None
+
+
+def walk_changes(plan):
+    for name, sec in (plan.get("agents") or {}).items():
+        for c in (sec or {}).get("changes", []):
+            yield f"agent:{name}", "agents." + name, c
+    for c in (plan.get("orchestrator") or {}).get("changes", []):
+        yield "skill:factory", "orchestrator", c
+
+
+def shape_errors(plan, allowed=None):
+    """Problems with the plan's structure alone (no files read). `allowed`: the skill ids a change may target."""
+    errors = []
+    for key in ("agents", "orchestrator", "system", "previous_changes_review"):
+        if key not in plan:
+            errors.append(f"missing section {key!r}")
+    for name, sec in (plan.get("agents") or {}).items():
+        if name in PROTECTED_AGENTS:
+            errors.append(f"agents.{name}: a protected agent")
+        for i in (sec or {}).get("issues", []):
+            for f in ("gap", "evidence", "root_cause"):
+                if not i.get(f):
+                    errors.append(f"agents.{name}: an issue lacks {f}")
+    seen, count = set(), 0
+    for default_skill, where, c in walk_changes(plan):
+        count += 1
+        cid = c.get("id")
+        if not cid or not re.fullmatch(r"[A-Za-z0-9_.-]+", str(cid)):
+            errors.append(f"{where}: a change needs an id (letters, digits, - _ .)")
+            continue
+        if cid in seen:
+            errors.append(f"{where}: duplicate change id {cid}")
+        seen.add(cid)
+        target = c.get("target", default_skill)
+        if target.partition(":")[2] in PROTECTED_AGENTS or (allowed is not None and target not in allowed) \
+                or not re.fullmatch(r"(agent|skill|notes):[\w.-]+", target):
+            errors.append(f"{cid}: target {target!r} is not a skill the retrospective may change")
+            continue
+        if where.startswith("agents.") and target != default_skill and not target.startswith("notes:"):
+            errors.append(f"{cid}: a change under {where} may only target agent:{where[7:]} or a target's notes")
+        if where == "orchestrator" and target != "skill:factory":
+            errors.append(f"{cid}: orchestrator changes target skill:factory")
+        for f in ("gap", "old", "new", "expected_impact", "priority", "confidence"):
+            if c.get(f) in (None, "", {}):
+                errors.append(f"{cid}: missing {f}")
+        if c.get("priority") not in PRIORITIES:
+            errors.append(f"{cid}: priority must be one of {sorted(PRIORITIES)}")
+        if c.get("confidence") not in CONFIDENCES:
+            errors.append(f"{cid}: confidence must be one of {sorted(CONFIDENCES)}")
+        ei = c.get("expected_impact") or {}
+        if not (ei.get("criterion") and ei.get("direction") in {"up", "down"} and isinstance(ei.get("delta"), (int, float))):
+            errors.append(f"{cid}: expected_impact needs criterion, direction (up|down) and a numeric delta")
+        gap = c.get("gap") or {}
+        if isinstance(gap, dict) and not (gap.get("summary") and gap.get("evidence")):
+            errors.append(f"{cid}: gap needs a summary and evidence")
+    if count > settings()["max_changes_per_cycle"]:
+        errors.append(f"{count} changes proposed, the limit is {settings()['max_changes_per_cycle']} per cycle "
+                      "(few changes at a time keep each effect attributable)")
+    for r in plan.get("system", []):
+        if not (r.get("recommendation") and r.get("priority") in PRIORITIES and r.get("confidence") in CONFIDENCES):
+            errors.append("system: each recommendation needs text, a priority and a confidence")
+    return errors
+
+
+def validate_plan(plan):
+    sk = scope()
+    errors = shape_errors(plan, set(sk))
+    for name in (plan.get("agents") or {}):
+        if f"agent:{name}" not in sk and name not in PROTECTED_AGENTS:
+            errors.append(f"agents.{name}: unknown agent")
+    for default_skill, _, c in walk_changes(plan):
+        target = c.get("target", default_skill)
+        if target in sk and c.get("old"):
+            _, err = patched(target, read(sk[target]) or "", c.get("old", ""), c.get("new", ""))
+            if err:
+                errors.append(f"{c.get('id')}: {err}")
+    return errors
+
+
+def render_plan(cid, plan):
+    L = [f"# Improvement plan for cycle {cid}", ""]
+    rev = plan.get("previous_changes_review") or []
+    if rev:
+        L += ["## Earlier changes: did they work?", ""]
+        L += [f"- `{r.get('change')}`: {r.get('verdict')}. {r.get('evidence', '')}" for r in rev] + [""]
+
+    def change_lines(c, default):
+        ei = c["expected_impact"]
+        gap = c.get("gap") or {}
+        g = gap.get("summary", gap) if isinstance(gap, dict) else gap
+        return [f"- **{c['id']}** ({c['priority']}, confidence {c['confidence']}) on `{c.get('target', default)}`: {g}",
+                f"  - expected: {ei['criterion']} {ei['direction']} by {ei['delta']} points",
+                f"  - replace: `{c['old'][:140]!r}`", f"  - with: `{c['new'][:140]!r}`"]
+    for name, sec in (plan.get("agents") or {}).items():
+        sec = sec or {}
+        L += [f"## {name}", ""]
+        for i in sec.get("issues", []):
+            L.append(f"- issue `{i['gap']}`: {i['evidence']} (root cause: {i['root_cause']})")
+        for c in sec.get("changes", []):
+            L += change_lines(c, f"agent:{name}")
+        L.append("")
+    orch = plan.get("orchestrator") or {}
+    L += ["## Orchestrator", ""]
+    L += [f"- issue: {i}" if isinstance(i, str) else f"- issue `{i.get('gap')}`: {i.get('evidence')}" for i in orch.get("issues", [])]
+    for c in orch.get("changes", []):
+        L += change_lines(c, "skill:factory")
+    L += ["", "## System-level recommendations", ""]
+    L += [f"- ({r['priority']}, confidence {r['confidence']}) {r['recommendation']}" for r in plan.get("system", [])]
+    return "\n".join(L) + "\n"
+
+
+def cmd_plan_check(cid):
+    sync()
+    plan = load_json(cycle_dir(cid) / "plan.json", None) or die(f"no plan.json in {rel(cycle_dir(cid))}")
+    errors = validate_plan(plan)
+    if errors:
+        print("plan is not valid:\n  " + "\n  ".join(errors), file=sys.stderr)
+        sys.exit(1)
+    write(cycle_dir(cid) / "plan.md", render_plan(cid, plan))
+    known = changes_state()
+    new = 0
+    for default_skill, _, c in walk_changes(plan):
+        if f"{cid}/{c['id']}" in known:
+            continue
+        gap = c["gap"]
+        log("proposed", cycle=cid, change=c["id"], skill=c.get("target", default_skill), gap=gap,
+            priority=c["priority"], confidence=c["confidence"], expected_impact=c["expected_impact"],
+            summary=gap.get("summary") if isinstance(gap, dict) else gap)
+        new += 1
+    board()
+    print(f"plan ok: {sum(1 for _ in walk_changes(plan))} changes ({new} newly logged), rendered {rel(cycle_dir(cid))}/plan.md")
+
+
+def find_change(cid, change):
+    plan = load_json(cycle_dir(cid) / "plan.json", None) or die(f"no plan for cycle {cid}")
+    for default_skill, _, c in walk_changes(plan):
+        if c["id"] == change:
+            return {**c, "target": c.get("target", default_skill)}
+    die(f"no change {change} in cycle {cid}")
+
+
+def cmd_decide(cid, change, verdict, opts):
+    find_change(cid, change)
+    st = changes_state().get(f"{cid}/{change}") or die(f"{cid}/{change} was not proposed: run `evolve plan check {cid}`")
+    if st["status"] != "proposed":
+        die(f"{cid}/{change} is already {st['status']}")
+    reason = opts.get("--reason")
+    if verdict == "reject" and not reason:
+        die("a rejection needs --reason")
+    log("approved" if verdict == "approve" else "rejected", cycle=cid, change=change, skill=st["skill"],
+        by=opts.get("--by") or operator(), reason=reason)
+    board()
+    print(f"{cid}/{change}: {verdict}d")
+
+
+def cmd_apply(cid, change):
+    reg = sync()
+    st = changes_state().get(f"{cid}/{change}") or die(f"{cid}/{change} was not proposed")
+    if st["status"] != "approved":
+        die(f"{cid}/{change} is {st['status']}: only an approved change can be applied")
+    c = find_change(cid, change)
+    skill = c["target"]
+    entry = reg["skills"][skill]
+    path = ROOT / entry["path"]
+    text = path.read_text()
+    prev = entry["versions"][-1]
+    if sha(text) != prev["sha256"] or sha(read(snap_path(skill, entry["current"]))) != prev["sha256"]:
+        die(f"{skill}: the active file and its snapshot differ; run `evolve init` first")
+    new_text, err = patched(skill, text, c["old"], c["new"])
+    if err:
+        die(f"{cid}/{change}: {err}")
+    v = bump(entry["current"])
+    gap = c["gap"]
+    approval = next(s for s in reversed(st["stages"]) if s["event"] == "approved")
+    entry["versions"].append({
+        "version": v, "date": now(), "cycle": cid, "kind": "change", "change": change, "sha256": sha(new_text),
+        "gap": gap, "diff": unified(text, new_text, skill, entry["current"], v),
+        "approved_by": approval.get("by"), "expected_effect": c["expected_impact"]})
+    entry["current"] = v
+    write(snap_path(skill, v), new_text)
+    write(path, new_text)
+    save_registry(reg)
+    log("deployed", cycle=cid, change=change, skill=skill, version=v)
+    board()
+    print(f"{skill}: v{prev['version']} -> v{v} (backup kept in {rel(snap_path(skill, prev['version']))})")
+
+
+def cmd_rollback(skill, version, opts):
+    reg = sync()
+    entry = reg["skills"].get(skill) or die(f"unknown skill {skill}")
+    target = read(snap_path(skill, version)) or die(f"{skill} has no version {version}")
+    cur = entry["current"]
+    if cur == version:
+        die(f"{skill} is already at v{version}")
+    text = (ROOT / entry["path"]).read_text()
+    v = bump(cur)
+    entry["versions"].append({
+        "version": v, "date": now(), "cycle": current_cycle(), "kind": "rollback", "rolled_back_to": version,
+        "sha256": sha(target), "gap": None, "diff": unified(text, target, skill, cur, v),
+        "approved_by": opts.get("--by") or operator(), "expected_effect": None, "reason": opts.get("--reason")})
+    entry["current"] = v
+    write(snap_path(skill, v), target)
+    write(ROOT / entry["path"], target)
+    save_registry(reg)
+    for key, c in changes_state().items():
+        if c.get("skill") == skill and c["status"] in {"deployed", "measured"} and vkey(c["version"]) > vkey(version):
+            log("rolled_back", cycle=c["cycle"], change=c["change"], skill=skill, version=v,
+                by=opts.get("--by") or operator(), reason=opts.get("--reason"))
+    log("rollback", skill=skill, version=v, rolled_back_to=version, by=opts.get("--by") or operator(), reason=opts.get("--reason"))
+    board()
+    print(f"{skill}: v{cur} -> v{v} (content of v{version})")
+
+
+# ---- Measure ---------------------------------------------------------------
+
+
+def history():
+    return [json.loads(l) for l in (read(EVO / "history.jsonl") or "").splitlines() if l.strip()]
+
+
+def metric(snapshot, skill, criterion):
+    """(score, n) of a criterion / 'process' / 'output' / 'confidence' for the agent behind the skill."""
+    agent = skill.partition(":")[2] if skill.startswith("agent:") else None
+    if agent is None:   # orchestrator and notes: the system-level metrics
+        v = (snapshot.get("metrics") or {}).get(criterion)
+        if criterion == "overall":
+            v = snapshot.get("overall")
+        return v, snapshot.get("metrics", {}).get("jobs", 0)
+    a = (snapshot.get("agents") or {}).get(agent)
+    if not a:
+        return None, 0
+    if criterion in {"process", "output", "confidence"}:
+        return a.get(criterion), a["n"]
+    c = a["criteria"].get(criterion)
+    return (c["score"], c["n"]) if c else (None, 0)
+
+
+def measure(cid):
+    snaps = {h["cycle"]: h for h in history()}
+    after_snap = snaps.get(cid)
+    if not after_snap:
+        return
+    s = settings()
+    for key, c in changes_state().items():
+        if c["status"] not in {"deployed", "measured"} or c["cycle"] >= cid:
+            continue   # a change deployed after cycle X's retrospective applies from X+1
+        if c["status"] == "measured" and c["stages"][-1].get("measured_in") == cid:
+            continue
+        used = (after_snap.get("skill_versions") or {}).get(c["skill"])
+        if used is None or vkey(used) < vkey(c["version"]):
+            continue   # that cycle ran before the change was live
+        before_snap = snaps.get(c["cycle"])
+        if not before_snap:
+            continue
+        ei = c["expected_impact"]
+        before, _ = metric(before_snap, c["skill"], ei["criterion"])
+        after, n_after = metric(after_snap, c["skill"], ei["criterion"])
+        if before is None or after is None or n_after < s["measure_min_samples"]:
+            verdict, delta = "inconclusive", None if before is None or after is None else round(after - before, 1)
+        else:
+            delta = round(after - before, 1)
+            signed = delta if ei["direction"] == "up" else -delta
+            want = abs(ei["delta"])
+            verdict = ("delivered" if signed >= s["delivered_fraction"] * want else
+                       "regressed" if signed <= -s["regression_points"] else "not_delivered")
+        log("measured", cycle=c["cycle"], change=c["change"], skill=c["skill"], version=c["version"], verdict=verdict,
+            before=before, after=after, delta=delta, n_after=n_after, measured_in=cid)
+
+
+def cmd_measure(cid):
+    measure(cid)
+    board()
+    for k, c in changes_state().items():
+        if c.get("verdict"):
+            print(f"{k} ({c['skill']} v{c['version']}): {c['verdict']}  {c['measure']}")
+
+
+# ---- Reading: trace, status, board -----------------------------------------
+
+
+def cmd_trace(skill):
+    entry = registry()["skills"].get(skill) or die(f"unknown skill {skill}")
+    print(f"{skill}  ({entry['path']})  active v{entry['current']}")
+    for v in entry["versions"]:
+        gap = v.get("gap")
+        g = gap.get("summary") if isinstance(gap, dict) else gap
+        print(f"  v{v['version']:<5} {v['date'][:10]}  {v['kind']:<13} cycle {v.get('cycle') or '-':<5} "
+              f"by {v.get('approved_by') or '-':<10} {g or ''}")
+
+
+def cmd_status():
+    cur = current_cycle()
+    print(f"open cycle: {cur or 'none'}")
+    for k, c in changes_state().items():
+        print(f"  {k:<14} {c['status']:<12} {c.get('skill', ''):<22} {c.get('verdict', '')}")
+
+
+def board():
+    reg = registry()
+    hist = history()
+    state = changes_state()
+    skills = {}
+    for sk, e in reg["skills"].items():
+        skills[sk] = {"path": e["path"], "current": e["current"], "versions": [
+            {k: v.get(k) for k in ("version", "date", "cycle", "kind", "change", "gap", "approved_by", "expected_effect",
+                                   "rolled_back_to", "reason", "diff")} for v in e["versions"]]}
+    audit_rows = []
+    for k, c in sorted(state.items()):
+        if "skill" in c:
+            audit_rows.append({"key": k, **{f: c.get(f) for f in ("cycle", "change", "skill", "summary", "priority", "confidence",
+                                                                  "expected_impact", "status", "version", "verdict", "measure")},
+                               "stages": c["stages"]})
+    cycles = [{"cycle": h["cycle"], "ts": h["ts"], "overall": h["overall"], **h["metrics"],
+               "agents": {a: {k: v[k] for k in ("confidence", "process", "output", "n")} for a, v in h["agents"].items()},
+               "criteria": {a: {cid: c["score"] for cid, c in v["criteria"].items()} for a, v in h["agents"].items()}}
+              for h in hist]
+    write_json(EVO / "board.json", {"updated": now(), "current_cycle": current_cycle(), "cycles": cycles,
+                                    "skills": skills, "audit": audit_rows})
+
+
+def main(argv):
+    if not argv or argv[0] in {"-h", "--help"}:
+        print(__doc__.strip())
+        return
+    opts, pos, i = {}, [], 0
+    while i < len(argv):
+        if argv[i].startswith("--") and i + 1 < len(argv):
+            opts[argv[i]] = argv[i + 1]
+            i += 2
+        else:
+            pos.append(argv[i])
+            i += 1
+    cmd = pos[0] if pos else ""
+    if cmd == "init":
+        cmd_init()
+    elif cmd == "cycle" and pos[1:2] == ["start"]:
+        cmd_cycle_start()
+    elif cmd == "cycle" and pos[1:2] == ["close"]:
+        cmd_cycle_close(pos[2] if len(pos) > 2 else None)
+    elif cmd == "cycle" and pos[1:2] == ["show"]:
+        cid = pos[2] if len(pos) > 2 else current_cycle()
+        print(json.dumps(load_json(cycle_dir(cid) / "cycle.json", {}), indent=2))
+    elif cmd == "plan" and pos[1:2] == ["check"] and len(pos) == 3:
+        cmd_plan_check(pos[2])
+    elif cmd == "plan" and pos[1:2] == ["show"] and len(pos) == 3:
+        print(read(cycle_dir(pos[2]) / "plan.md") or die("no plan.md: run `evolve plan check`"))
+    elif cmd == "decide" and len(pos) == 4 and pos[3] in {"approve", "reject"}:
+        cmd_decide(pos[1], pos[2], pos[3], opts)
+    elif cmd == "apply" and len(pos) == 3:
+        cmd_apply(pos[1], pos[2])
+    elif cmd == "rollback" and len(pos) == 3:
+        cmd_rollback(pos[1], pos[2].lstrip("v"), opts)
+    elif cmd == "measure" and len(pos) == 2:
+        cmd_measure(pos[1])
+    elif cmd == "trace" and len(pos) == 2:
+        cmd_trace(pos[1])
+    elif cmd == "status":
+        cmd_status()
+    elif cmd == "board":
+        board()
+    else:
+        die(f"bad arguments\n\n{__doc__.strip()}")
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])

@@ -1773,6 +1773,218 @@
           "contains"
         ]
       }
+    },
+    "retrospective": {
+      "role": "At the end of a cycle, finds where scores fell short and why, traces each gap to an agent, a skill or the orchestration, and proposes small, measurable changes that a human approves one by one.",
+      "process": [
+        {
+          "id": "format",
+          "label": "Output format",
+          "kind": "rule",
+          "weight": 0.1,
+          "description": "plan.json is a JSON object with every section (previous_changes_review, agents, orchestrator, system) and every change complete: id, gap with evidence, old, new, expected impact, priority, confidence.",
+          "measure": "Run the same shape check that `evolve plan check` applies.",
+          "basis": "inference",
+          "sources": []
+        },
+        {
+          "id": "discipline",
+          "label": "Stays in its lane",
+          "kind": "rule",
+          "weight": 0.1,
+          "description": "It writes only plan.json and never edits a skill, a script or a job file.",
+          "measure": "Every Write or Edit path against the allowed paths.",
+          "basis": "inference",
+          "sources": []
+        },
+        {
+          "id": "reliability",
+          "label": "Few failing tool calls",
+          "kind": "rule",
+          "weight": 0.05,
+          "description": "Tool calls that fail (wrong paths, errors) are rare.",
+          "measure": "Share of tool calls that returned an error.",
+          "basis": "source",
+          "sources": [
+            "anthropic-evals"
+          ]
+        },
+        {
+          "id": "efficiency",
+          "label": "Reasonable cost",
+          "kind": "rule",
+          "weight": 0.05,
+          "description": "Cost stays near the typical run of the same agent; a trend, not a gate.",
+          "measure": "Cost against the median of the same agent: full marks up to 1.5 times, zero at 4 times.",
+          "basis": "source",
+          "sources": [
+            "anthropic-evals"
+          ]
+        },
+        {
+          "id": "reply",
+          "label": "Final reply",
+          "kind": "rule",
+          "weight": 0.05,
+          "description": "Its reply is one line: RETRO: <n> changes, with n the number of changes in plan.json.",
+          "measure": "Compare the reply to the plan.",
+          "basis": "inference",
+          "sources": []
+        },
+        {
+          "id": "grounding",
+          "label": "Reads the cycle first",
+          "kind": "rule",
+          "weight": 0.15,
+          "description": "It reads input.json before it writes anything.",
+          "measure": "Reads before the first Write.",
+          "basis": "source",
+          "sources": [
+            "anthropic-evals"
+          ]
+        },
+        {
+          "id": "reads_skills_before_change",
+          "label": "Reads the skill it changes",
+          "kind": "rule",
+          "weight": 0.3,
+          "description": "For each skill it proposes to change it has read that skill's file before writing the plan, so the edit fits the text that is there.",
+          "measure": "The skill files named in the changes against the reads before the first Write.",
+          "basis": "source",
+          "sources": [
+            "anthropic-evals"
+          ]
+        },
+        {
+          "id": "prior_changes_reviewed",
+          "label": "Reviews earlier changes",
+          "kind": "rule",
+          "weight": 0.2,
+          "description": "Every earlier change that is still to be reviewed gets a verdict in previous_changes_review: that is what closes the loop.",
+          "measure": "The keys of changes_to_review in input.json against previous_changes_review.",
+          "basis": "inference",
+          "sources": []
+        }
+      ],
+      "output": [
+        {
+          "id": "gaps_traced",
+          "label": "Gaps traced to a cause",
+          "kind": "rule",
+          "weight": 0.15,
+          "description": "Every issue names a criterion of that agent (or a feedback file) and a root cause: prompt, skill, orchestration or input.",
+          "measure": "Each issue's gap against the agent's criteria in input.json, and its root_cause against the four causes.",
+          "basis": "source",
+          "sources": [
+            "anthropic-evals"
+          ]
+        },
+        {
+          "id": "gaps_have_evidence",
+          "label": "Evidence, not opinion",
+          "kind": "rule",
+          "weight": 0.15,
+          "description": "Every issue and every change cites numbers and a criterion id or a feedback file from this cycle.",
+          "measure": "A digit plus a criterion id or a feedback file in each evidence text.",
+          "basis": "source",
+          "sources": [
+            "anthropic-evals"
+          ]
+        },
+        {
+          "id": "changes_exact",
+          "label": "Exact, minimal changes",
+          "kind": "rule",
+          "weight": 0.15,
+          "description": "Each change replaces a passage that exists exactly once in the skill file, changes something, and stays small (at most 600 characters added).",
+          "measure": "Look the old text up in the skill file named in input.json.",
+          "basis": "inference",
+          "sources": []
+        },
+        {
+          "id": "impact_measurable",
+          "label": "Measurable expected impact",
+          "kind": "rule",
+          "weight": 0.1,
+          "description": "The expected impact names a criterion (or metric) that exists for that agent, a direction and a numeric delta, so the next cycle can check it.",
+          "measure": "The criterion against input.json; direction and delta present.",
+          "basis": "inference",
+          "sources": []
+        },
+        {
+          "id": "no_invented_work",
+          "label": "No invented work",
+          "kind": "rule",
+          "weight": 0.15,
+          "description": "A change addresses a criterion that is really below the ok threshold, or a pattern in the feedback; a healthy cycle with no feedback gets no change.",
+          "measure": "Each change's criterion score against the threshold; a plan with no change against whether there were gaps.",
+          "basis": "source",
+          "sources": [
+            "metr"
+          ]
+        },
+        {
+          "id": "protected_untouched",
+          "label": "Graders untouched",
+          "kind": "rule",
+          "weight": 0.05,
+          "description": "No change targets the eval-judge, the retrospective itself, the scripts, the criteria or the config.",
+          "measure": "Targets against the protected list.",
+          "basis": "source",
+          "sources": [
+            "metr",
+            "openai-swe"
+          ]
+        },
+        {
+          "id": "prioritised",
+          "label": "Prioritised and calibrated",
+          "kind": "rule",
+          "weight": 0.05,
+          "description": "Every change and recommendation has a priority (P1 to P3) and a confidence (low, medium, high), and they are ranked, not all equal.",
+          "measure": "Valid values on every item; more than one priority level when there are three or more items.",
+          "basis": "inference",
+          "sources": []
+        },
+        {
+          "id": "root_cause",
+          "label": "Attacks the cause",
+          "kind": "judge",
+          "weight": 0.1,
+          "description": "The proposed edits address the cause the evidence shows, not the symptom or the metric itself, and would plausibly lift the expected criterion without hurting another.",
+          "measure": "Judge rubric (0 to 5) against the input and the skill files.",
+          "basis": "source",
+          "sources": [
+            "llm-judge",
+            "metr"
+          ],
+          "question": "Do the proposed edits address the cause shown by the evidence in input.json, rather than the symptom or the measured criterion itself? Would the edit plausibly lift the expected criterion without hurting another one?"
+        },
+        {
+          "id": "human_reviewable",
+          "label": "A human can decide",
+          "kind": "judge",
+          "weight": 0.1,
+          "description": "A person can approve or reject each change from the plan alone: the gap, the edit, the expected effect and the risk are clear.",
+          "measure": "Judge rubric (0 to 5).",
+          "basis": "source",
+          "sources": [
+            "llm-judge"
+          ],
+          "question": "Could a person approve or reject each change from plan.json alone: is the gap, the exact edit, the expected effect and the risk of it clear, and is it ordered by priority?"
+        }
+      ],
+      "case_map": {
+        "gaps_traced": [
+          "contains"
+        ],
+        "no_invented_work": [
+          "not_contains"
+        ],
+        "protected_untouched": [
+          "not_contains"
+        ]
+      }
     }
   }
 }

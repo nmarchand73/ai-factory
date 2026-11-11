@@ -1,0 +1,115 @@
+{
+  "cycle": "c-eval",
+  "closed": "2026-01-01T00:00:00Z",
+  "overall": 78.0,
+  "metrics": {
+    "jobs": 4,
+    "merged": 4,
+    "escalation_rate": 0.0,
+    "avg_rounds": 2.0,
+    "cost_per_job_usd": 0.8
+  },
+  "scores": {
+    "builder": {
+      "confidence": 66,
+      "label": "ok",
+      "process": 66,
+      "output": 66,
+      "n": 4,
+      "criteria": {
+        "format": {
+          "score": 95,
+          "n": 4,
+          "side": "process",
+          "label": "x",
+          "weight": 0.1
+        },
+        "grounding": {
+          "score": 92,
+          "n": 4,
+          "side": "process",
+          "label": "x",
+          "weight": 0.1
+        },
+        "tests_not_weakened": {
+          "score": 100,
+          "n": 4,
+          "side": "process",
+          "label": "x",
+          "weight": 0.1
+        },
+        "convergence": {
+          "score": 90,
+          "n": 4,
+          "side": "output",
+          "label": "x",
+          "weight": 0.1
+        },
+        "checks_pass": {
+          "score": 95,
+          "n": 4,
+          "side": "output",
+          "label": "x",
+          "weight": 0.1
+        },
+        "runs_checks": {
+          "score": 38,
+          "n": 4,
+          "side": "process",
+          "label": "Runs the checks",
+          "weight": 0.1
+        }
+      }
+    },
+    "approver": {
+      "confidence": 90,
+      "label": "trusted",
+      "process": 90,
+      "output": 90,
+      "n": 4,
+      "criteria": {
+        "format": {
+          "score": 95,
+          "n": 4,
+          "side": "process",
+          "label": "x",
+          "weight": 0.1
+        }
+      }
+    }
+  },
+  "feedback": [
+    {
+      "job": "003-x",
+      "file": "jobs/003-x/decision.md",
+      "text": "ESCALATE\n\nbuild.md says the checks pass but the gate failed twice: the builder never ran checks.sh before committing."
+    }
+  ],
+  "changes_to_review": [],
+  "skills": {
+    "agent:builder": {
+      "path": "{{JOB}}/skills/agent__builder.md",
+      "version": "1.0"
+    },
+    "skill:factory": {
+      "path": "{{JOB}}/skills/skill__factory.md",
+      "version": "1.0"
+    }
+  },
+  "limits": {
+    "max_changes": 3,
+    "protected": [
+      "eval-judge",
+      "retrospective",
+      "factory/bin/*",
+      "evals/criteria.json",
+      "factory/config.json"
+    ]
+  },
+  "history": [
+    {
+      "cycle": "c-eval",
+      "overall": 80
+    }
+  ]
+}

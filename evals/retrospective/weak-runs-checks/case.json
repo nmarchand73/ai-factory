@@ -1,0 +1,16 @@
+{
+  "description": "One criterion is far below the threshold with clear evidence: the plan fixes the builder's prompt and nothing else.",
+  "expect": {
+    "files": {
+      "plan.json": {
+        "contains": [
+          "runs_checks",
+          "builder"
+        ],
+        "not_contains": [
+          "agent:eval-judge"
+        ]
+      }
+    }
+  }
+}

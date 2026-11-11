@@ -251,6 +251,45 @@
     display: flex; gap: 20px; flex-wrap: wrap;
   }
 
+
+  /* Evolution board: how each skill changed, and whether it helped */
+  #evolution { padding: 6px 32px 0; }
+  #evolution.closed .evo-body { display: none; }
+  #evolution .ag-head .caret { transition: transform .15s; }
+  #evolution.closed .caret { transform: rotate(-90deg); }
+  .evo-chips { display: none; gap: 6px; flex-wrap: wrap; align-items: center; padding: 2px 0 10px; font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  #evolution.closed .evo-chips { display: flex; }
+  .evo-sec { margin: 4px 0 14px; }
+  .evo-sec h3 { margin: 10px 0 6px; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  .evo-trend { display: grid; grid-template-columns: minmax(260px, 420px) 1fr; gap: 18px; align-items: center; }
+  .evo-trend svg { width: 100%; height: 110px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; }
+  .evo-table { font-family: var(--mono); font-size: 11px; color: var(--muted); border-collapse: collapse; }
+  .evo-table td, .evo-table th { padding: 2px 12px 2px 0; text-align: left; font-weight: 400; white-space: nowrap; }
+  .evo-table th { color: var(--faint); }
+  .evo-skills { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; align-items: start; }
+  .evo-skill { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; }
+  .evo-skill .ag-top .ver { margin-left: auto; font-family: var(--mono); font-size: 13px; color: var(--text); }
+  .evo-line { display: flex; gap: 5px; flex-wrap: wrap; margin: 8px 0 2px; }
+  .vchip { font-family: var(--mono); font-size: 10.5px; border: 1px solid var(--line); border-radius: 99px; padding: 0 8px; cursor: pointer; color: var(--muted); background: none; }
+  .vchip.change { color: var(--active); border-color: color-mix(in srgb, var(--active) 45%, transparent); }
+  .vchip.rollback { color: var(--changes); border-color: color-mix(in srgb, var(--changes) 45%, transparent); }
+  .vchip.external_edit { color: var(--human); border-color: color-mix(in srgb, var(--human) 45%, transparent); }
+  .vchip.on { background: var(--card-hover); color: var(--text); }
+  .evo-detail { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: 8px; line-height: 1.55; }
+  .evo-detail pre { margin: 6px 0 0; padding: 8px; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; max-height: 220px; overflow: auto; font-size: 10.5px; white-space: pre-wrap; }
+  .evo-detail .add { color: var(--pass); } .evo-detail .del { color: var(--human); }
+  .spark { width: 100%; height: 34px; margin-top: 6px; }
+  .evo-audit { width: 100%; }
+  .evo-row { display: grid; grid-template-columns: 90px 150px 1fr auto; gap: 10px; padding: 6px 0; border-top: 1px solid var(--line); font-family: var(--mono); font-size: 11px; color: var(--muted); align-items: start; }
+  .evo-row .sum { color: var(--text); font-family: inherit; }
+  .stages { display: flex; gap: 5px; flex-wrap: wrap; justify-content: flex-end; }
+  .stg { border: 1px solid var(--line); border-radius: 99px; padding: 0 7px; font-size: 10.5px; color: var(--faint); }
+  .stg.proposed { color: var(--muted); } .stg.approved, .stg.deployed, .stg.delivered { color: var(--pass); border-color: color-mix(in srgb, var(--pass) 45%, transparent); }
+  .stg.rejected, .stg.regressed, .stg.rolled_back { color: var(--human); border-color: color-mix(in srgb, var(--human) 45%, transparent); }
+  .stg.not_delivered, .stg.inconclusive { color: var(--changes); border-color: color-mix(in srgb, var(--changes) 45%, transparent); }
+  .evo-filter { font-family: var(--mono); font-size: 11px; background: var(--card); color: var(--muted); border: 1px solid var(--line); border-radius: 6px; padding: 2px 6px; margin-left: 8px; }
+  @media (max-width: 720px) { #evolution { padding-left: 16px; padding-right: 16px; } .evo-trend { grid-template-columns: 1fr; } .evo-row { grid-template-columns: 1fr; } .stages { justify-content: flex-start; } }
+
   /* Agent confidence: one card per agent, two composite metrics behind the score */
   #agents { padding: 6px 32px 0; }
   .ag-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; cursor: pointer; padding: 6px 0; }
@@ -378,6 +417,7 @@
 </header>
 <div id="banner"></div>
 <section id="agents" aria-label="Agent confidence"></section>
+<section id="evolution" aria-label="Evolution board"></section>
 <div class="filters" id="filters"></div>
 <div class="colhead" id="colhead"></div>
 <main id="lanes"></main>
@@ -437,6 +477,10 @@ let closedLanes = new Set(store.get('closed', []))
 let onlyLane = store.get('only', null)
 let showAllDone = new Set(store.get('allDone', []))
 let scores = null // evals/scores.json: the confidence of every agent
+let board = null // evolution/board.json: versions of every skill, cycles, audit trail (written by factory/bin/evolve)
+let evoClosed = store.get('evoClosed', true)
+let openVersions = new Set(store.get('openVersions', [])) // "<skill>@<version>"
+let evoFilter = store.get('evoFilter', 'all')
 let openAgents = new Set(store.get('openAgents', []))
 let agentsClosed = store.get('agentsClosed', true)
 let notifyOn = store.get('notify', false) && typeof Notification !== 'undefined' && Notification.permission === 'granted'
@@ -546,7 +590,7 @@ function card(job, rounds) {
 }
 
 // ---- Agent confidence --------------------------------------------------------
-const AGENT_ORDER = ['intake', 'spec-writer', 'builder', 'reviewer-code', 'reviewer-ux', 'reviewer-ui', 'reviewer-security', 'approver']
+const AGENT_ORDER = ['intake', 'spec-writer', 'builder', 'reviewer-code', 'reviewer-ux', 'reviewer-ui', 'reviewer-security', 'approver', 'retrospective']
 const nice = (k) => k.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase())
 const labelTone = (l) => l === 'trusted' ? 'pass' : l === 'ok' ? 'active' : l === 'watch' ? 'changes' : ''
 const barTone = (v) => v >= 85 ? 'pass' : v >= 70 ? '' : v >= 50 ? 'changes' : 'bad'
@@ -629,6 +673,125 @@ document.addEventListener('click', (e) => {
 })
 document.addEventListener('keydown', (e) => {
   if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.acard')) { e.preventDefault(); e.target.click() }
+})
+
+
+// ---- Evolution board -----------------------------------------------------
+
+const skillName = (id) => id.startsWith('agent:') ? id.slice(6) : id === 'skill:factory' ? 'orchestrator' : id
+const STATUS_LABEL = { proposed: 'proposed', approved: 'approved', rejected: 'rejected', deployed: 'deployed', measured: 'measured', rolled_back: 'rolled back' }
+
+function sparkline(values, deployedAt) {
+  const pts = values.map((v, i) => ({ v, i })).filter((p) => p.v != null)
+  if (pts.length < 1) return ''
+  const W = 280, H = 34, n = Math.max(values.length - 1, 1)
+  const x = (i) => 4 + (W - 8) * (i / n)
+  const y = (v) => H - 4 - (H - 8) * (Math.min(100, Math.max(0, v)) / 100)
+  const line = pts.map((p) => `${x(p.i).toFixed(1)},${y(p.v).toFixed(1)}`).join(' ')
+  const marks = (deployedAt || []).map((i) => `<line x1="${x(i).toFixed(1)}" x2="${x(i).toFixed(1)}" y1="2" y2="${H - 2}" stroke="var(--active)" stroke-dasharray="2 2"/>`).join('')
+  const dots = pts.map((p) => `<circle cx="${x(p.i).toFixed(1)}" cy="${y(p.v).toFixed(1)}" r="2.5" fill="var(--text)"><title>${esc(String(p.v))}</title></circle>`).join('')
+  return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${marks}<polyline points="${line}" fill="none" stroke="var(--muted)" stroke-width="1.5"/>${dots}</svg>`
+}
+
+function trendChart(cycles, deployedCycles) {
+  const W = 420, H = 110, pad = 14
+  const vals = cycles.map((c) => c.overall)
+  const n = Math.max(cycles.length - 1, 1)
+  const x = (i) => pad + (W - 2 * pad) * (i / n)
+  const y = (v) => H - pad - (H - 2 * pad) * (Math.min(100, Math.max(0, v)) / 100)
+  const pts = vals.map((v, i) => ({ v, i })).filter((p) => p.v != null)
+  const marks = cycles.map((c, i) => deployedCycles.has(c.cycle) ? `<line x1="${x(i)}" x2="${x(i)}" y1="${pad - 4}" y2="${H - pad}" stroke="var(--active)" stroke-dasharray="3 3"><title>a change was approved after ${esc(c.cycle)}</title></line>` : '').join('')
+  const grid = [50, 70, 85].map((g) => `<line x1="${pad}" x2="${W - pad}" y1="${y(g)}" y2="${y(g)}" stroke="var(--line)"/><text x="${W - pad}" y="${y(g) - 2}" fill="var(--faint)" font-size="8" text-anchor="end">${g}</text>`).join('')
+  const line = pts.length > 1 ? `<polyline points="${pts.map((p) => `${x(p.i)},${y(p.v)}`).join(' ')}" fill="none" stroke="var(--pass)" stroke-width="2"/>` : ''
+  const dots = pts.map((p) => `<circle cx="${x(p.i)}" cy="${y(p.v)}" r="3.5" fill="var(--pass)"><title>${esc(cycles[p.i].cycle)}: ${esc(String(p.v))}</title></circle><text x="${x(p.i)}" y="${H - 2}" fill="var(--faint)" font-size="8" text-anchor="middle">${esc(cycles[p.i].cycle)}</text>`).join('')
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Overall confidence per cycle">${grid}${marks}${line}${dots}</svg>`
+}
+
+function diffHtml(diff) {
+  return esc(diff || '(no text change: baseline)').split('\n').map((l) => l.startsWith('+') && !l.startsWith('+++') ? `<span class="add">${l}</span>` : l.startsWith('-') && !l.startsWith('---') ? `<span class="del">${l}</span>` : l).join('\n')
+}
+
+function skillCard(id, sk, audit, cycles) {
+  const changes = audit.filter((a) => a.skill === id)
+  const name = skillName(id)
+  const series = id.startsWith('agent:') ? cycles.map((c) => c.agents?.[name]?.confidence ?? null) : cycles.map((c) => c.overall)
+  const deployedAt = cycles.map((c, i) => changes.some((a) => a.cycle === c.cycle && a.version) ? i : -1).filter((i) => i >= 0)
+  const chips = sk.versions.map((v) => {
+    const key = `${id}@${v.version}`
+    return `<button class="vchip ${esc(v.kind)} ${openVersions.has(key) ? 'on' : ''}" data-version="${esc(key)}" title="${esc(v.kind)} · ${esc((v.date || '').slice(0, 10))}">v${esc(v.version)}</button>`
+  }).join('')
+  const open = sk.versions.filter((v) => openVersions.has(`${id}@${v.version}`)).map((v) => {
+    const gap = v.gap && (v.gap.summary || v.gap)
+    const ch = changes.find((a) => a.version === v.version)
+    const verdict = ch?.verdict ? `<br>measured: <b>${esc(ch.verdict.replace('_', ' '))}</b>${ch.measure && ch.measure.before != null ? ` (${esc(String(ch.measure.before))} → ${esc(String(ch.measure.after))}, n=${esc(String(ch.measure.n_after))})` : ''}` : ''
+    return `<div class="evo-detail"><b>v${esc(v.version)}</b> · ${esc(v.kind)} · ${esc((v.date || '').slice(0, 10))}${v.cycle ? ' · cycle ' + esc(v.cycle) : ''}${v.approved_by ? ' · approved by ' + esc(v.approved_by) : ''}` +
+      `${gap ? `<br>gap: ${esc(String(gap))}` : ''}${v.rolled_back_to ? `<br>restores v${esc(v.rolled_back_to)}${v.reason ? ': ' + esc(v.reason) : ''}` : ''}` +
+      `${v.expected_effect ? `<br>expected: ${esc(v.expected_effect.criterion)} ${esc(v.expected_effect.direction)} ${esc(String(v.expected_effect.delta))}` : ''}${verdict}<pre>${diffHtml(v.diff)}</pre></div>`
+  }).join('')
+  return `<article class="evo-skill"><div class="ag-top"><span class="ag-name">${esc(name)}</span><span class="ver">v${esc(sk.current)}</span></div>
+    <div class="evo-line">${chips}</div>${sparkline(series, deployedAt)}${open}</article>`
+}
+
+function auditRow(a) {
+  const stages = a.stages.map((s) => {
+    const label = s.event === 'measured' ? s.verdict : s.event
+    const tip = [s.ts, s.by && 'by ' + s.by, s.reason, s.version && 'v' + s.version].filter(Boolean).join(' · ')
+    return `<span class="stg ${esc(label)}" title="${esc(tip)}">${esc(STATUS_LABEL[label] || label.replace('_', ' '))}${s.event === 'rejected' && s.reason ? ': ' + esc(s.reason) : ''}</span>`
+  }).join('')
+  const ei = a.expected_impact
+  return `<div class="evo-row"><span>${esc(a.cycle)}/${esc(a.change)}</span><span>${esc(skillName(a.skill))}${a.version ? ' → v' + esc(a.version) : ''}</span>
+    <span class="sum">${esc(a.summary || '')}<br><span style="color:var(--faint)">${esc(a.priority || '')} · ${esc(a.confidence || '')}${ei ? ` · expects ${esc(ei.criterion)} ${esc(ei.direction)} ${esc(String(ei.delta))}` : ''}</span></span>
+    <span class="stages">${stages}</span></div>`
+}
+
+let lastEvo = ''
+function renderEvolution() {
+  const el = $('evolution')
+  const cycles = board?.cycles || []
+  const skills = Object.entries(board?.skills || {})
+  const audit = board?.audit || []
+  const deployedCycles = new Set(audit.filter((a) => a.version && a.status !== 'rolled_back').map((a) => a.cycle))
+  const count = (st) => audit.filter((a) => a.status === st).length
+  const delivered = audit.filter((a) => a.verdict === 'delivered').length
+  const measured = audit.filter((a) => a.verdict && a.verdict !== 'inconclusive').length
+  const last = cycles[cycles.length - 1]
+  const head = `<div class="ag-head" data-evo-toggle><span class="caret">▾</span><h2>Evolution</h2>
+    <span class="sub">${cycles.length} cycle${cycles.length === 1 ? '' : 's'} · ${audit.length} proposed change${audit.length === 1 ? '' : 's'} · ${count('deployed') + count('measured')} deployed · ${delivered}/${measured} delivered</span></div>`
+  let html
+  if (!board) {
+    html = head + '<div class="ag-empty">No cycle yet. <code>/factory run</code> opens the first one and ends with a retrospective; its approved changes show up here.</div>'
+  } else {
+    const chips = `<div class="evo-chips" data-evo-toggle title="Click to expand">${last ? `latest ${esc(last.cycle)}: overall <b>${last.overall == null ? '–' : esc(String(last.overall))}</b>` : 'no closed cycle yet'}${count('proposed') ? ` · ${count('proposed')} waiting for approval` : ''}</div>`
+    const rows = audit.filter((a) => evoFilter === 'all' || a.status === evoFilter || (evoFilter === 'measured' && a.verdict))
+    const table = cycles.length ? `<table class="evo-table"><tr><th>cycle</th><th>overall</th><th>jobs</th><th>escalated</th><th>rounds</th><th>$/job</th></tr>${cycles.slice(-6).map((c) =>
+      `<tr><td>${esc(c.cycle)}</td><td>${c.overall ?? '–'}</td><td>${c.jobs ?? '–'}</td><td>${c.escalation_rate == null ? '–' : Math.round(c.escalation_rate * 100) + '%'}</td><td>${c.avg_rounds ?? '–'}</td><td>${c.cost_per_job_usd == null ? '–' : '$' + Number(c.cost_per_job_usd).toFixed(2)}</td></tr>`).join('')}</table>` : ''
+    html = head + chips + `<div class="evo-body">
+      <div class="evo-sec"><h3>System · overall confidence by cycle (dashed: a change was approved)</h3><div class="evo-trend">${trendChart(cycles, deployedCycles)}${table}</div></div>
+      <div class="evo-sec"><h3>Versions · click a version for its gap, diff and approver</h3><div class="evo-skills">${skills.filter(([, sk]) => sk.versions.length > 1).map(([id, sk]) => skillCard(id, sk, audit, cycles)).join('')}</div>
+        <div class="ag-note">${skills.filter(([, sk]) => sk.versions.length === 1).map(([id]) => esc(skillName(id))).join(', ') || 'none'}: still at v1.0 (never changed).</div></div>
+      <div class="evo-sec"><h3>Audit trail · proposed → approved or rejected → deployed → measured
+        <select class="evo-filter" id="evo-filter">${['all', 'proposed', 'approved', 'rejected', 'deployed', 'measured', 'rolled_back'].map((f) => `<option value="${f}" ${f === evoFilter ? 'selected' : ''}>${f.replace('_', ' ')}</option>`).join('')}</select></h3>
+        <div class="evo-audit">${rows.map(auditRow).join('') || '<div class="ag-note">Nothing yet.</div>'}</div></div></div>`
+  }
+  const key = html + evoClosed
+  if (key !== lastEvo) {
+    lastEvo = key
+    el.className = evoClosed ? 'closed' : ''
+    el.innerHTML = html
+  }
+}
+
+document.addEventListener('click', (e) => {
+  if (e.target.closest('[data-evo-toggle]')) { evoClosed = !evoClosed; store.set('evoClosed', evoClosed); lastEvo = ''; renderEvolution(); return }
+  const v = e.target.closest('[data-version]')
+  if (v) {
+    const k = v.dataset.version
+    openVersions.has(k) ? openVersions.delete(k) : openVersions.add(k)
+    store.set('openVersions', [...openVersions]); lastEvo = ''; renderEvolution()
+  }
+})
+document.addEventListener('change', (e) => {
+  if (e.target.id === 'evo-filter') { evoFilter = e.target.value; store.set('evoFilter', evoFilter); lastEvo = ''; renderEvolution() }
 })
 
 function columnHead(c) {
@@ -826,7 +989,9 @@ async function poll() {
     try { targets = JSON.parse(await fetchText('config.json')).targets || {} } catch { /* lanes then come from the jobs alone */ }
     try { overhead = Number(JSON.parse(await fetchText('jobs/_orchestration.json')).outside_jobs_usd) || 0 } catch { overhead = 0 }
     try { scores = JSON.parse(await fetchText('evals/scores.json')) } catch { scores = null }
+    try { board = JSON.parse(await fetchText('evolution/board.json')) } catch { board = null }
     renderAgents()
+    renderEvolution()
     await render()
     if (openJobId) await refreshDrawer()
     status.className = 'status'

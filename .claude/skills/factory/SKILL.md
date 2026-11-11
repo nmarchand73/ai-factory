@@ -1,6 +1,6 @@
 ---
 name: factory
-description: Run the software factory on GitHub issues. Use when the user types /factory run, /factory run <target>, /factory run <target>#<n>, /factory eval, /factory scores, or /factory followed by anything else (a question, feedback on a job, or a new feature). The session that runs it becomes the one orchestrator for every job.
+description: Run the software factory on GitHub issues. Use when the user types /factory run, /factory run <target>, /factory run <target>#<n>, /factory eval, /factory scores, /factory retro, /factory evolve, or /factory followed by anything else (a question, feedback on a job, or a new feature). The session that runs it becomes the one orchestrator for every job.
 ---
 
 # Factory
@@ -20,6 +20,8 @@ tell the user; never work around it.
 /factory <anything>   talk to the factory: ask about jobs, give feedback, file a feature
 /factory eval [<agent>|all] [<case>]   replay the eval cases of an agent and score the runs
 /factory scores       the confidence score of every agent
+/factory retro [<cycle>]               run (or rerun) the retrospective of a cycle
+/factory evolve [rollback <skill> <version>]   the evolution status, or restore an earlier version of a skill
 ```
 
 ## The pipeline
@@ -56,6 +58,8 @@ there. Job work happens in worktrees under `<root>/workspaces/<target>/<job-id>`
 <root>/factory/bin/job                         the only writer of job.json
 <root>/factory/bin/gate                        runs checks.sh in a worktree → round-N/checks.md
 <root>/factory/bin/route                       risk + surfaces → the job's agents
+<root>/factory/bin/evolve                      cycles, retrospective plans, approved skill changes, versions (the only writer of factory/evolution/)
+<root>/factory/evolution/                      registry.json, versions/, cycles/<cycle>/, audit.jsonl, board.json: committed history of every skill change
 <root>/factory/jobs/<job-id>/job.json          the job's state; the dashboard reads it
 <root>/factory/jobs/<job-id>/issue.md          the issue, quoted as data
 <root>/factory/jobs/<job-id>/intake.md         intake's decision, scope, risk, surfaces
@@ -163,6 +167,9 @@ then moves the job to `merged`; stop any agents still running for it.
 
 ## /factory run
 
+0. Run `factory/bin/evolve init` once (it registers the skills and notes any manual edit as a version),
+   then `factory/bin/evolve cycle start`: it prints the cycle id of this run (the open cycle is reused
+   when a run is resumed). Every job created from now on belongs to that cycle.
 1. Run `factory/bin/job queue` (or `job queue <target>`). Each line is
    `action  target  issue  job  stage  note`; a line starting with `error` means
    that target's GitHub calls failed: report it and carry on with the others:
@@ -185,6 +192,32 @@ then moves the job to `merged`; stop any agents still running for it.
    and questions waiting on authors, each with its issue URL (`issue_url` in `job.json`).
    Then run `factory/bin/eval report`: it prints the confidence score of every
    agent and refreshes the dashboard's Agents panel.
+5. **Retrospective.** Run `factory/bin/evolve cycle close`: it scores the cycle, snapshots it, measures
+   the earlier changes and writes `factory/evolution/cycles/<cycle>/input.json`. When the cycle had no
+   job, stop here. Otherwise spawn `retrospective` with a header
+   `Job: <cycle>. Job folder: <root>/factory/evolution/cycles/<cycle>/. Factory root: <root>. Cycle: <cycle>.`
+   It writes `plan.json`. Run `factory/bin/evolve plan check <cycle>`: when it refuses, send its message
+   back to the retrospective (`SendMessage`), at most twice. Then follow **Human review of the plan**.
+
+## Human review of the plan
+
+Nothing in a skill, an agent or a target's notes changes without a person approving that change.
+
+1. Show the user `factory/bin/evolve plan show <cycle>` (per agent, the orchestrator, the system
+   recommendations, each change with its priority, confidence and expected effect). Say which earlier
+   changes worked (`previous_changes_review`).
+2. For each change in the plan, ask the user one question (`AskUserQuestion`): approve or reject it,
+   showing the exact text that is replaced and the text that replaces it, and its gap. Never ask once
+   for all of them and never batch the decision. A rejection needs a reason (the user's own words:
+   offer "Other" for it).
+3. Record each answer: `factory/bin/evolve decide <cycle> <change> approve` or
+   `reject --reason "<their words>"`. Then, for each approved change only,
+   `factory/bin/evolve apply <cycle> <change>`. It backs up the current version, writes the new one
+   (v1.2 → v1.3) and records the version, the gap, the diff, the approver and the expected effect.
+4. If the user does not answer, leave the changes `proposed`. Never approve on their behalf, never
+   edit an agent file yourself, and never run `apply` for a change they did not approve.
+5. Run `factory/bin/evolve board` and tell the user what changed and that the new versions apply from
+   the next cycle (an agent already running keeps the prompt it started with).
 
 **Resuming.** State lives in files, so a new session picks up where a dead one
 stopped. For a `resume` job, run its stage's step again: `intake` and `spec`
@@ -230,6 +263,21 @@ the case results (PASS or FAIL per case) and the new confidence scores. Say
 which cases failed and why in one line each. To judge an agent's work in a
 real job instead, use `factory/bin/eval judge-prep --job <id> --agent <agent>`
 and spawn `eval-judge` the same way.
+
+## /factory retro
+
+`/factory retro [<cycle>]` runs step 5 and the human review for a cycle that was already closed (the
+last one by default): `factory/bin/evolve cycle close <cycle>` again if `input.json` is missing, spawn
+`retrospective`, `plan check`, review. Use it when a run was cut short or the plan was left unanswered
+(`factory/bin/evolve status` lists the changes still `proposed`).
+
+## /factory evolve
+
+`/factory evolve` shows `factory/bin/evolve status` and, per skill the user names,
+`factory/bin/evolve trace <skill>` (every version and the gap behind it). To go back to an earlier version:
+`/factory evolve rollback <skill> <version>` after the user confirms,
+`factory/bin/evolve rollback <skill> <version> --reason "<their words>"`. The history is kept; the
+rollback is a new version. The dashboard's Evolution board shows the same.
 
 ## /factory scores
 

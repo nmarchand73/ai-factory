@@ -84,5 +84,11 @@
       "trusted": 85,
       "ok": 70
     }
+  },
+  "evolution": {
+    "max_changes_per_cycle": 3,
+    "measure_min_samples": 3,
+    "delivered_fraction": 0.5,
+    "regression_points": 3
   }
 }
