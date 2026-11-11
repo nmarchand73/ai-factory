@@ -206,6 +206,43 @@ class Factory(unittest.TestCase):
         self.assertIn("no commits yet", res.stderr)
         self.assertNotIn("empty", json.loads((self.root / "factory" / "config.json").read_text())["targets"])
 
+    def test_a_model_without_a_price_does_not_break_the_job(self):
+        import re as _re
+        self.add_issue("me/alpha", 9, "Costs")
+        job_id = self.bin("job", "create", "alpha", "9").stdout.strip()
+        slug = _re.sub(r"[^A-Za-z0-9]", "-", str(self.root))
+        sub = self.tmp / "claude" / "projects" / slug / "session1" / "subagents"
+        sub.mkdir(parents=True)
+        needle = f"Job folder: {self.root / 'factory' / 'jobs' / job_id}/"
+        first = {"message": {"content": f"{needle} Target: alpha"}}
+        usage = {"id": "m1", "model": "claude-unknown-9", "usage": {"input_tokens": 1000, "output_tokens": 1000}}
+        second = {"type": "assistant", "message": usage}
+        (sub / "agent-1.jsonl").write_text(json.dumps(first) + "\n" + json.dumps(second) + "\n")
+        res = self.bin("job", "sync", job_id)
+        self.assertIn("no price for model claude-unknown-9", res.stderr)
+        self.assertEqual(self.job_json(job_id)["cost_usd"], 0.0)
+
+    def test_cost_is_split_by_agent_type(self):
+        import re as _re
+        self.add_issue("me/alpha", 10, "Split")
+        job_id = self.bin("job", "create", "alpha", "10").stdout.strip()
+        slug = _re.sub(r"[^A-Za-z0-9]", "-", str(self.root))
+        sub = self.tmp / "claude" / "projects" / slug / "session1" / "subagents"
+        sub.mkdir(parents=True)
+        needle = f"Job folder: {self.root / 'factory' / 'jobs' / job_id}/"
+        prices = json.loads((self.root / "factory" / "config.json").read_text())["prices_usd_per_mtok"]
+        for n, (agent, model) in enumerate([("builder", "claude-opus-5-5"), ("reviewer-code", "claude-haiku-5-5"),
+                                             ("reviewer-ux", "claude-sonnet-5-5")]):
+            first = {"message": {"content": f"{needle} Target: alpha"}}
+            usage = {"id": f"m{n}", "model": model, "usage": {"input_tokens": 1000000, "output_tokens": 0}}
+            (sub / f"agent-{n}.jsonl").write_text(json.dumps(first) + "\n" + json.dumps({"type": "assistant", "message": usage}) + "\n")
+            (sub / f"agent-{n}.meta.json").write_text(json.dumps({"agentType": agent}))
+        self.bin("job", "sync", job_id)
+        job = self.job_json(job_id)
+        self.assertEqual(set(job["cost_by_agent"]), {"builder", "reviewer-code", "reviewer-ux"})
+        self.assertAlmostEqual(job["cost_by_agent"]["builder"], prices["claude-opus-5-5"]["input"], places=3)
+        self.assertAlmostEqual(job["cost_usd"], sum(job["cost_by_agent"].values()), places=3)
+
     def test_unknown_target_is_refused(self):
         res = self.bin("job", "create", "nope", "1", ok=False)
         self.assertNotEqual(res.returncode, 0)

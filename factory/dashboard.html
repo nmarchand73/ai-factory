@@ -260,6 +260,15 @@
   .lane .board { padding-top: 14px; padding-bottom: 22px; }
   .lane .col-head { display: none; }
   .lane-empty { color: var(--faint); font-size: 12px; padding: 14px 32px 20px; }
+  /* Cumulative cost of a project, spread per step and per agent */
+  .cost { padding: 10px 32px 0; }
+  .costbar { display: flex; height: 8px; border-radius: 99px; overflow: hidden; background: var(--line); }
+  .costbar i { display: block; height: 100%; min-width: 2px; }
+  .costlegend { display: flex; flex-wrap: wrap; gap: 6px 20px; margin-top: 8px; font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  .costlegend .sw { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; }
+  .costlegend b { color: var(--text); font-weight: 600; }
+  .costlegend .ag { color: var(--faint); margin-left: 6px; }
+  .costnone { font-family: var(--mono); font-size: 11px; color: var(--faint); }
   .lane.unknown .name { color: var(--human); }
 
   @media (max-width: 1100px) {
@@ -272,7 +281,7 @@
     header { padding: 20px 16px 4px; }
     .banner { margin: 12px 16px 0; }
     .board { grid-template-columns: 1fr; padding: 16px 16px 32px; }
-    .filters, .lane-head, .lane-empty { padding-left: 16px; padding-right: 16px; }
+    .filters, .lane-head, .lane-empty, .cost { padding-left: 16px; padding-right: 16px; }
     footer { padding: 0 16px 24px; }
     .d-head { padding: 16px; }
     .d-body { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
@@ -430,7 +439,7 @@ function card(job, rounds) {
   const risk = job.intake?.risk
   const meta = [
     risk ? `<span class="risk-${esc(risk)}">${esc(risk)}</span>` : '',
-    `<span>$${Number(job.cost_usd).toFixed(2)}</span>`,
+    `<span title="${esc(Object.entries(job.cost_by_agent || {}).map(([a, c]) => agentLabel(a) + ' ' + money(Number(c))).join(' · '))}">${money(Number(job.cost_usd))}</span>`,
     `<span>${elapsed(job)}</span>`,
   ].join('')
   return `
@@ -451,6 +460,54 @@ function card(job, rounds) {
 
 function columnHead(c) {
   return `<div class="col-head ${c.cls || ''}"><h2>${c.label}</h2><span class="who">${c.who}</span></div>`
+}
+
+// ---- Cost spread: step and agent -------------------------------------------
+const STEPS = [
+  ['intake', 'Intake', '#8be9fd'], ['spec', 'Spec', '#bd93f9'], ['build', 'Build', '#50fa7b'],
+  ['review', 'Review', '#ffb86c'], ['approve', 'Approve', '#ff79c6'], ['other', 'Other', '#6272a4'],
+]
+const STEP_OF = { intake: 'intake', 'spec-writer': 'spec', builder: 'build', approver: 'approve' }
+const stepOf = (agent) => agent.startsWith('reviewer-') ? 'review' : (STEP_OF[agent] || 'other')
+const agentLabel = (agent) => agent.replace(/^reviewer-/, '')
+const money = (c) => (c > 0 && c < 0.01) ? `$${c.toFixed(3)}` : `$${c.toFixed(2)}`
+
+// Cumulative cost of some jobs: { total, steps: { step: { total, agents: { agent: usd } } } }.
+// A job with no per-agent figures (older jobs) goes under "other" so the lane total still adds up.
+function costSpread(list) {
+  const steps = {}
+  let total = 0
+  const add = (agent, usd) => {
+    const st = stepOf(agent)
+    steps[st] = steps[st] || { total: 0, agents: {} }
+    steps[st].total += usd
+    steps[st].agents[agent] = (steps[st].agents[agent] || 0) + usd
+  }
+  for (const j of list) {
+    const by = j.cost_by_agent || {}
+    let sum = 0
+    for (const [agent, usd] of Object.entries(by)) { add(agent, Number(usd)); sum += Number(usd) }
+    const rest = Number(j.cost_usd) - sum
+    if (rest > 0.0005) add('unattributed', rest)
+    total += Number(j.cost_usd)
+  }
+  return { total, steps }
+}
+
+function costHtml(list) {
+  const { total, steps } = costSpread(list)
+  if (!(total > 0)) return '<div class="cost"><span class="costnone">No cost recorded yet</span></div>'
+  const used = STEPS.filter(([id]) => steps[id])
+  const bar = used.map(([id, label, color]) => {
+    const pct = 100 * steps[id].total / total
+    return `<i style="width:${pct.toFixed(2)}%;background:${color}" title="${esc(label)} ${money(steps[id].total)} (${pct.toFixed(0)}%)"></i>`
+  }).join('')
+  const legend = used.map(([id, label, color]) => {
+    const agents = Object.entries(steps[id].agents).sort((a, b) => b[1] - a[1])
+      .map(([a, c]) => `${esc(agentLabel(a))} ${money(c).slice(1)}`).join(' · ')
+    return `<span class="it"><span class="sw" style="background:${color}"></span>${esc(label)} <b>${money(steps[id].total)}</b><span class="ag">${agents}</span></span>`
+  }).join('')
+  return `<div class="cost"><div class="costbar">${bar}</div><div class="costlegend">${legend}</div></div>`
 }
 
 function laneHtml(name, laneJobs, byJob, unknown) {
@@ -476,9 +533,10 @@ function laneHtml(name, laneJobs, byJob, unknown) {
           <span>${running} running</span>
           <span class="${needsHuman ? 'alert' : ''}">${needsHuman} needs human</span>
           <span>${merged} merged</span>
-          <span>$${cost.toFixed(2)}</span>
+          <span>${money(cost)}</span>
         </span>
       </button>
+      ${costHtml(laneJobs)}
       ${laneJobs.length ? `<div class="board">${cols}</div>` : empty}
     </section>`
 }
@@ -521,7 +579,7 @@ async function render() {
   }
   const running = valid.filter((j) => LIVE.has(j.stage)).length
   const cost = valid.reduce((sum, j) => sum + Number(j.cost_usd), 0)
-  $('totals').textContent = `${running} running · $${cost.toFixed(2)} API-equivalent`
+  $('totals').textContent = `${running} running · ${money(cost)} API-equivalent`
 }
 
 document.addEventListener('click', (e) => {
@@ -607,7 +665,7 @@ const firstLines = new Map()
 async function refreshDrawer() {
   const job = jobs.find((j) => j.id === openJobId)
   if (!job) return
-  $('d-num').textContent = `${job.target ? job.target + ' · ' : ''}${job.id} · ${job.stage}${job.round ? ` · round ${job.round}` : ''} · $${Number(job.cost_usd).toFixed(2)} · ${elapsed(job)}`
+  $('d-num').textContent = `${job.target ? job.target + ' · ' : ''}${job.id} · ${job.stage}${job.round ? ` · round ${job.round}` : ''} · ${money(Number(job.cost_usd))} · ${elapsed(job)}`
   $('d-title').textContent = job.title
   $('d-links').innerHTML = links(job)
 

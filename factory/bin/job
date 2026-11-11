@@ -301,17 +301,29 @@ def prompt_text(line):
     return " ".join(b.get("text", "") for b in content if isinstance(b, dict))
 
 
-def cost_usd(job):
+_unpriced = set()
+
+
+def agent_type(path):
+    """The agent that wrote a transcript, from the agent-<id>.meta.json Claude Code writes beside it."""
+    try:
+        return json.loads(path.with_name(path.stem + ".meta.json").read_text()).get("agentType") or "unknown"
+    except (OSError, ValueError):
+        return "unknown"
+
+
+def cost_breakdown(job):
     """API-equivalent cost of every subagent whose prompt names this job's folder.
 
-    Claude Code writes each subagent's messages, with model and token usage, to
-    <config>/projects/<project>/<session>/subagents/agent-<id>.jsonl. Every
-    factory prompt starts with `Job folder: <path>`, which ties a transcript to
-    its job across sessions.
+    Returns (total, {agent type: cost}) in dollars. Claude Code writes each
+    subagent's messages, with model and token usage, to
+    <config>/projects/<project>/<session>/subagents/agent-<id>.jsonl, and the
+    agent's type to agent-<id>.meta.json. Every factory prompt starts with
+    `Job folder: <path>`, which ties a transcript to its job across sessions.
     """
     needle = f"Job folder: {job_dir(job['id'])}/"
     prices = CONFIG["prices_usd_per_mtok"]
-    total = 0.0
+    by_agent = {}
     for path in transcripts_dir().glob("*/subagents/agent-*.jsonl"):
         with path.open() as f:
             first = f.readline()
@@ -323,23 +335,31 @@ def cost_usd(job):
                 msg = entry.get("message")
                 if entry.get("type") == "assistant" and isinstance(msg, dict) and msg.get("usage"):
                     usage_by_message[msg["id"]] = (msg["model"], msg["usage"])
+        agent = agent_type(path)
         for model, u in usage_by_message.values():
             tokens = (u.get("input_tokens", 0) + u.get("output_tokens", 0)
                       + u.get("cache_creation_input_tokens", 0) + u.get("cache_read_input_tokens", 0))
             if tokens == 0:
                 continue
             if model not in prices:
-                die(f"no price for model {model} in factory/config.json prices_usd_per_mtok")
+                # A model without a price must not stop the factory: leave it out of the cost and say so.
+                if model not in _unpriced:
+                    _unpriced.add(model)
+                    print(f"job: no price for model {model} in factory/config.json prices_usd_per_mtok; "
+                          "its tokens are left out of the cost", file=sys.stderr)
+                continue
             p = prices[model]
             split = u.get("cache_creation") or {}
             write_1h = split.get("ephemeral_1h_input_tokens", 0)
             write_5m = u.get("cache_creation_input_tokens", 0) - write_1h
-            total += (u.get("input_tokens", 0) * p["input"]
-                      + u.get("output_tokens", 0) * p["output"]
-                      + write_5m * p["cache_write_5m"]
-                      + write_1h * p["cache_write_1h"]
-                      + u.get("cache_read_input_tokens", 0) * p["cache_read"]) / 1e6
-    return round(total, 2)
+            by_agent[agent] = by_agent.get(agent, 0.0) + (
+                u.get("input_tokens", 0) * p["input"]
+                + u.get("output_tokens", 0) * p["output"]
+                + write_5m * p["cache_write_5m"]
+                + write_1h * p["cache_write_1h"]
+                + u.get("cache_read_input_tokens", 0) * p["cache_read"]) / 1e6
+    by_agent = {a: round(c, 4) for a, c in sorted(by_agent.items())}
+    return round(sum(by_agent.values()), 4), by_agent
 
 
 # ---- Sync: fields derived from files ---------------------------------------
@@ -367,7 +387,7 @@ def sync(job):
                 line = first_line(rd / f"review-{r}.md")
                 m = re.fullmatch(r"VERDICT:\s*(PASS|CHANGES)", line or "")
                 job["reviews"][r] = m.group(1) if m else ("pending" if line is None else "invalid")
-    job["cost_usd"] = cost_usd(job)
+    job["cost_usd"], job["cost_by_agent"] = cost_breakdown(job)
     return job
 
 
@@ -590,7 +610,7 @@ def cmd_create(target, number):
         "worktree": str(ROOT / "workspaces" / target / job_id),
         "stage": "intake", "round": 0, "round_limit": CONFIG["max_rounds"],
         "intake": None, "agents": None, "gate": None, "reviews": {},
-        "cost_usd": 0.0, "started": now(), "ended": None,
+        "cost_usd": 0.0, "cost_by_agent": {}, "started": now(), "ended": None,
     }
     write_issue_md(job)
     save(job)
