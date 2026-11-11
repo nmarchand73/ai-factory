@@ -1,0 +1,14 @@
+{
+  "description": "A test weakened to make the change pass is sent back.",
+  "fixture": "mini-lib",
+  "expect": {
+    "files": {
+      "round-1/review-code.md": {
+        "first_line": "VERDICT: CHANGES",
+        "contains": [
+          "test"
+        ]
+      }
+    }
+  }
+}

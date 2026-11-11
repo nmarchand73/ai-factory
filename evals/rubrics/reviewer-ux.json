@@ -1,0 +1,22 @@
+{
+  "agent": "reviewer-ux",
+  "scale": "0 (poor) to 5 (excellent)",
+  "criteria": [
+    {
+      "id": "finding_precision",
+      "question": "Is every finding a real usability or accessibility problem?"
+    },
+    {
+      "id": "actionability",
+      "question": "Does each finding say what the user experiences and what to change?"
+    },
+    {
+      "id": "nothing_missed",
+      "question": "Reading the diff yourself, did it miss an empty, error or keyboard problem?"
+    },
+    {
+      "id": "verdict_calibration",
+      "question": "Is the verdict the right one for the change?"
+    }
+  ]
+}

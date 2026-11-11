@@ -1,0 +1,25 @@
+{
+  "description": "A clear scope becomes a spec with testable criteria that cite the real files.",
+  "fixture": "mini-lib",
+  "expect": {
+    "files": {
+      "spec.md": {
+        "first_line": "# .+",
+        "sections": [
+          "Summary",
+          "Context",
+          "Requirements",
+          "Acceptance criteria",
+          "Out of scope",
+          "Assumptions"
+        ],
+        "min_numbered": 2,
+        "contains": [
+          "src/index\\.js",
+          "test/index\\.test\\.js",
+          "multiply"
+        ]
+      }
+    }
+  }
+}

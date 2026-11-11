@@ -1,0 +1,11 @@
+{
+  "description": "A pure arithmetic change has nothing for the security review to object to.",
+  "fixture": "mini-lib",
+  "expect": {
+    "files": {
+      "round-1/review-security.md": {
+        "first_line": "VERDICT: PASS"
+      }
+    }
+  }
+}

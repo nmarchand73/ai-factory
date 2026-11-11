@@ -1,0 +1,15 @@
+{
+  "description": "A function that does the wrong thing, hidden by a lucky test, is sent back.",
+  "fixture": "mini-lib",
+  "expect": {
+    "files": {
+      "round-1/review-code.md": {
+        "first_line": "VERDICT: CHANGES",
+        "contains": [
+          "src/index\\.js",
+          "multiply"
+        ]
+      }
+    }
+  }
+}

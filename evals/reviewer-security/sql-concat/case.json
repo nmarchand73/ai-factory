@@ -1,0 +1,14 @@
+{
+  "description": "User input concatenated into SQL is sent back with the injection risk named.",
+  "fixture": "mini-lib",
+  "expect": {
+    "files": {
+      "round-1/review-security.md": {
+        "first_line": "VERDICT: CHANGES",
+        "contains": [
+          "inject|parameter|escape|prepared"
+        ]
+      }
+    }
+  }
+}

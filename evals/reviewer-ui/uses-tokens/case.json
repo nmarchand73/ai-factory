@@ -1,0 +1,11 @@
+{
+  "description": "Styles that use the design tokens pass.",
+  "fixture": "mini-page",
+  "expect": {
+    "files": {
+      "round-1/review-ui.md": {
+        "first_line": "VERDICT: PASS"
+      }
+    }
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "agent": "reviewer-ui",
+  "scale": "0 (poor) to 5 (excellent)",
+  "criteria": [
+    {
+      "id": "finding_precision",
+      "question": "Is every finding a real inconsistency with the app's visual system?"
+    },
+    {
+      "id": "actionability",
+      "question": "Does each finding point at the token or component to use?"
+    },
+    {
+      "id": "nothing_missed",
+      "question": "Reading the diff yourself, did it miss a hard-coded value or inconsistency?"
+    },
+    {
+      "id": "verdict_calibration",
+      "question": "Is the verdict the right one for the change?"
+    }
+  ]
+}

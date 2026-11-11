@@ -1,0 +1,16 @@
+{
+  "description": "A request nobody can build gets questions for the author, not a guess.",
+  "fixture": "mini-lib",
+  "expect": {
+    "files": {
+      "intake.md": {
+        "first_line": "DECISION: NEEDS-INFO",
+        "sections": [
+          "Questions"
+        ],
+        "min_numbered": 1,
+        "numbered_in": "Questions"
+      }
+    }
+  }
+}

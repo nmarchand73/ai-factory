@@ -1,0 +1,22 @@
+{
+  "agent": "spec-writer",
+  "scale": "0 (poor) to 5 (excellent)",
+  "criteria": [
+    {
+      "id": "testable_criteria",
+      "question": "Is every acceptance criterion observable and checkable by someone who only has the repo?"
+    },
+    {
+      "id": "repo_grounding",
+      "question": "Does the Context cite real files and reuse the project's existing patterns?"
+    },
+    {
+      "id": "minimal_scope",
+      "question": "Is it the smallest change that meets the scope, with intake's exclusions under Out of scope?"
+    },
+    {
+      "id": "assumptions",
+      "question": "Are ambiguous calls listed as Assumptions with a reason, and are product decisions surfaced?"
+    }
+  ]
+}

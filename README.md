@@ -30,6 +30,25 @@ every project's queue (`concurrency` jobs at a time, shared), `/factory run <pro
 - the tab title shows how many jobs need you, and an optional browser notification fires when one starts waiting;
 - the Done column shows the latest 5 jobs per project (the cost still counts all of them).
 
+## Agent evals and confidence
+
+Every agent has a confidence score (0-100) built from two composite metrics:
+
+- **process**, how it works: output format, discipline (writes only where it may), grounding (reads what it must
+  first), tool reliability, efficiency, and the one-line reply;
+- **output**, how good it is: outcomes of the real jobs (did the change converge, did the verdict hold, did the
+  decision stand) plus, when there is one, a rubric score from the `eval-judge` agent.
+
+Evidence comes from live jobs (free: job files and transcripts) and from eval cases, 21 replayable situations in
+`evals/` (at least one per agent). Little evidence pulls a score toward a neutral value, so a new agent shows as
+*provisional*.
+
+```bash
+factory/bin/eval report            # confidence of every agent; also fills the dashboard's Agents panel
+factory/bin/eval score builder     # every metric of one agent
+> /factory eval builder            # in Claude Code: replay an agent's cases, score them, call the judge
+```
+
 ## Models and settings
 
 `factory/config.json`: `concurrency`, `max_rounds`, reviewer models per risk (`routing`) and per surface
@@ -46,13 +65,14 @@ running at the time (use a session dedicated to the factory).
 ## Documentation
 
 Full manual (English and French, interactive): `docs/manuel-factory.html`.
-Tests: `python3 -m unittest tests/test_factory.py`.
+Tests: `python3 -m unittest tests/test_factory.py tests/test_eval.py`.
 
 ## Layout
 
 ```
 .claude/skills/factory, .claude/agents   the orchestrator and the 8 agents (a single copy)
-factory/                                  config.json, bin/{job,gate,route,target}, dashboard.html
+factory/                                  config.json, bin/{job,gate,route,target,eval}, dashboard.html
+evals/                                    eval cases, fixtures and judge rubrics per agent
 targets/<name>/checks.sh, notes.md        per-project checks and guidance (committed)
 targets/<name>/repo                       local clone of the project (gitignored)
 workspaces/<name>/<job>                   job worktrees (gitignored)
