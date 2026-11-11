@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="fr">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Manuel de la Software Factory</title>
+<title>Software Factory manual</title>
 <style>
 :root{
   --bg:#fbfaf8;--surface:#fff;--surface2:#f3f1ec;--ink:#1d1b18;--muted:#6a655c;--line:#e3dfd6;
@@ -134,257 +134,348 @@ tr:last-child td{border-bottom:0}
 footer{margin:60px 0 40px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:13.5px}
 @media (max-width:640px){.top .brand{display:none}.steps>li{padding-left:42px}}
 @media print{.top,.ctrl,.cb .copy{display:none}}
+
+.seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface)}
+.seg button{border:0;background:transparent;padding:5px 10px;font-size:13px;font-weight:600;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--accent);color:#fff}
+.note{font-size:14px;color:var(--muted)}
+figure{margin:18px 0;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;box-shadow:var(--shadow)}
+figure svg{width:100%;height:auto;display:block}
+figcaption{font-size:13px;color:var(--muted);margin-top:8px;text-align:center}
+.svg-t{fill:var(--ink);font:600 13px -apple-system,Segoe UI,sans-serif}
+.svg-s{fill:var(--muted);font:11.5px -apple-system,Segoe UI,sans-serif}
+.box{fill:var(--surface2);stroke:var(--line);stroke-width:1.3}
+.box-a{fill:var(--accent-soft);stroke:var(--accent);stroke-width:1.4}
+.box-ok{fill:var(--ok-soft);stroke:var(--ok);stroke-width:1.4}
+.box-w{fill:var(--warn-soft);stroke:var(--warn);stroke-width:1.4}
+.box-b{fill:var(--bad-soft);stroke:var(--bad);stroke-width:1.4}
+.ln{stroke:var(--muted);stroke-width:1.5;fill:none}
+#sim{margin-top:14px}
+@media (max-width:640px){.top .brand{display:none}.seg button{padding:5px 8px}}
 </style>
 </head>
 <body>
-
 <header class="top">
   <div class="wrap">
     <span class="brand">Software Factory</span>
-    <nav id="nav" aria-label="Sommaire">
-      <a href="#comprendre">Comprendre</a><a href="#demarrer">Démarrer</a><a href="#quotidien">Au quotidien</a><a href="#faq">Dépannage</a><a href="#memo">Aide-mémoire</a>
+    <nav id="nav" data-aria="toc_aria" aria-label="Table of contents">
+      <a href="#understand"><span data-i18n="nav_understand">Understand</span></a><a href="#start"><span data-i18n="nav_start">Get started</span></a><a href="#day"><span data-i18n="nav_day">Day to day</span></a><a href="#faq"><span data-i18n="nav_faq">Troubleshooting</span></a><a href="#memo"><span data-i18n="nav_memo">Cheat sheet</span></a>
     </nav>
-    <button class="icon-btn" id="themeBtn" type="button" aria-label="Changer de thème">◐</button>
+    <div class="seg" role="group" aria-label="Language"><button type="button" data-lang="en" aria-pressed="true">EN</button><button type="button" data-lang="fr" aria-pressed="false">FR</button></div>
+    <button class="icon-btn" id="themeBtn" type="button" data-aria="theme_aria" aria-label="Switch theme">◐</button>
   </div>
   <div class="bar" aria-hidden="true"><i id="progress"></i></div>
 </header>
 
 <main class="wrap">
 <div class="hero">
-  <span class="eyebrow">Manuel interactif</span>
-  <h1>Une issue GitHub devient une PR, toute seule</h1>
-  <p class="lead">Vous étiquetez une issue <code>factory</code>, vous tapez <code>/factory run</code>, et des agents décident, spécifient, codent, testent, relisent et ouvrent la PR. Un repo factory, autant de projets que vous voulez.</p>
+  <span class="eyebrow"><span data-i18n="eyebrow">Interactive manual</span></span>
+  <h1><span data-i18n="h1">A GitHub issue becomes a PR, by itself</span></h1>
+  <p class="lead"><span data-i18n="lead">You label an issue <code>factory</code>, type <code>/factory run</code>, and agents decide, spec, code, test, review and open the PR. One factory repo, as many projects as you like.</span></p>
 </div>
 
-<!-- ============ 1. COMPRENDRE ============ -->
-<section id="comprendre">
-  <h2>1 · Comprendre en 2 minutes</h2>
-  <p class="intro">Choisissez un scénario et avancez pas à pas : c’est exactement ce que fait la factory pour chaque issue.</p>
+<section id="understand">
+  <h2><span data-i18n="h_understand">1 · Understand in 2 minutes</span></h2>
+  <p class="intro"><span data-i18n="i_understand">The big picture first, then pick a scenario and step through it: this is exactly what the factory does for every issue.</span></p>
+
+  <figure id="diagram">
+  <svg viewBox="0 0 990 500" role="img" aria-label="Pipeline de la factory avec relecteurs en parallèle">
+    <defs><marker id="ar" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="var(--muted)"/></marker>
+    <marker id="arw" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="var(--warn)"/></marker>
+    <marker id="arb" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="var(--accent)"/></marker></defs>
+
+    <!-- main row -->
+    <rect class="box" x="10" y="140" width="100" height="50" rx="10"/><text class="svg-t" x="60" y="162" text-anchor="middle" data-i18n="g_issues">GitHub issues</text><text class="svg-s" x="60" y="179" text-anchor="middle" data-i18n="g_label">label: factory</text>
+    <rect class="box-a" x="140" y="140" width="100" height="50" rx="10"/><text class="svg-t" x="190" y="162" text-anchor="middle">Intake</text><text class="svg-s" x="190" y="179" text-anchor="middle">Fable</text>
+    <rect class="box-a" x="270" y="140" width="95" height="50" rx="10"/><text class="svg-t" x="317" y="162" text-anchor="middle">Spec writer</text><text class="svg-s" x="317" y="179" text-anchor="middle">Opus</text>
+    <rect class="box-a" x="390" y="140" width="95" height="50" rx="10"/><text class="svg-t" x="437" y="162" text-anchor="middle">Builder</text><text class="svg-s" x="437" y="179" text-anchor="middle" data-i18n="g_openpr">Opus · draft PR</text>
+    <rect class="box-w" x="510" y="140" width="100" height="50" rx="10"/><text class="svg-t" x="560" y="162" text-anchor="middle">Gate</text><text class="svg-s" x="560" y="179" text-anchor="middle">checks.sh · script</text>
+    <path class="ln" d="M110 165H138" marker-end="url(#ar)"/><path class="ln" d="M240 165H268" marker-end="url(#ar)"/><path class="ln" d="M365 165H388" marker-end="url(#ar)"/><path class="ln" d="M485 165H508" marker-end="url(#ar)"/>
+    <text class="svg-s" x="190" y="128" text-anchor="middle" data-i18n="g_ask">worth building? scope? risk?</text>
+
+    <!-- parallel group -->
+    <rect x="632" y="30" width="176" height="272" rx="16" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="6 5"/>
+    <text class="svg-t" x="720" y="20" text-anchor="middle" style="fill:var(--accent)" data-i18n="g_par">IN PARALLEL · routed by risk</text>
+    <rect class="box-a" x="648" y="44" width="144" height="50" rx="10"/><text class="svg-t" x="720" y="66" text-anchor="middle" data-i18n="g_codeT">Code review</text><text class="svg-s" x="720" y="83" text-anchor="middle" data-i18n="g_code">Haiku · Sonnet if risky</text>
+    <rect class="box-a" x="648" y="108" width="144" height="50" rx="10"/><text class="svg-t" x="720" y="130" text-anchor="middle" data-i18n="g_uxT">UX review</text><text class="svg-s" x="720" y="147" text-anchor="middle" data-i18n="g_ux">Sonnet · if UI surface</text>
+    <rect class="box-a" x="648" y="172" width="144" height="50" rx="10"/><text class="svg-t" x="720" y="194" text-anchor="middle" data-i18n="g_uiT">UI design review</text><text class="svg-s" x="720" y="211" text-anchor="middle" data-i18n="g_ui">Haiku · if UI surface</text>
+    <rect class="box-a" x="648" y="236" width="144" height="50" rx="10"/><text class="svg-t" x="720" y="258" text-anchor="middle" data-i18n="g_secT">Security review</text><text class="svg-s" x="720" y="275" text-anchor="middle" data-i18n="g_sec">Opus · if security surface</text>
+    <!-- fan-out -->
+    <path class="ln" d="M610 165H628"/><path class="ln" d="M628 69V261"/>
+    <path class="ln" d="M628 69H646" marker-end="url(#ar)"/><path class="ln" d="M628 133H646" marker-end="url(#ar)"/><path class="ln" d="M628 197H646" marker-end="url(#ar)"/><path class="ln" d="M628 261H646" marker-end="url(#ar)"/>
+
+    <!-- fan-in -->
+    <path class="ln" d="M792 69H822"/><path class="ln" d="M792 133H822"/><path class="ln" d="M792 197H822"/><path class="ln" d="M792 261H822"/><path class="ln" d="M822 69V261"/>
+    <path class="ln" d="M822 165H840" marker-end="url(#ar)"/>
+
+    <!-- approver -->
+    <rect class="box-a" x="842" y="140" width="138" height="50" rx="10"/><text class="svg-t" x="911" y="162" text-anchor="middle">Approver</text><text class="svg-s" x="911" y="179" text-anchor="middle">Opus</text>
+    <path class="ln" d="M911 190V370"/><path class="ln" d="M911 370H820V398" marker-end="url(#ar)"/><path class="ln" d="M911 370H935V398" marker-end="url(#ar)"/>
+    <text class="svg-s" x="860" y="362" text-anchor="middle">approve</text><text class="svg-s" x="950" y="362" text-anchor="middle">escalate</text>
+    <rect class="box-ok" x="745" y="400" width="150" height="50" rx="10"/><text class="svg-t" x="820" y="422" text-anchor="middle" data-i18n="g_merge">Merge the PR</text><text class="svg-s" x="820" y="439" text-anchor="middle">gh pr merge</text>
+    <rect class="box-w" x="905" y="400" width="80" height="50" rx="10"/><text class="svg-t" x="945" y="422" text-anchor="middle" data-i18n="g_human">Human</text><text class="svg-s" x="945" y="439" text-anchor="middle" data-i18n="g_decide">you decide</text>
+
+    <!-- intake exits -->
+    <path class="ln" d="M190 190V232" marker-end="url(#ar)"/>
+    <rect class="box-b" x="90" y="234" width="200" height="50" rx="10"/><text class="svg-t" x="190" y="256" text-anchor="middle" data-i18n="g_nir">NEEDS-INFO · REJECT</text><text class="svg-s" x="190" y="273" text-anchor="middle" data-i18n="g_nir_s">asks the author · says why</text>
+
+    <!-- loops -->
+    <path d="M560 190V230H460V192" fill="none" stroke="var(--warn)" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#arw)"/>
+    <text class="svg-s" x="510" y="248" text-anchor="middle" style="fill:var(--warn)" data-i18n="g_fail">FAIL: the builder gets the log</text>
+    <path d="M720 302V350H412V192" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#arb)"/>
+    <text class="svg-s" x="560" y="344" text-anchor="middle" style="fill:var(--accent)" data-i18n="g_chg">CHANGES: the same builder fixes it, then gate → review (max_rounds)</text>
+
+    <text class="svg-s" x="10" y="488" data-i18n="g_foot">One orchestrator runs up to 3 jobs at once. Each job: its own worktree and branch, one PR that closes its issue.</text>
+  </svg>
+  <figcaption><span data-i18n="fig_caption">Dashed loops are the self-correction. Reviewers are launched <b>in the same message</b>: they run in parallel and the orchestrator waits for all of them. The approver only steps in when every verdict is PASS.</span></figcaption>
+  </figure>
 
   <div class="card sim" id="sim">
-    <div class="pills" role="tablist" aria-label="Scénario" id="scen"></div>
+    <div class="pills" role="tablist" data-aria="scen_label" aria-label="Scenario" id="scen"></div>
     <div style="margin-top:10px;display:flex;gap:16px;flex-wrap:wrap">
-      <label class="toggle"><input type="checkbox" id="optUi"> L’issue touche l’interface (UI)</label>
-      <label class="toggle"><input type="checkbox" id="optSec"> L’issue touche la sécurité</label>
+      <label class="toggle"><input type="checkbox" id="optUi"> <span data-i18n="opt_ui">The issue touches the UI</span></label>
+      <label class="toggle"><input type="checkbox" id="optSec"> <span data-i18n="opt_sec">The issue touches security</span></label>
     </div>
     <div class="stages" id="stages" style="margin-top:14px"></div>
     <div class="revs" id="revs"></div>
     <div class="explain" id="explain" aria-live="polite"></div>
     <div class="ctrl">
-      <button class="btn sec" id="prev" type="button">← Précédent</button>
-      <button class="btn" id="next" type="button">Étape suivante →</button>
-      <button class="btn sec" id="auto" type="button">▶ Lecture auto</button>
-      <button class="btn sec" id="reset" type="button">↺ Recommencer</button>
+      <button class="btn sec" id="prev" type="button" data-i18n="btn_prev">← Previous</button>
+      <button class="btn" id="next" type="button" data-i18n="btn_next">Next step →</button>
+      <button class="btn sec" id="auto" type="button">▶ Auto-play</button>
+      <button class="btn sec" id="reset" type="button" data-i18n="btn_reset">↺ Restart</button>
       <span id="counter" style="margin-left:auto;color:var(--muted);font-size:13px"></span>
     </div>
-    <div class="log" id="log" aria-label="Journal du job"></div>
+    <div class="log" id="log" data-aria="log_label" aria-label="Job log"></div>
   </div>
 
   <div class="grid">
-    <div class="card"><h4>Un seul orchestrateur</h4><p>La session Claude Code où vous tapez <code>/factory</code> lance tous les agents. Elle n’écrit jamais de code.</p></div>
-    <div class="card"><h4>L’état, ce sont des fichiers</h4><p>Tout est dans <code>factory/jobs/</code>. Si la session meurt, <code>/factory run</code> reprend chaque job là où il en était.</p></div>
-    <div class="card"><h4>Le gate passe avant la relecture</h4><p>Un build qui échoue aux tests repart au builder sans coûter un seul reviewer.</p></div>
-    <div class="card"><h4>Vous gardez la main</h4><p>L’approver merge ce qui est sûr ; le reste attend un humain. Vous approuvez en mergeant la PR.</p></div>
+    <div class="card"><h4><span data-i18n="c1_t">One orchestrator</span></h4><p><span data-i18n="c1_p">The Claude Code session where you type <code>/factory</code> launches every agent. It never writes code.</span></p></div>
+    <div class="card"><h4><span data-i18n="c2_t">State is files</span></h4><p><span data-i18n="c2_p">Everything lives in <code>factory/jobs/</code>. If the session dies, <code>/factory run</code> resumes each job where it stopped.</span></p></div>
+    <div class="card"><h4><span data-i18n="c3_t">The gate comes before review</span></h4><p><span data-i18n="c3_p">A build that fails the tests goes back to the builder without costing a single reviewer.</span></p></div>
+    <div class="card"><h4><span data-i18n="c4_t">You stay in control</span></h4><p><span data-i18n="c4_p">The approver merges what is safe; the rest waits for a human. You approve by merging the PR.</span></p></div>
   </div>
 </section>
 
-<!-- ============ 2. DEMARRER ============ -->
-<section id="demarrer">
-  <h2>2 · Démarrer</h2>
-  <p class="intro">Renseignez votre projet une fois : toutes les commandes se remplissent toutes seules. Cochez les étapes au fur et à mesure (votre progression est mémorisée dans ce navigateur).</p>
+<section id="start">
+  <h2><span data-i18n="h_start">2 · Get started</span></h2>
+  <p class="intro"><span data-i18n="i_start">Fill in your project once: every command below fills itself in. Tick the steps as you go (your progress is remembered in this browser).</span></p>
 
   <div class="card">
     <div class="form">
-      <label class="f">Nom court du projet<input id="fName" autocomplete="off" spellcheck="false"></label>
-      <label class="f">Repo GitHub<input id="fRepo" autocomplete="off" spellcheck="false"></label>
-      <label class="f">N° de l’issue<input id="fNum" inputmode="numeric" autocomplete="off"></label>
-      <label class="f">Branche de base<input id="fBase" autocomplete="off" spellcheck="false"></label>
-      <label class="f">Méthode de merge<select id="fMerge"><option>squash</option><option>merge</option><option>rebase</option></select></label>
+      <label class="f"><span data-i18n="f_name">Short project name</span><input id="fName" autocomplete="off" spellcheck="false"></label>
+      <label class="f"><span data-i18n="f_repo">GitHub repo</span><input id="fRepo" autocomplete="off" spellcheck="false"></label>
+      <label class="f"><span data-i18n="f_num">Issue number</span><input id="fNum" inputmode="numeric" autocomplete="off"></label>
+      <label class="f"><span data-i18n="f_base">Base branch</span><input id="fBase" autocomplete="off" spellcheck="false"></label>
+      <label class="f"><span data-i18n="f_merge">Merge method</span><select id="fMerge"><option>squash</option><option>merge</option><option>rebase</option></select></label>
     </div>
     <div class="hint" id="fHint" role="status"></div>
   </div>
 
-  <div class="callout"><b class="t">La règle à retenir</b>
-  <p><b>Tout se lance depuis le repo factory</b>, jamais depuis le projet. Le projet ne contient ni <code>/factory</code> ni agents : il ne reçoit que des branches <code>factory/*</code> et des PR. Votre dossier de travail et le clone de la factory (<code>targets/&lt;nom&gt;/repo</code>) sont deux copies distinctes : la factory part toujours de la branche de base <em>sur GitHub</em>, donc ce qui n’est pas poussé n’existe pas pour elle.</p></div>
+  <div class="callout"><b class="t"><span data-i18n="rule_t">The rule to remember</span></b><p><span data-i18n="rule_p"><b>Everything is launched from the factory repo</b>, never from the project. The project contains no <code>/factory</code> and no agents: it only receives <code>factory/*</code> branches and PRs. Your working folder and the factory’s clone (<code>targets/&lt;name&gt;/repo</code>) are two separate copies: the factory always starts from the base branch <em>on GitHub</em>, so anything not pushed does not exist for it.</span></p></div>
 
   <ol class="steps" id="checklist">
     <li data-id="prereq">
-      <div class="head"><strong>Vérifier les prérequis</strong><label class="tick"><input type="checkbox"> fait</label></div>
-      <p>Claude Code 2.1.257+, Python 3.10+, <code>gh</code> authentifié, droit d’écriture sur le projet.</p>
-      <div class="cb"><pre data-tpl="claude --version &amp;&amp; python3 --version &amp;&amp; gh auth status &amp;&amp; gh repo view {repo} --json viewerPermission"></pre><button class="copy" type="button">Copier</button></div>
+      <div class="head"><strong><span data-i18n="s1_t">Check the prerequisites</span></strong><label class="tick"><input type="checkbox"> <span data-i18n="done">done</span></label></div>
+      <p><span data-i18n="s1_p">Claude Code 2.1.257+, Python 3.10+, an authenticated <code>gh</code>, and write access to the project.</span></p>
+      <div class="cb"><pre data-tpl="claude --version &amp;&amp; python3 --version &amp;&amp; gh auth status &amp;&amp; gh repo view {repo} --json viewerPermission"></pre><button class="copy" type="button" data-i18n="copy">Copy</button></div>
     </li>
     <li data-id="clone">
-      <div class="head"><strong>Cloner la factory (une seule fois)</strong><label class="tick"><input type="checkbox"> fait</label></div>
-      <div class="cb"><pre>gh repo clone nmarchand73/ai-factory
+      <div class="head"><strong><span data-i18n="s2_t">Clone the factory (once)</span></strong><label class="tick"><input type="checkbox"> <span data-i18n="done">done</span></label></div>
+      <div class="cb"><pre data-tpl="gh repo clone nmarchand73/ai-factory
 cd ai-factory
-python3 -m unittest tests/test_factory.py   # sans réseau</pre><button class="copy" type="button">Copier</button></div>
+python3 -m unittest tests/test_factory.py   # no network needed" data-tpl-fr="gh repo clone nmarchand73/ai-factory
+cd ai-factory
+python3 -m unittest tests/test_factory.py   # sans réseau"></pre><button class="copy" type="button" data-i18n="copy">Copy</button></div>
     </li>
     <li data-id="situation">
-      <div class="head"><strong>Mettre votre projet sur GitHub</strong><label class="tick"><input type="checkbox"> fait</label></div>
-      <p>Où en est votre projet ?</p>
+      <div class="head"><strong><span data-i18n="s3_t">Get your project on GitHub</span></strong><label class="tick"><input type="checkbox"> <span data-i18n="done">done</span></label></div>
+      <p><span data-i18n="s3_q">Where is your project at?</span></p>
       <div class="pills" id="sitePills" role="tablist">
-        <button class="pill" role="tab" data-s="A" type="button">Pas encore sur GitHub</button>
-        <button class="pill" role="tab" data-s="B" type="button">Sur GitHub, pas cloné</button>
-        <button class="pill" role="tab" data-s="C" type="button">Déjà cloné en local</button>
-        <button class="pill" role="tab" data-s="D" type="button">Nouveau projet</button>
+        <button class="pill" role="tab" data-s="A" type="button" data-i18n="sit_a">Not on GitHub yet</button>
+        <button class="pill" role="tab" data-s="B" type="button" data-i18n="sit_b">On GitHub, not cloned</button>
+        <button class="pill" role="tab" data-s="C" type="button" data-i18n="sit_c">Already cloned locally</button>
+        <button class="pill" role="tab" data-s="D" type="button" data-i18n="sit_d">Brand-new project</button>
       </div>
-      <div class="panel" data-p="A"><p>La factory ne travaille que sur GitHub. Depuis le dossier du projet (pas la factory) :</p>
-        <div class="cb"><pre data-tpl="git init -b {base}        # seulement si ce n'est pas déjà un repo git
+      <div class="panel" data-p="A"><p><span data-i18n="sit_a_p">The factory only works on GitHub (issues, branches, PRs). From the project folder (not the factory):</span></p>
+        <div class="cb"><pre data-tpl="git init -b {base}        # only if it is not already a git repo
 git add -A &amp;&amp; git commit -m &quot;Initial commit&quot;
-gh repo create {repo} --private --source . --remote origin --push"></pre><button class="copy" type="button">Copier</button></div>
-        <p style="font-size:14px;color:var(--muted)">Vérifiez le <code>.gitignore</code> avant le premier commit (pas de secrets) et que les Issues sont activées.</p></div>
-      <div class="panel" data-p="B" hidden><p>Rien à faire : la factory clone elle-même à l’étape suivante.</p></div>
-      <div class="panel" data-p="C" hidden><p>Ne dites pas à la factory où est votre clone : elle garde le sien et ne touche jamais au vôtre. <b>Poussez simplement ce qu’elle doit voir</b> :</p>
-        <div class="cb"><pre data-tpl="git status                      # rien à commiter ?
+gh repo create {repo} --private --source . --remote origin --push" data-tpl-fr="git init -b {base}        # seulement si ce n'est pas déjà un repo git
+git add -A &amp;&amp; git commit -m &quot;Initial commit&quot;
+gh repo create {repo} --private --source . --remote origin --push"></pre><button class="copy" type="button" data-i18n="copy">Copy</button></div>
+        <p class="note"><span data-i18n="sit_a_n">Check your <code>.gitignore</code> before the first commit (no secrets) and that Issues are enabled.</span></p></div>
+      <div class="panel" data-p="B" hidden><p><span data-i18n="sit_b_p">Nothing to do: the factory clones it itself in the next step.</span></p></div>
+      <div class="panel" data-p="C" hidden><p><span data-i18n="sit_c_p">Don’t tell the factory where your clone is: it keeps its own and never touches yours. <b>Just push what it needs to see</b>:</span></p>
+        <div class="cb"><pre data-tpl="git status                      # nothing to commit?
+git log origin/{base}..{base}    # nothing printed = everything is pushed
+git push" data-tpl-fr="git status                      # rien à commiter ?
 git log origin/{base}..{base}    # rien d'affiché = tout est poussé
-git push"></pre><button class="copy" type="button">Copier</button></div>
-        <p style="font-size:14px;color:var(--muted)">Après chaque merge de la factory : <code>git pull</code> dans votre clone.</p></div>
-      <div class="panel" data-p="D" hidden><p>Un repo vide est refusé : il faut au moins un premier commit.</p>
-        <div class="cb"><pre data-tpl="gh repo create {repo} --private --add-readme"></pre><button class="copy" type="button">Copier</button></div></div>
+git push"></pre><button class="copy" type="button" data-i18n="copy">Copy</button></div>
+        <p class="note"><span data-i18n="sit_c_n">After each factory merge: <code>git pull</code> in your clone.</span></p></div>
+      <div class="panel" data-p="D" hidden><p><span data-i18n="sit_d_p">An empty repo is refused: it needs at least one first commit.</span></p>
+        <div class="cb"><pre data-tpl="gh repo create {repo} --private --add-readme"></pre><button class="copy" type="button" data-i18n="copy">Copy</button></div></div>
     </li>
     <li data-id="add">
-      <div class="head"><strong>Déclarer le projet à la factory</strong><label class="tick"><input type="checkbox"> fait</label></div>
-      <p>Depuis le repo <b>factory</b> : clone, labels GitHub, <code>checks.sh</code> et <code>notes.md</code> à compléter.</p>
-      <div class="cb"><pre data-tpl="factory/bin/target add {name} {repo} --merge {merge} --base {base}"></pre><button class="copy" type="button">Copier</button></div>
+      <div class="head"><strong><span data-i18n="s4_t">Declare the project to the factory</span></strong><label class="tick"><input type="checkbox"> <span data-i18n="done">done</span></label></div>
+      <p><span data-i18n="s4_p">From the <b>factory</b> repo: clone, GitHub labels, plus <code>checks.sh</code> and <code>notes.md</code> to complete.</span></p>
+      <div class="cb"><pre data-tpl="factory/bin/target add {name} {repo} --merge {merge} --base {base}"></pre><button class="copy" type="button" data-i18n="copy">Copy</button></div>
     </li>
     <li data-id="files">
-      <div class="head"><strong>Écrire les checks et les notes du projet</strong><label class="tick"><input type="checkbox"> fait</label></div>
-      <p><code>checks.sh</code> est le juge impartial : non interactif, ne réécrit aucun fichier, sort non-zéro à la moindre erreur.</p>
+      <div class="head"><strong><span data-i18n="s5_t">Write the project’s checks and notes</span></strong><label class="tick"><input type="checkbox"> <span data-i18n="done">done</span></label></div>
+      <p><span data-i18n="s5_p"><code>checks.sh</code> is the impartial judge: non-interactive, never rewrites files, exits non-zero on any failure.</span></p>
       <div class="pills" id="stackPills"><button class="pill" data-k="node" type="button">Node</button><button class="pill" data-k="py" type="button">Python</button><button class="pill" data-k="go" type="button">Go</button></div>
-      <div class="cb"><pre id="stackCode"></pre><button class="copy" type="button">Copier</button></div>
-      <p><code data-tpl="targets/{name}/notes.md"></code> : setup d’un checkout neuf, zones sensibles pour la sécurité, ce qu’un humain doit toujours voir, à quoi sert le projet.</p>
+      <div class="cb"><pre id="stackCode"></pre><button class="copy" type="button" data-i18n="copy">Copy</button></div>
+      <p><code data-tpl="targets/{name}/notes.md"></code><span data-i18n="s5_n">: setup for a fresh checkout, security hot spots, what a human must always see, and what the project is for.</span></p>
     </li>
     <li data-id="check">
-      <div class="head"><strong>Vérifier que tout est prêt</strong><label class="tick"><input type="checkbox"> fait</label></div>
-      <div class="cb"><pre data-tpl="factory/bin/target check {name}"></pre><button class="copy" type="button">Copier</button></div>
-      <p>Doit finir par <code>target is ready</code>. Le dernier contrôle lance <code>checks.sh</code> sur un worktree neuf : s’il échoue, aucun job ne passera jamais.</p>
+      <div class="head"><strong><span data-i18n="s6_t">Check that everything is ready</span></strong><label class="tick"><input type="checkbox"> <span data-i18n="done">done</span></label></div>
+      <div class="cb"><pre data-tpl="factory/bin/target check {name}"></pre><button class="copy" type="button" data-i18n="copy">Copy</button></div>
+      <p><span data-i18n="s6_p">It must end with <code>target is ready</code>. The last check runs <code>checks.sh</code> on a fresh worktree: if it fails, no job could ever pass.</span></p>
     </li>
     <li data-id="issue">
-      <div class="head"><strong>Créer une petite issue et lui donner le feu vert</strong><label class="tick"><input type="checkbox"> fait</label></div>
-      <p>Soyez concret (comportement attendu, hors périmètre). Seul le label <code>factory</code> déclenche le travail.</p>
-      <div class="cb"><pre data-tpl="gh issue create --repo {repo} --label factory --title &quot;Ajouter ...&quot; --body &quot;...&quot;
+      <div class="head"><strong><span data-i18n="s7_t">Create a small issue and give it the green light</span></strong><label class="tick"><input type="checkbox"> <span data-i18n="done">done</span></label></div>
+      <p><span data-i18n="s7_p">Be concrete (expected behavior, out of scope). Only the <code>factory</code> label triggers work.</span></p>
+      <div class="cb"><pre data-tpl="gh issue create --repo {repo} --label factory --title &quot;Add ...&quot; --body &quot;...&quot;
+# or on an existing issue:
+gh issue edit {num} --repo {repo} --add-label factory" data-tpl-fr="gh issue create --repo {repo} --label factory --title &quot;Ajouter ...&quot; --body &quot;...&quot;
 # ou sur une issue existante :
-gh issue edit {num} --repo {repo} --add-label factory"></pre><button class="copy" type="button">Copier</button></div>
+gh issue edit {num} --repo {repo} --add-label factory"></pre><button class="copy" type="button" data-i18n="copy">Copy</button></div>
     </li>
     <li data-id="run">
-      <div class="head"><strong>Lancer la factory</strong><label class="tick"><input type="checkbox"> fait</label></div>
-      <p>Ouvrez Claude Code <b>à la racine du repo factory</b>, puis :</p>
+      <div class="head"><strong><span data-i18n="s8_t">Run the factory</span></strong><label class="tick"><input type="checkbox"> <span data-i18n="done">done</span></label></div>
+      <p><span data-i18n="s8_p">Open Claude Code <b>at the root of the factory repo</b>, then:</span></p>
       <div class="cb"><pre data-tpl="claude
-&gt; /factory run {name}#{num}"></pre><button class="copy" type="button">Copier</button></div>
-      <p>Suivez la progression dans le dashboard : <code>cd factory &amp;&amp; python3 -m http.server</code> puis <code>localhost:8000/dashboard.html</code> (un swimlane par projet).</p>
-      <div class="callout ok"><b class="t">Résultat</b><p>Une PR « Closes #n », mergée si l’approver est sûr, sinon prête pour vous avec le label <code>factory:needs-human</code>. Puis <code>git pull</code> dans votre clone.</p></div>
+&gt; /factory run {name}#{num}"></pre><button class="copy" type="button" data-i18n="copy">Copy</button></div>
+      <p><span data-i18n="s8_d">Follow progress in the dashboard: <code>cd factory &amp;&amp; python3 -m http.server</code> then <code>localhost:8000/dashboard.html</code> (one swimlane per project).</span></p>
+      <div class="callout ok"><b class="t"><span data-i18n="s8_r_t">Result</span></b><p><span data-i18n="s8_r">A “Closes #n” PR, merged if the approver is sure, otherwise ready for you with the <code>factory:needs-human</code> label. Then <code>git pull</code> in your clone.</span></p></div>
     </li>
   </ol>
-  <button class="btn sec" id="clearChecks" type="button">Réinitialiser ma progression</button>
+  <button class="btn sec" id="clearChecks" type="button" data-i18n="clear">Reset my progress</button>
 </section>
 
-<!-- ============ 3. QUOTIDIEN ============ -->
-<section id="quotidien">
-  <h2>3 · Au quotidien</h2>
-  <p class="intro">Choisissez ce que vous voulez faire.</p>
+<section id="day">
+  <h2><span data-i18n="h_day">3 · Day to day</span></h2>
+  <p class="intro"><span data-i18n="i_day">Pick what you want to do.</span></p>
   <div class="pills" id="dayPills" role="tablist">
-    <button class="pill" role="tab" data-d="run" type="button">Lancer des issues</button>
-    <button class="pill" role="tab" data-d="status" type="button">Savoir où on en est</button>
-    <button class="pill" role="tab" data-d="human" type="button">Répondre à « needs-human »</button>
-    <button class="pill" role="tab" data-d="info" type="button">Répondre à une question</button>
-    <button class="pill" role="tab" data-d="new" type="button">Ajouter un 2ᵉ projet</button>
+    <button class="pill" role="tab" data-d="run" type="button" data-i18n="d_run">Run issues</button>
+    <button class="pill" role="tab" data-d="status" type="button" data-i18n="d_status">See where things stand</button>
+    <button class="pill" role="tab" data-d="human" type="button" data-i18n="d_human">Answer “needs-human”</button>
+    <button class="pill" role="tab" data-d="info" type="button" data-i18n="d_info">Answer a question</button>
+    <button class="pill" role="tab" data-d="new" type="button" data-i18n="d_new">Add a 2nd project</button>
   </div>
   <div class="panel" data-q="run">
     <table>
-      <tr><th>Commande (dans Claude Code, repo factory)</th><th>Effet</th></tr>
-      <tr><td><code>/factory run</code></td><td>Toute la file de <b>tous</b> les projets, <code>concurrency</code> jobs à la fois (3 par défaut, partagé). Reprend aussi les jobs interrompus.</td></tr>
-      <tr><td><code data-tpl="/factory run {name}"></code></td><td>La file d’un seul projet.</td></tr>
-      <tr><td><code data-tpl="/factory run {name}#{num}"></code></td><td>Une seule issue. Le <code>#n</code> seul n’est accepté que s’il n’y a qu’un projet.</td></tr>
-      <tr><td><code>/factory ajoute un export Markdown</code></td><td>Texte libre : la factory crée l’issue (et demande le projet s’il y en a plusieurs), puis la traite.</td></tr>
+      <tr><th><span data-i18n="th_cmd">Command (in Claude Code, factory repo)</span></th><th><span data-i18n="th_eff">Effect</span></th></tr>
+      <tr><td><code>/factory run</code></td><td><span data-i18n="r1">The whole queue of <b>every</b> project, <code>concurrency</code> jobs at a time (3 by default, shared). Also resumes interrupted jobs.</span></td></tr>
+      <tr><td><code data-tpl="/factory run {name}"></code></td><td><span data-i18n="r2">The queue of a single project.</span></td></tr>
+      <tr><td><code data-tpl="/factory run {name}#{num}"></code></td><td><span data-i18n="r3">One issue only. A bare <code>#n</code> is only accepted when there is a single project.</span></td></tr>
+      <tr><td><code data-tpl="/factory add a Markdown export" data-tpl-fr="/factory ajoute un export Markdown"></code></td><td><span data-i18n="r4">Free text: the factory creates the issue (and asks which project if there are several), then runs it.</span></td></tr>
     </table>
-    <div class="callout warn"><b class="t">Ne tuez pas la session à la légère</b><p>Ctrl-C arrête aussi tous les agents en cours (leur travail est perdu). Rien d’autre : relancez <code>/factory run</code> et tout reprend.</p></div>
+    <div class="callout warn"><b class="t"><span data-i18n="w_kill_t">Don’t kill the session lightly</span></b><p><span data-i18n="w_kill">Ctrl-C also stops every running agent (their in-flight work is lost). Nothing else is lost: run <code>/factory run</code> again and everything resumes.</span></p></div>
   </div>
   <div class="panel" data-q="status" hidden>
-    <div class="cb"><pre data-tpl="/factory qu'est-il arrivé à {name}#{num} ?
+    <div class="cb"><pre data-tpl="/factory what happened to {name}#{num}?
+/factory which jobs are waiting for a human?
+factory/bin/job summary          # table: job, project, stage, PR, cost, time" data-tpl-fr="/factory qu'est-il arrivé à {name}#{num} ?
 /factory quels jobs attendent un humain ?
-factory/bin/job summary          # tableau : job, projet, étape, PR, coût, durée"></pre><button class="copy" type="button">Copier</button></div>
-    <p>Le dashboard affiche une bande par projet, des pastilles par tour (gate, code, ux, ui, sécurité), le coût et la durée de chaque job. Cliquez une carte pour lire tous ses fichiers.</p>
+factory/bin/job summary          # tableau : job, projet, étape, PR, coût, durée"></pre><button class="copy" type="button" data-i18n="copy">Copy</button></div>
+    <p><span data-i18n="st_p">The dashboard shows one lane per project, chips per round (gate, code, ux, ui, security), and each job’s cost and duration. Click a card to read all its files.</span></p>
   </div>
   <div class="panel" data-q="human" hidden>
-    <p>Un job en <code>needs-human</code> a besoin de vous : l’approver a escaladé, le builder est bloqué ou les tours sont épuisés. Trois réponses :</p>
+    <p><span data-i18n="h_p">A job in <code>needs-human</code> needs you: the approver escalated, the builder is blocked, or the rounds ran out. Three answers:</span></p>
     <div class="grid">
-      <div class="card"><h4>1 · Approuver</h4><p>Mergez la PR sur GitHub. La factory le détecte et clôt le job.</p></div>
-      <div class="card"><h4>2 · Donner du feedback</h4><p><code data-tpl="/factory pour {name}#{num}, utilise une autre approche : ..."></code><br>Le builder repart avec un budget de tours neuf.</p></div>
-      <div class="card"><h4>3 · Rejeter</h4><p><code data-tpl="/factory rejette {name}#{num}, hors sujet"></code><br>La raison est postée sur l’issue, la PR fermée.</p></div>
+      <div class="card"><h4><span data-i18n="h1_t">1 · Approve</span></h4><p><span data-i18n="h1_p">Merge the PR on GitHub. The factory notices and closes the job.</span></p></div>
+      <div class="card"><h4><span data-i18n="h2_t">2 · Give feedback</span></h4><p><code data-tpl="/factory for {name}#{num}, use another approach: ..." data-tpl-fr="/factory pour {name}#{num}, utilise une autre approche : ..."></code><br><span data-i18n="h2_p">The builder restarts with a fresh round budget.</span></p></div>
+      <div class="card"><h4><span data-i18n="h3_t">3 · Reject</span></h4><p><code data-tpl="/factory reject {name}#{num}, out of scope" data-tpl-fr="/factory rejette {name}#{num}, hors sujet"></code><br><span data-i18n="h3_p">The reason is posted on the issue and the PR is closed.</span></p></div>
     </div>
-    <p style="font-size:14px;color:var(--muted)">Pour rejouer une issue rejetée : supprimez <code>factory/jobs/&lt;id&gt;</code> et remettez le label <code>factory</code>.</p>
+    <p class="note"><span data-i18n="h_n">To replay a rejected issue: delete <code>factory/jobs/&lt;id&gt;</code> and put the <code>factory</code> label back.</span></p>
   </div>
   <div class="panel" data-q="info" hidden>
-    <p>Quand l’intake manque d’information, il pose sa question en commentaire sur l’issue (label <code>factory:needs-info</code>) et le job attend. Répondez directement dans l’issue sur GitHub, ou dites-le à la factory :</p>
-    <div class="cb"><pre data-tpl="/factory réponds à {name}#{num} : utilise la police Inter"></pre><button class="copy" type="button">Copier</button></div>
-    <p>Au prochain <code>/factory run</code>, le job reprend à l’intake.</p>
+    <p><span data-i18n="i_p1">When intake lacks information it posts its question as a comment on the issue (label <code>factory:needs-info</code>) and the job waits. Answer directly on the issue on GitHub, or tell the factory:</span></p>
+    <div class="cb"><pre data-tpl="/factory reply to {name}#{num}: use the Inter font" data-tpl-fr="/factory réponds à {name}#{num} : utilise la police Inter"></pre><button class="copy" type="button" data-i18n="copy">Copy</button></div>
+    <p><span data-i18n="i_p2">On the next <code>/factory run</code>, the job resumes at intake.</span></p>
   </div>
   <div class="panel" data-q="new" hidden>
-    <p>Une seule factory, autant de projets que vous voulez : refaites simplement les étapes 3 à 6 de <a href="#demarrer">Démarrer</a> avec un autre nom.</p>
-    <div class="cb"><pre>factory/bin/target add autre-projet owner/autre-repo
+    <p><span data-i18n="n_p1">One factory, as many projects as you like: just repeat steps 3 to 6 of <a href="#start">Get started</a> with another name.</span></p>
+    <div class="cb"><pre data-tpl="factory/bin/target add other-project owner/other-repo
+factory/bin/target check other-project
+factory/bin/target list" data-tpl-fr="factory/bin/target add autre-projet owner/autre-repo
 factory/bin/target check autre-projet
-factory/bin/target list</pre><button class="copy" type="button">Copier</button></div>
-    <p>La limite de concurrence est partagée entre projets. Dans le dashboard, chaque projet a sa bande, repliable et filtrable.</p>
+factory/bin/target list"></pre><button class="copy" type="button" data-i18n="copy">Copy</button></div>
+    <p><span data-i18n="n_p2">The concurrency limit is shared across projects. In the dashboard each project has its own lane, collapsible and filterable.</span></p>
   </div>
 
-  <h3>Réglages utiles <span class="tag t-in">factory/config.json</span></h3>
+  <h3><span data-i18n="cfg_h">Useful settings</span> <span class="tag t-in">factory/config.json</span></h3>
   <table>
-    <tr><th>Clé</th><th>Défaut</th><th>Rôle</th></tr>
-    <tr><td><code>concurrency</code></td><td>3</td><td>Jobs simultanés (mettez 1 pour débuter prudemment)</td></tr>
-    <tr><td><code>max_rounds</code></td><td>3</td><td>Tours build→gate→review avant d’appeler un humain</td></tr>
-    <tr><td><code>routing</code>, <code>surface_reviewers</code></td><td>haiku, sonnet, opus</td><td>Modèle de chaque reviewer selon le risque et les surfaces</td></tr>
-    <tr><td><code>targets.&lt;nom&gt;.protected_paths</code></td><td>.github/workflows/*</td><td>Fichiers du projet qu’un job ne peut pas modifier (mettez la CI, pas vos tests)</td></tr>
+    <tr><th><span data-i18n="th_key">Key</span></th><th><span data-i18n="th_def">Default</span></th><th><span data-i18n="th_role">Role</span></th></tr>
+    <tr><td><code>concurrency</code></td><td>3</td><td><span data-i18n="cfg1">Simultaneous jobs (use 1 to start carefully)</span></td></tr>
+    <tr><td><code>max_rounds</code></td><td>3</td><td><span data-i18n="cfg2">build→gate→review rounds before calling a human</span></td></tr>
+    <tr><td><code>routing</code>, <code>surface_reviewers</code></td><td>haiku, sonnet, opus</td><td><span data-i18n="cfg3">Model of each reviewer by risk and surface</span></td></tr>
+    <tr><td><code>targets.&lt;name&gt;.protected_paths</code></td><td>.github/workflows/*</td><td><span data-i18n="cfg4">Project files a job may not modify (put CI there, not your tests)</span></td></tr>
   </table>
-  <div class="callout warn"><b class="t">Coût et prudence</b><p>L’intake utilise Fable (une fois par issue) et les builders Opus : commencez par 1 ou 2 petites issues et <code>concurrency: 1</code>, lisez chaque PR avant de faire confiance à l’auto-merge, et complétez la liste « Always escalate » de <code>notes.md</code>. Pour un essai bon marché, forcez Haiku partout : un petit job coûte quelques centimes en équivalent API.</p></div>
+  <div class="callout warn"><b class="t"><span data-i18n="cost_t">Cost and caution</span></b><p><span data-i18n="cost_p">Intake uses Fable (once per issue) and builders use Opus: start with 1 or 2 small issues and <code>concurrency: 1</code>, read every PR before trusting auto-merge, and complete the “Always escalate” list in <code>notes.md</code>. For a cheap trial, force Haiku everywhere: a small job costs a few cents in API-equivalent.</span></p></div>
 </section>
 
-<!-- ============ 4. FAQ ============ -->
 <section id="faq">
-  <h2>4 · Dépannage</h2>
-  <input class="search" id="faqSearch" type="search" placeholder="Rechercher : gate, clone, needs-human, label…" aria-label="Rechercher dans le dépannage">
+  <h2><span data-i18n="h_faq">4 · Troubleshooting</span></h2>
+  <input class="search" id="faqSearch" type="search" placeholder="Search: gate, clone, needs-human, label…" aria-label="Search">
   <div id="faqList">
-    <details data-k="label queue vide rien issue"><summary><code>/factory run</code> ne trouve rien</summary><p>Aucune issue ouverte n’a le label <code>factory</code>. Vérifiez <code>gh issue list --repo owner/repo --label factory</code>. <code>target add</code> crée les labels ; <code>target check</code> dit s’ils manquent.</p></details>
-    <details data-k="commande factory introuvable claude dossier projet"><summary><code>/factory</code> n’existe pas dans ma session</summary><p>Vous avez lancé <code>claude</code> depuis le projet. Quittez, faites <code>cd</code> dans le repo factory et relancez : le skill et les agents sont dans son dossier <code>.claude/</code>.</p></details>
-    <details data-k="ambigu numero projet plusieurs cible"><summary>« Issue #4 is ambiguous »</summary><p>Avec plusieurs projets, un numéro seul est refusé : écrivez <code>/factory run notewall#4</code>.</p></details>
-    <details data-k="target add clone droits permission sso"><summary><code>target add</code> échoue (clone, droits)</summary><p>Vérifiez <code>gh auth status</code> et <code>gh repo view owner/repo --json viewerPermission</code> (il faut WRITE ou plus). Un repo d’organisation peut exiger une autorisation SSO pour votre token.</p></details>
-    <details data-k="vide commit branche base"><summary>« no commits yet » / la branche de base n’existe pas</summary><p>Le repo est vide : faites un premier commit et poussez-le (<code>gh repo create … --add-readme</code>). Si la branche par défaut n’est pas <code>main</code>, ajoutez <code>--base develop</code>.</p></details>
-    <details data-k="gate echec checks tests boucle"><summary>Le gate échoue en boucle</summary><p>Lancez <code>factory/bin/target check &lt;projet&gt;</code> : il teste <code>checks.sh</code> sur un worktree neuf de la branche de base. S’il échoue, corrigez le script ou le setup (variables d’environnement absentes d’un checkout neuf, dépendances non installées).</p></details>
-    <details data-k="protected path fichier protege"><summary>Le gate échoue sur « protected path »</summary><p>Le job a modifié un fichier listé dans <code>protected_paths</code> du projet. Il est renvoyé corriger. Si ce fichier doit vraiment changer, faites-le vous-même ou retirez le motif de la config.</p></details>
-    <details data-k="needs-human bloque attente"><summary>Un job est en <code>needs-human</code>, pourquoi ?</summary><p>Demandez <code>/factory pourquoi notewall#4 attend ?</code>. La raison est dans <code>decision.md</code> (escalade) ou <code>build.md</code> (builder bloqué). Répondez par merge, feedback ou rejet (voir « Au quotidien »).</p></details>
-    <details data-k="crash session arret agents reprise"><summary>J’ai tué la session, des agents se sont arrêtés</summary><p>Relancez <code>/factory run</code> : l’état est dans les fichiers, chaque job reprend à son étape (un agent en cours redémarre de zéro).</p></details>
-    <details data-k="merge echec conflit protection branche"><summary>Le merge échoue</summary><p>Le job passe en <code>needs-human</code> avec la raison (conflit avec la base, gate qui échoue après resynchronisation, méthode de merge refusée, protection de branche exigeant une revue). Vérifiez <code>merge_method</code> avec <code>target check</code>.</p></details>
-    <details data-k="modifications locales pas vues push clone"><summary>La factory ne voit pas mes dernières modifications</summary><p>Elle part de <code>origin/&lt;base&gt;</code> sur GitHub. Poussez vos commits ; le travail local non poussé n’existe pas pour elle.</p></details>
-    <details data-k="clone local declarer dossier"><summary>J’ai déjà un clone local : faut-il le déclarer ?</summary><p>Non. La factory garde son propre clone dans <code>targets/&lt;nom&gt;/repo</code> et n’utilise jamais votre dossier. Faites <code>git pull</code> chez vous après chaque merge.</p></details>
-    <details data-k="queue error ligne github"><summary><code>job queue</code> affiche une ligne <code>error</code></summary><p>Les appels GitHub de ce projet ont échoué (droits, réseau, repo renommé). Les autres projets continuent. Relancez <code>target check &lt;projet&gt;</code>.</p></details>
-    <details data-k="dashboard vide serveur"><summary>Le dashboard est vide</summary><p>Lancez le serveur <em>depuis le dossier <code>factory/</code></em> : <code>cd factory &amp;&amp; python3 -m http.server</code>. Sans job dans <code>factory/jobs/</code>, il n’y a rien à afficher.</p></details>
+<details data-k="label queue empty nothing issue vide rien"><summary><span data-i18n="faq0_s"><code>/factory run</code> finds nothing</span></summary><p><span data-i18n="faq0_b">No open issue has the <code>factory</code> label. Check <code>gh issue list --repo owner/repo --label factory</code>. <code>target add</code> creates the labels; <code>target check</code> tells you if they are missing.</span></p></details>
+<details data-k="command missing not found claude folder project introuvable dossier"><summary><span data-i18n="faq1_s"><code>/factory</code> doesn’t exist in my session</span></summary><p><span data-i18n="faq1_b">You started <code>claude</code> from the project. Quit, <code>cd</code> into the factory repo and start again: the skill and agents live in its <code>.claude/</code> folder.</span></p></details>
+<details data-k="ambiguous number several projects target ambigu numero plusieurs cible"><summary><span data-i18n="faq2_s">“Issue #4 is ambiguous”</span></summary><p><span data-i18n="faq2_b">With several projects a bare number is refused: write <code>/factory run notewall#4</code>.</span></p></details>
+<details data-k="target add clone permission rights sso droits"><summary><span data-i18n="faq3_s"><code>target add</code> fails (clone, permissions)</span></summary><p><span data-i18n="faq3_b">Check <code>gh auth status</code> and <code>gh repo view owner/repo --json viewerPermission</code> (you need WRITE or more). An organization repo may require SSO authorization for your token.</span></p></details>
+<details data-k="empty commit base branch vide branche"><summary><span data-i18n="faq4_s">“no commits yet” / the base branch doesn’t exist</span></summary><p><span data-i18n="faq4_b">The repo is empty: make a first commit and push it (<code>gh repo create … --add-readme</code>). If the default branch isn’t <code>main</code>, add <code>--base develop</code>.</span></p></details>
+<details data-k="gate fail checks tests loop echec boucle"><summary><span data-i18n="faq5_s">The gate fails in a loop</span></summary><p><span data-i18n="faq5_b">Run <code>factory/bin/target check &lt;project&gt;</code>: it tests <code>checks.sh</code> on a fresh worktree of the base branch. If that fails, fix the script or the setup (environment variables missing from a fresh checkout, dependencies not installed).</span></p></details>
+<details data-k="protected path file protege fichier"><summary><span data-i18n="faq6_s">The gate fails on “protected path”</span></summary><p><span data-i18n="faq6_b">The job modified a file listed in the project’s <code>protected_paths</code>. It is sent back to fix it. If that file really must change, do it yourself or remove the pattern from the config.</span></p></details>
+<details data-k="needs-human blocked waiting bloque attente"><summary><span data-i18n="faq7_s">A job is in <code>needs-human</code>, why?</span></summary><p><span data-i18n="faq7_b">Ask <code>/factory why is notewall#4 waiting?</code>. The reason is in <code>decision.md</code> (escalation) or <code>build.md</code> (builder blocked). Answer with a merge, feedback or a rejection (see “Day to day”).</span></p></details>
+<details data-k="crash session killed agents stopped resume arret reprise"><summary><span data-i18n="faq8_s">I killed the session, agents stopped</span></summary><p><span data-i18n="faq8_b">Run <code>/factory run</code> again: state is in files, each job resumes at its stage (an agent that was running restarts from scratch).</span></p></details>
+<details data-k="merge fails conflict branch protection echec conflit protection"><summary><span data-i18n="faq9_s">The merge fails</span></summary><p><span data-i18n="faq9_b">The job goes to <code>needs-human</code> with the reason (conflict with the base, gate failing after resync, merge method refused, branch protection requiring a review). Check <code>merge_method</code> with <code>target check</code>.</span></p></details>
+<details data-k="local changes not seen push clone modifications"><summary><span data-i18n="faq10_s">The factory doesn’t see my latest changes</span></summary><p><span data-i18n="faq10_b">It starts from <code>origin/&lt;base&gt;</code> on GitHub. Push your commits; unpushed local work does not exist for it.</span></p></details>
+<details data-k="local clone declare folder dossier"><summary><span data-i18n="faq11_s">I already have a local clone: do I declare it?</span></summary><p><span data-i18n="faq11_b">No. The factory keeps its own clone in <code>targets/&lt;name&gt;/repo</code> and never uses your folder. Run <code>git pull</code> in yours after each merge.</span></p></details>
+<details data-k="queue error line github"><summary><span data-i18n="faq12_s"><code>job queue</code> prints an <code>error</code> line</span></summary><p><span data-i18n="faq12_b">That project’s GitHub calls failed (permissions, network, renamed repo). The other projects carry on. Run <code>target check &lt;project&gt;</code> again.</span></p></details>
+<details data-k="dashboard empty server vide serveur"><summary><span data-i18n="faq13_s">The dashboard is empty</span></summary><p><span data-i18n="faq13_b">Start the server <em>from the <code>factory/</code> folder</em>: <code>cd factory &amp;&amp; python3 -m http.server</code>. With no job in <code>factory/jobs/</code> there is nothing to show.</span></p></details>
   </div>
-  <div class="empty" id="faqEmpty" hidden>Aucun résultat. Essayez un autre mot, ou demandez à la factory : <code>/factory …</code></div>
+  <div class="empty" id="faqEmpty" hidden><span data-i18n="faq_empty">No result. Try another word, or ask the factory: <code>/factory …</code></span></div>
 </section>
 
-<!-- ============ 5. MEMO ============ -->
 <section id="memo">
-  <h2>5 · Aide-mémoire</h2>
+  <h2><span data-i18n="h_memo">5 · Cheat sheet</span></h2>
   <div class="grid">
-    <div class="card"><h4>Où lancer ?</h4><p>Toujours depuis le repo <b>factory</b>. Jamais depuis le projet.</p></div>
-    <div class="card"><h4>Ajouter un projet</h4><p><code data-tpl="factory/bin/target add {name} {repo}"></code><br>puis <code>checks.sh</code>, <code>notes.md</code>, <code data-tpl="target check {name}"></code></p></div>
-    <div class="card"><h4>Feu vert</h4><p><code data-tpl="gh issue edit {num} --repo {repo} --add-label factory"></code></p></div>
-    <div class="card"><h4>Lancer</h4><p><code>/factory run</code> · <code data-tpl="/factory run {name}"></code> · <code data-tpl="/factory run {name}#{num}"></code></p></div>
-    <div class="card"><h4>Parler à la factory</h4><p><code>/factory …</code> : question, feedback, rejet, nouvelle feature.</p></div>
-    <div class="card"><h4>Approuver</h4><p>Merger la PR sur GitHub.</p></div>
-    <div class="card"><h4>Dashboard</h4><p><code>cd factory &amp;&amp; python3 -m http.server</code> → <code>:8000/dashboard.html</code></p></div>
-    <div class="card"><h4>Reprendre après un crash</h4><p><code>/factory run</code></p></div>
+    <div class="card"><h4><span data-i18n="m1_t">Where to launch?</span></h4><p><span data-i18n="m1_p">Always from the <b>factory</b> repo. Never from the project.</span></p></div>
+    <div class="card"><h4><span data-i18n="m2_t">Add a project</span></h4><p><code data-tpl="factory/bin/target add {name} {repo}"></code><br><span data-i18n="m2_p">then <code>checks.sh</code>, <code>notes.md</code>,</span> <code data-tpl="target check {name}"></code></p></div>
+    <div class="card"><h4><span data-i18n="m3_t">Green light</span></h4><p><code data-tpl="gh issue edit {num} --repo {repo} --add-label factory"></code></p></div>
+    <div class="card"><h4><span data-i18n="m4_t">Run</span></h4><p><code>/factory run</code> · <code data-tpl="/factory run {name}"></code> · <code data-tpl="/factory run {name}#{num}"></code></p></div>
+    <div class="card"><h4><span data-i18n="m5_t">Talk to the factory</span></h4><p><span data-i18n="m5_p"><code>/factory …</code>: question, feedback, rejection, new feature.</span></p></div>
+    <div class="card"><h4><span data-i18n="m6_t">Approve</span></h4><p><span data-i18n="m6_p">Merge the PR on GitHub.</span></p></div>
+    <div class="card"><h4><span data-i18n="m7_t">Dashboard</span></h4><p><code>cd factory &amp;&amp; python3 -m http.server</code> → <code>:8000/dashboard.html</code></p></div>
+    <div class="card"><h4><span data-i18n="m8_t">Resume after a crash</span></h4><p><code>/factory run</code></p></div>
   </div>
-  <div class="callout"><b class="t">Sécurité en bref</b><p>Seules les issues <code>factory</code> tournent (le label exige les droits triage/écriture). Le texte d’une issue est traité comme une donnée, jamais comme une instruction. Les agents ne poussent que <code>factory/*</code> ; seul <code>job merge</code> fusionne, via <code>gh pr merge</code> ; la factory ne déploie jamais. Agents, config et <code>checks.sh</code> vivent hors du projet : une PR ne peut pas les modifier.</p></div>
-  <footer>Factory issue d’un fork de la v2 de ZazenCodes (GPLv3), voir <code>docs/ORIGIN.md</code>. Les exemples utilisent un projet fictif « notewall » ; changez-le dans le formulaire de la section Démarrer.</footer>
+  <div class="callout"><b class="t"><span data-i18n="sec_t">Security in brief</span></b><p><span data-i18n="sec_p">Only <code>factory</code> issues run (the label requires triage/write access). Issue text is treated as data, never as instructions. Agents only push <code>factory/*</code>; only <code>job merge</code> merges, through <code>gh pr merge</code>; the factory never deploys. Agents, config and <code>checks.sh</code> live outside the project: a PR cannot modify them.</span></p></div>
+  <footer><span data-i18n="foot">Factory forked from ZazenCodes’ v2 (GPLv3), see <code>docs/ORIGIN.md</code>. Examples use a fictional project “notewall”; change it in the form of the Get started section.</span></footer>
 </section>
 </main>
 
 <script>
+var I18N={"en": {"nav_understand": "Understand", "nav_start": "Get started", "nav_day": "Day to day", "nav_faq": "Troubleshooting", "nav_memo": "Cheat sheet", "eyebrow": "Interactive manual", "h1": "A GitHub issue becomes a PR, by itself", "lead": "You label an issue <code>factory<\/code>, type <code>/factory run<\/code>, and agents decide, spec, code, test, review and open the PR. One factory repo, as many projects as you like.", "h_understand": "1 · Understand in 2 minutes", "i_understand": "The big picture first, then pick a scenario and step through it: this is exactly what the factory does for every issue.", "fig_caption": "Dashed loops are the self-correction. Reviewers are launched <b>in the same message<\/b>: they run in parallel and the orchestrator waits for all of them. The approver only steps in when every verdict is PASS.", "opt_ui": "The issue touches the UI", "opt_sec": "The issue touches security", "btn_prev": "← Previous", "btn_next": "Next step →", "btn_auto": "▶ Auto-play", "btn_pause": "❚❚ Pause", "btn_reset": "↺ Restart", "sim_step": "Step {i} / {n}", "rv_parallel": "In parallel", "rv_planned": "Planned reviewers", "sim_round": "round {n}", "st_intake": "Intake", "st_spec": "Spec", "st_build": "Build", "st_gate": "Gate", "st_review": "Review", "st_approve": "Approve", "st_done": "End", "st_parallel": "parallel", "log_label": "Job log", "risk_low": "low", "risk_med": "medium", "sc_ok": "Happy path", "sc_gate": "The gate fails", "sc_chg": "A reviewer asks for changes", "sc_esc": "The approver escalates", "sc_info": "Intake asks a question", "sc_rej": "Intake rejects", "sc_max": "3 rounds without success", "scen_label": "Scenario", "ev_start": "A job starts for the issue: intake (Fable) reads it in the context of the project, decides whether it is worth building, and rates its risk and surfaces.", "ev_acc": "Verdict ACCEPT, risk {risk}. A script (not an agent) picks the reviewers: {revs}.", "ev_spec": "The spec-writer produces spec.md: testable acceptance criteria.", "ev_build": "The builder codes in a separate worktree, commits, pushes and opens the draft PR “Closes #n”.", "ev_build_gate": "Round 2: the builder fixes the problem from the gate log.", "ev_build_chg": "Round 2: the same builder fixes what the reviewers asked for, then pushes.", "ev_gate_ok": "GATE: PASS. checks.sh (tests, lint, build) is green: reviewers may start.", "ev_gate_ko": "GATE: FAIL. The log goes back to the builder. No reviewer is launched: zero review cost.", "ev_rv_ok": "Reviewers run in parallel, all VERDICT: PASS.", "ev_rv_ko": "Reviewers run in parallel; {bad} returned VERDICT: CHANGES. The orchestrator waits for all of them.", "ev_ap_ok": "Approver: APPROVE. The branch is synced with the base, re-tested, then the PR is merged (gh pr merge).", "ev_ap_ko": "Approver: ESCALATE. The PR is marked ready, the decision is posted on it, and the issue gets factory:needs-human.", "ev_merged": "Done: PR merged, issue closed. Run git pull in your clone.", "ev_esc_wait": "Waiting for you: merge the PR (approve), give feedback with /factory, or reject the job.", "ev_info_q": "Verdict NEEDS-INFO: the question is posted on the issue (label factory:needs-info). The job waits for the author without holding a slot.", "ev_info_a": "The author replies on GitHub. On the next /factory run, the job resumes at intake.", "ev_rej": "Verdict REJECT: the reason is posted on the issue and the factory label is removed. Nothing was built, so almost nothing was spent.", "ev_max": "Rounds exhausted (max_rounds = 3): the job goes to needs-human instead of looping forever. Your call.", "c1_t": "One orchestrator", "c1_p": "The Claude Code session where you type <code>/factory<\/code> launches every agent. It never writes code.", "c2_t": "State is files", "c2_p": "Everything lives in <code>factory/jobs/<\/code>. If the session dies, <code>/factory run<\/code> resumes each job where it stopped.", "c3_t": "The gate comes before review", "c3_p": "A build that fails the tests goes back to the builder without costing a single reviewer.", "c4_t": "You stay in control", "c4_p": "The approver merges what is safe; the rest waits for a human. You approve by merging the PR.", "h_start": "2 · Get started", "i_start": "Fill in your project once: every command below fills itself in. Tick the steps as you go (your progress is remembered in this browser).", "f_name": "Short project name", "f_repo": "GitHub repo", "f_num": "Issue number", "f_base": "Base branch", "f_merge": "Merge method", "v_name": "Name: lowercase letters, digits and dashes (31 characters max).", "v_repo": "Repo: owner/name.", "v_num": "Issue number: a number.", "v_base": "Branch: letters, digits, . _ / -", "rule_t": "The rule to remember", "rule_p": "<b>Everything is launched from the factory repo<\/b>, never from the project. The project contains no <code>/factory<\/code> and no agents: it only receives <code>factory/*<\/code> branches and PRs. Your working folder and the factory’s clone (<code>targets/&lt;name&gt;/repo<\/code>) are two separate copies: the factory always starts from the base branch <em>on GitHub<\/em>, so anything not pushed does not exist for it.", "done": "done", "s1_t": "Check the prerequisites", "s1_p": "Claude Code 2.1.257+, Python 3.10+, an authenticated <code>gh<\/code>, and write access to the project.", "s2_t": "Clone the factory (once)", "s3_t": "Get your project on GitHub", "s3_q": "Where is your project at?", "sit_a": "Not on GitHub yet", "sit_b": "On GitHub, not cloned", "sit_c": "Already cloned locally", "sit_d": "Brand-new project", "sit_a_p": "The factory only works on GitHub (issues, branches, PRs). From the project folder (not the factory):", "sit_a_n": "Check your <code>.gitignore<\/code> before the first commit (no secrets) and that Issues are enabled.", "sit_b_p": "Nothing to do: the factory clones it itself in the next step.", "sit_c_p": "Don’t tell the factory where your clone is: it keeps its own and never touches yours. <b>Just push what it needs to see<\/b>:", "sit_c_n": "After each factory merge: <code>git pull<\/code> in your clone.", "sit_d_p": "An empty repo is refused: it needs at least one first commit.", "s4_t": "Declare the project to the factory", "s4_p": "From the <b>factory<\/b> repo: clone, GitHub labels, plus <code>checks.sh<\/code> and <code>notes.md<\/code> to complete.", "s5_t": "Write the project’s checks and notes", "s5_p": "<code>checks.sh<\/code> is the impartial judge: non-interactive, never rewrites files, exits non-zero on any failure.", "s5_n": ": setup for a fresh checkout, security hot spots, what a human must always see, and what the project is for.", "s6_t": "Check that everything is ready", "s6_p": "It must end with <code>target is ready<\/code>. The last check runs <code>checks.sh<\/code> on a fresh worktree: if it fails, no job could ever pass.", "s7_t": "Create a small issue and give it the green light", "s7_p": "Be concrete (expected behavior, out of scope). Only the <code>factory<\/code> label triggers work.", "s8_t": "Run the factory", "s8_p": "Open Claude Code <b>at the root of the factory repo<\/b>, then:", "s8_d": "Follow progress in the dashboard: <code>cd factory &amp;&amp; python3 -m http.server<\/code> then <code>localhost:8000/dashboard.html<\/code> (one swimlane per project).", "s8_r_t": "Result", "s8_r": "A “Closes #n” PR, merged if the approver is sure, otherwise ready for you with the <code>factory:needs-human<\/code> label. Then <code>git pull<\/code> in your clone.", "clear": "Reset my progress", "copy": "Copy", "copied": "Copied", "h_day": "3 · Day to day", "i_day": "Pick what you want to do.", "d_run": "Run issues", "d_status": "See where things stand", "d_human": "Answer “needs-human”", "d_info": "Answer a question", "d_new": "Add a 2nd project", "th_cmd": "Command (in Claude Code, factory repo)", "th_eff": "Effect", "r1": "The whole queue of <b>every<\/b> project, <code>concurrency<\/code> jobs at a time (3 by default, shared). Also resumes interrupted jobs.", "r2": "The queue of a single project.", "r3": "One issue only. A bare <code>#n<\/code> is only accepted when there is a single project.", "r4": "Free text: the factory creates the issue (and asks which project if there are several), then runs it.", "w_kill_t": "Don’t kill the session lightly", "w_kill": "Ctrl-C also stops every running agent (their in-flight work is lost). Nothing else is lost: run <code>/factory run<\/code> again and everything resumes.", "st_p": "The dashboard shows one lane per project, chips per round (gate, code, ux, ui, security), and each job’s cost and duration. Click a card to read all its files.", "h_p": "A job in <code>needs-human<\/code> needs you: the approver escalated, the builder is blocked, or the rounds ran out. Three answers:", "h1_t": "1 · Approve", "h1_p": "Merge the PR on GitHub. The factory notices and closes the job.", "h2_t": "2 · Give feedback", "h2_p": "The builder restarts with a fresh round budget.", "h3_t": "3 · Reject", "h3_p": "The reason is posted on the issue and the PR is closed.", "h_n": "To replay a rejected issue: delete <code>factory/jobs/&lt;id&gt;<\/code> and put the <code>factory<\/code> label back.", "i_p1": "When intake lacks information it posts its question as a comment on the issue (label <code>factory:needs-info<\/code>) and the job waits. Answer directly on the issue on GitHub, or tell the factory:", "i_p2": "On the next <code>/factory run<\/code>, the job resumes at intake.", "n_p1": "One factory, as many projects as you like: just repeat steps 3 to 6 of <a href=\"#start\">Get started<\/a> with another name.", "n_p2": "The concurrency limit is shared across projects. In the dashboard each project has its own lane, collapsible and filterable.", "cfg_h": "Useful settings", "th_key": "Key", "th_def": "Default", "th_role": "Role", "cfg1": "Simultaneous jobs (use 1 to start carefully)", "cfg2": "build→gate→review rounds before calling a human", "cfg3": "Model of each reviewer by risk and surface", "cfg4": "Project files a job may not modify (put CI there, not your tests)", "cost_t": "Cost and caution", "cost_p": "Intake uses Fable (once per issue) and builders use Opus: start with 1 or 2 small issues and <code>concurrency: 1<\/code>, read every PR before trusting auto-merge, and complete the “Always escalate” list in <code>notes.md<\/code>. For a cheap trial, force Haiku everywhere: a small job costs a few cents in API-equivalent.", "h_faq": "4 · Troubleshooting", "faq_ph": "Search: gate, clone, needs-human, label…", "faq_empty": "No result. Try another word, or ask the factory: <code>/factory …<\/code>", "h_memo": "5 · Cheat sheet", "m1_t": "Where to launch?", "m1_p": "Always from the <b>factory<\/b> repo. Never from the project.", "m2_t": "Add a project", "m2_p": "then <code>checks.sh<\/code>, <code>notes.md<\/code>,", "m3_t": "Green light", "m4_t": "Run", "m5_t": "Talk to the factory", "m5_p": "<code>/factory …<\/code>: question, feedback, rejection, new feature.", "m6_t": "Approve", "m6_p": "Merge the PR on GitHub.", "m7_t": "Dashboard", "m8_t": "Resume after a crash", "sec_t": "Security in brief", "sec_p": "Only <code>factory<\/code> issues run (the label requires triage/write access). Issue text is treated as data, never as instructions. Agents only push <code>factory/*<\/code>; only <code>job merge<\/code> merges, through <code>gh pr merge<\/code>; the factory never deploys. Agents, config and <code>checks.sh<\/code> live outside the project: a PR cannot modify them.", "foot": "Factory forked from ZazenCodes’ v2 (GPLv3), see <code>docs/ORIGIN.md<\/code>. Examples use a fictional project “notewall”; change it in the form of the Get started section.", "theme_aria": "Switch theme", "toc_aria": "Table of contents", "faq0_s": "<code>/factory run<\/code> finds nothing", "faq0_b": "No open issue has the <code>factory<\/code> label. Check <code>gh issue list --repo owner/repo --label factory<\/code>. <code>target add<\/code> creates the labels; <code>target check<\/code> tells you if they are missing.", "faq1_s": "<code>/factory<\/code> doesn’t exist in my session", "faq1_b": "You started <code>claude<\/code> from the project. Quit, <code>cd<\/code> into the factory repo and start again: the skill and agents live in its <code>.claude/<\/code> folder.", "faq2_s": "“Issue #4 is ambiguous”", "faq2_b": "With several projects a bare number is refused: write <code>/factory run notewall#4<\/code>.", "faq3_s": "<code>target add<\/code> fails (clone, permissions)", "faq3_b": "Check <code>gh auth status<\/code> and <code>gh repo view owner/repo --json viewerPermission<\/code> (you need WRITE or more). An organization repo may require SSO authorization for your token.", "faq4_s": "“no commits yet” / the base branch doesn’t exist", "faq4_b": "The repo is empty: make a first commit and push it (<code>gh repo create … --add-readme<\/code>). If the default branch isn’t <code>main<\/code>, add <code>--base develop<\/code>.", "faq5_s": "The gate fails in a loop", "faq5_b": "Run <code>factory/bin/target check &lt;project&gt;<\/code>: it tests <code>checks.sh<\/code> on a fresh worktree of the base branch. If that fails, fix the script or the setup (environment variables missing from a fresh checkout, dependencies not installed).", "faq6_s": "The gate fails on “protected path”", "faq6_b": "The job modified a file listed in the project’s <code>protected_paths<\/code>. It is sent back to fix it. If that file really must change, do it yourself or remove the pattern from the config.", "faq7_s": "A job is in <code>needs-human<\/code>, why?", "faq7_b": "Ask <code>/factory why is notewall#4 waiting?<\/code>. The reason is in <code>decision.md<\/code> (escalation) or <code>build.md<\/code> (builder blocked). Answer with a merge, feedback or a rejection (see “Day to day”).", "faq8_s": "I killed the session, agents stopped", "faq8_b": "Run <code>/factory run<\/code> again: state is in files, each job resumes at its stage (an agent that was running restarts from scratch).", "faq9_s": "The merge fails", "faq9_b": "The job goes to <code>needs-human<\/code> with the reason (conflict with the base, gate failing after resync, merge method refused, branch protection requiring a review). Check <code>merge_method<\/code> with <code>target check<\/code>.", "faq10_s": "The factory doesn’t see my latest changes", "faq10_b": "It starts from <code>origin/&lt;base&gt;<\/code> on GitHub. Push your commits; unpushed local work does not exist for it.", "faq11_s": "I already have a local clone: do I declare it?", "faq11_b": "No. The factory keeps its own clone in <code>targets/&lt;name&gt;/repo<\/code> and never uses your folder. Run <code>git pull<\/code> in yours after each merge.", "faq12_s": "<code>job queue<\/code> prints an <code>error<\/code> line", "faq12_b": "That project’s GitHub calls failed (permissions, network, renamed repo). The other projects carry on. Run <code>target check &lt;project&gt;<\/code> again.", "faq13_s": "The dashboard is empty", "faq13_b": "Start the server <em>from the <code>factory/<\/code> folder<\/em>: <code>cd factory &amp;&amp; python3 -m http.server<\/code>. With no job in <code>factory/jobs/<\/code> there is nothing to show.", "g_issues": "GitHub issues", "g_label": "label: factory", "g_ask": "worth building? scope? risk?", "g_openpr": "Opus · draft PR", "g_par": "IN PARALLEL · routed by risk", "g_code": "Haiku · Sonnet if risky", "g_ux": "Sonnet · if UI surface", "g_ui": "Haiku · if UI surface", "g_sec": "Opus · if security surface", "g_merge": "Merge the PR", "g_human": "Human", "g_decide": "you decide", "g_nir": "NEEDS-INFO · REJECT", "g_nir_s": "asks the author · says why", "g_fail": "FAIL: the builder gets the log", "g_chg": "CHANGES: the same builder fixes it, then gate → review (max_rounds)", "g_foot": "One orchestrator runs up to 3 jobs at once. Each job: its own worktree and branch, one PR that closes its issue.", "g_approve": "APPROVE → PR merged", "g_escalate": "ESCALATE → human", "g_codeT": "Code review", "g_uxT": "UX review", "g_uiT": "UI design review", "g_secT": "Security review"}, "fr": {"nav_understand": "Comprendre", "nav_start": "Démarrer", "nav_day": "Au quotidien", "nav_faq": "Dépannage", "nav_memo": "Aide-mémoire", "eyebrow": "Manuel interactif", "h1": "Une issue GitHub devient une PR, toute seule", "lead": "Vous étiquetez une issue <code>factory<\/code>, vous tapez <code>/factory run<\/code>, et des agents décident, spécifient, codent, testent, relisent et ouvrent la PR. Un repo factory, autant de projets que vous voulez.", "h_understand": "1 · Comprendre en 2 minutes", "i_understand": "D’abord la vue d’ensemble, puis choisissez un scénario et avancez pas à pas : c’est exactement ce que fait la factory pour chaque issue.", "fig_caption": "Les boucles en pointillés sont l’auto-correction. Les reviewers sont lancés <b>dans le même message<\/b> : ils tournent en parallèle et l’orchestrateur attend que tous aient fini. L’approver n’intervient que si tous les verdicts sont PASS.", "opt_ui": "L’issue touche l’interface (UI)", "opt_sec": "L’issue touche la sécurité", "btn_prev": "← Précédent", "btn_next": "Étape suivante →", "btn_auto": "▶ Lecture auto", "btn_pause": "❚❚ Pause", "btn_reset": "↺ Recommencer", "sim_step": "Étape {i} / {n}", "rv_parallel": "En parallèle", "rv_planned": "Reviewers prévus", "sim_round": "tour {n}", "st_intake": "Intake", "st_spec": "Spec", "st_build": "Build", "st_gate": "Gate", "st_review": "Review", "st_approve": "Approve", "st_done": "Fin", "st_parallel": "parallèle", "log_label": "Journal du job", "risk_low": "faible", "risk_med": "moyen", "sc_ok": "Cas heureux", "sc_gate": "Le gate échoue", "sc_chg": "Un reviewer demande des changements", "sc_esc": "L’approver escalade", "sc_info": "L’intake pose une question", "sc_rej": "L’intake refuse", "sc_max": "3 tours sans succès", "scen_label": "Scénario", "ev_start": "Un job démarre pour l’issue : l’intake (Fable) la lit dans le contexte du projet, juge si elle vaut d’être construite, note le risque et les surfaces.", "ev_acc": "Verdict ACCEPT, risque {risk}. Un script (pas un agent) choisit les reviewers : {revs}.", "ev_spec": "Le spec-writer produit spec.md : des critères d’acceptation testables.", "ev_build": "Le builder code dans un worktree à part, commit, pousse et ouvre la PR draft « Closes #n ».", "ev_build_gate": "Tour 2 : le builder corrige à partir du journal du gate.", "ev_build_chg": "Tour 2 : le même builder corrige selon les reviews, puis pousse.", "ev_gate_ok": "GATE: PASS. checks.sh (tests, lint, build) est vert : les reviewers peuvent démarrer.", "ev_gate_ko": "GATE: FAIL. Le journal repart au builder. Aucun reviewer n’est lancé : zéro coût de relecture.", "ev_rv_ok": "Les reviewers tournent en parallèle, tous VERDICT: PASS.", "ev_rv_ko": "Les reviewers tournent en parallèle ; {bad} rend VERDICT: CHANGES. L’orchestrateur attend que tous aient fini.", "ev_ap_ok": "Approver : APPROVE. Le job est resynchronisé avec la base, re-testé, puis la PR est mergée (gh pr merge).", "ev_ap_ko": "Approver : ESCALATE. La PR est marquée prête, la décision postée dessus, l’issue reçoit factory:needs-human.", "ev_merged": "Terminé : PR mergée, issue fermée. Faites git pull dans votre clone.", "ev_esc_wait": "En attente de vous : mergez la PR (approuver), donnez du feedback avec /factory, ou rejetez le job.", "ev_info_q": "Verdict NEEDS-INFO : la question est postée sur l’issue (label factory:needs-info). Le job attend l’auteur, sans occuper de slot.", "ev_info_a": "L’auteur répond sur GitHub. Au prochain /factory run, le job reprend à l’intake.", "ev_rej": "Verdict REJECT : la raison est postée sur l’issue, le label factory est retiré. Rien n’a été construit : presque rien dépensé.", "ev_max": "Tours épuisés (max_rounds = 3) : le job passe en needs-human au lieu de boucler sans fin. À vous de trancher.", "c1_t": "Un seul orchestrateur", "c1_p": "La session Claude Code où vous tapez <code>/factory<\/code> lance tous les agents. Elle n’écrit jamais de code.", "c2_t": "L’état, ce sont des fichiers", "c2_p": "Tout est dans <code>factory/jobs/<\/code>. Si la session meurt, <code>/factory run<\/code> reprend chaque job là où il en était.", "c3_t": "Le gate passe avant la relecture", "c3_p": "Un build qui échoue aux tests repart au builder sans coûter un seul reviewer.", "c4_t": "Vous gardez la main", "c4_p": "L’approver merge ce qui est sûr ; le reste attend un humain. Vous approuvez en mergeant la PR.", "h_start": "2 · Démarrer", "i_start": "Renseignez votre projet une fois : toutes les commandes se remplissent toutes seules. Cochez les étapes au fur et à mesure (votre progression est mémorisée dans ce navigateur).", "f_name": "Nom court du projet", "f_repo": "Repo GitHub", "f_num": "N° de l’issue", "f_base": "Branche de base", "f_merge": "Méthode de merge", "v_name": "Nom : minuscules, chiffres et tirets (31 caractères max).", "v_repo": "Repo : propriétaire/nom.", "v_num": "N° d’issue : un nombre.", "v_base": "Branche : lettres, chiffres, . _ / -", "rule_t": "La règle à retenir", "rule_p": "<b>Tout se lance depuis le repo factory<\/b>, jamais depuis le projet. Le projet ne contient ni <code>/factory<\/code> ni agents : il ne reçoit que des branches <code>factory/*<\/code> et des PR. Votre dossier de travail et le clone de la factory (<code>targets/&lt;nom&gt;/repo<\/code>) sont deux copies distinctes : la factory part toujours de la branche de base <em>sur GitHub<\/em>, donc ce qui n’est pas poussé n’existe pas pour elle.", "done": "fait", "s1_t": "Vérifier les prérequis", "s1_p": "Claude Code 2.1.257+, Python 3.10+, <code>gh<\/code> authentifié, droit d’écriture sur le projet.", "s2_t": "Cloner la factory (une seule fois)", "s3_t": "Mettre votre projet sur GitHub", "s3_q": "Où en est votre projet ?", "sit_a": "Pas encore sur GitHub", "sit_b": "Sur GitHub, pas cloné", "sit_c": "Déjà cloné en local", "sit_d": "Nouveau projet", "sit_a_p": "La factory ne travaille que sur GitHub (issues, branches, PR). Depuis le dossier du projet (pas la factory) :", "sit_a_n": "Vérifiez le <code>.gitignore<\/code> avant le premier commit (pas de secrets) et que les Issues sont activées.", "sit_b_p": "Rien à faire : la factory clone elle-même à l’étape suivante.", "sit_c_p": "Ne dites pas à la factory où est votre clone : elle garde le sien et ne touche jamais au vôtre. <b>Poussez simplement ce qu’elle doit voir<\/b> :", "sit_c_n": "Après chaque merge de la factory : <code>git pull<\/code> dans votre clone.", "sit_d_p": "Un repo vide est refusé : il faut au moins un premier commit.", "s4_t": "Déclarer le projet à la factory", "s4_p": "Depuis le repo <b>factory<\/b> : clone, labels GitHub, <code>checks.sh<\/code> et <code>notes.md<\/code> à compléter.", "s5_t": "Écrire les checks et les notes du projet", "s5_p": "<code>checks.sh<\/code> est le juge impartial : non interactif, ne réécrit aucun fichier, sort non-zéro à la moindre erreur.", "s5_n": " : setup d’un checkout neuf, zones sensibles pour la sécurité, ce qu’un humain doit toujours voir, à quoi sert le projet.", "s6_t": "Vérifier que tout est prêt", "s6_p": "Doit finir par <code>target is ready<\/code>. Le dernier contrôle lance <code>checks.sh<\/code> sur un worktree neuf : s’il échoue, aucun job ne passera jamais.", "s7_t": "Créer une petite issue et lui donner le feu vert", "s7_p": "Soyez concret (comportement attendu, hors périmètre). Seul le label <code>factory<\/code> déclenche le travail.", "s8_t": "Lancer la factory", "s8_p": "Ouvrez Claude Code <b>à la racine du repo factory<\/b>, puis :", "s8_d": "Suivez la progression dans le dashboard : <code>cd factory &amp;&amp; python3 -m http.server<\/code> puis <code>localhost:8000/dashboard.html<\/code> (un swimlane par projet).", "s8_r_t": "Résultat", "s8_r": "Une PR « Closes #n », mergée si l’approver est sûr, sinon prête pour vous avec le label <code>factory:needs-human<\/code>. Puis <code>git pull<\/code> dans votre clone.", "clear": "Réinitialiser ma progression", "copy": "Copier", "copied": "Copié", "h_day": "3 · Au quotidien", "i_day": "Choisissez ce que vous voulez faire.", "d_run": "Lancer des issues", "d_status": "Savoir où on en est", "d_human": "Répondre à « needs-human »", "d_info": "Répondre à une question", "d_new": "Ajouter un 2ᵉ projet", "th_cmd": "Commande (dans Claude Code, repo factory)", "th_eff": "Effet", "r1": "Toute la file de <b>tous<\/b> les projets, <code>concurrency<\/code> jobs à la fois (3 par défaut, partagé). Reprend aussi les jobs interrompus.", "r2": "La file d’un seul projet.", "r3": "Une seule issue. Le <code>#n<\/code> seul n’est accepté que s’il n’y a qu’un projet.", "r4": "Texte libre : la factory crée l’issue (et demande le projet s’il y en a plusieurs), puis la traite.", "w_kill_t": "Ne tuez pas la session à la légère", "w_kill": "Ctrl-C arrête aussi tous les agents en cours (leur travail est perdu). Rien d’autre : relancez <code>/factory run<\/code> et tout reprend.", "st_p": "Le dashboard affiche une bande par projet, des pastilles par tour (gate, code, ux, ui, sécurité), le coût et la durée de chaque job. Cliquez une carte pour lire tous ses fichiers.", "h_p": "Un job en <code>needs-human<\/code> a besoin de vous : l’approver a escaladé, le builder est bloqué ou les tours sont épuisés. Trois réponses :", "h1_t": "1 · Approuver", "h1_p": "Mergez la PR sur GitHub. La factory le détecte et clôt le job.", "h2_t": "2 · Donner du feedback", "h2_p": "Le builder repart avec un budget de tours neuf.", "h3_t": "3 · Rejeter", "h3_p": "La raison est postée sur l’issue, la PR fermée.", "h_n": "Pour rejouer une issue rejetée : supprimez <code>factory/jobs/&lt;id&gt;<\/code> et remettez le label <code>factory<\/code>.", "i_p1": "Quand l’intake manque d’information, il pose sa question en commentaire sur l’issue (label <code>factory:needs-info<\/code>) et le job attend. Répondez directement dans l’issue sur GitHub, ou dites-le à la factory :", "i_p2": "Au prochain <code>/factory run<\/code>, le job reprend à l’intake.", "n_p1": "Une seule factory, autant de projets que vous voulez : refaites simplement les étapes 3 à 6 de <a href=\"#start\">Démarrer<\/a> avec un autre nom.", "n_p2": "La limite de concurrence est partagée entre projets. Dans le dashboard, chaque projet a sa bande, repliable et filtrable.", "cfg_h": "Réglages utiles", "th_key": "Clé", "th_def": "Défaut", "th_role": "Rôle", "cfg1": "Jobs simultanés (mettez 1 pour débuter prudemment)", "cfg2": "Tours build→gate→review avant d’appeler un humain", "cfg3": "Modèle de chaque reviewer selon le risque et les surfaces", "cfg4": "Fichiers du projet qu’un job ne peut pas modifier (mettez la CI, pas vos tests)", "cost_t": "Coût et prudence", "cost_p": "L’intake utilise Fable (une fois par issue) et les builders Opus : commencez par 1 ou 2 petites issues et <code>concurrency: 1<\/code>, lisez chaque PR avant de faire confiance à l’auto-merge, et complétez la liste « Always escalate » de <code>notes.md<\/code>. Pour un essai bon marché, forcez Haiku partout : un petit job coûte quelques centimes en équivalent API.", "h_faq": "4 · Dépannage", "faq_ph": "Rechercher : gate, clone, needs-human, label…", "faq_empty": "Aucun résultat. Essayez un autre mot, ou demandez à la factory : <code>/factory …<\/code>", "h_memo": "5 · Aide-mémoire", "m1_t": "Où lancer ?", "m1_p": "Toujours depuis le repo <b>factory<\/b>. Jamais depuis le projet.", "m2_t": "Ajouter un projet", "m2_p": "puis <code>checks.sh<\/code>, <code>notes.md<\/code>,", "m3_t": "Feu vert", "m4_t": "Lancer", "m5_t": "Parler à la factory", "m5_p": "<code>/factory …<\/code> : question, feedback, rejet, nouvelle feature.", "m6_t": "Approuver", "m6_p": "Merger la PR sur GitHub.", "m7_t": "Dashboard", "m8_t": "Reprendre après un crash", "sec_t": "Sécurité en bref", "sec_p": "Seules les issues <code>factory<\/code> tournent (le label exige les droits triage/écriture). Le texte d’une issue est traité comme une donnée, jamais comme une instruction. Les agents ne poussent que <code>factory/*<\/code> ; seul <code>job merge<\/code> fusionne, via <code>gh pr merge<\/code> ; la factory ne déploie jamais. Agents, config et <code>checks.sh<\/code> vivent hors du projet : une PR ne peut pas les modifier.", "foot": "Factory issue d’un fork de la v2 de ZazenCodes (GPLv3), voir <code>docs/ORIGIN.md<\/code>. Les exemples utilisent un projet fictif « notewall » ; changez-le dans le formulaire de la section Démarrer.", "theme_aria": "Changer de thème", "toc_aria": "Sommaire", "faq0_s": "<code>/factory run<\/code> ne trouve rien", "faq0_b": "Aucune issue ouverte n’a le label <code>factory<\/code>. Vérifiez <code>gh issue list --repo owner/repo --label factory<\/code>. <code>target add<\/code> crée les labels ; <code>target check<\/code> dit s’ils manquent.", "faq1_s": "<code>/factory<\/code> n’existe pas dans ma session", "faq1_b": "Vous avez lancé <code>claude<\/code> depuis le projet. Quittez, faites <code>cd<\/code> dans le repo factory et relancez : le skill et les agents sont dans son dossier <code>.claude/<\/code>.", "faq2_s": "« Issue #4 is ambiguous »", "faq2_b": "Avec plusieurs projets, un numéro seul est refusé : écrivez <code>/factory run notewall#4<\/code>.", "faq3_s": "<code>target add<\/code> échoue (clone, droits)", "faq3_b": "Vérifiez <code>gh auth status<\/code> et <code>gh repo view owner/repo --json viewerPermission<\/code> (il faut WRITE ou plus). Un repo d’organisation peut exiger une autorisation SSO pour votre token.", "faq4_s": "« no commits yet » / la branche de base n’existe pas", "faq4_b": "Le repo est vide : faites un premier commit et poussez-le (<code>gh repo create … --add-readme<\/code>). Si la branche par défaut n’est pas <code>main<\/code>, ajoutez <code>--base develop<\/code>.", "faq5_s": "Le gate échoue en boucle", "faq5_b": "Lancez <code>factory/bin/target check &lt;projet&gt;<\/code> : il teste <code>checks.sh<\/code> sur un worktree neuf de la branche de base. S’il échoue, corrigez le script ou le setup (variables d’environnement absentes d’un checkout neuf, dépendances non installées).", "faq6_s": "Le gate échoue sur « protected path »", "faq6_b": "Le job a modifié un fichier listé dans <code>protected_paths<\/code> du projet. Il est renvoyé corriger. Si ce fichier doit vraiment changer, faites-le vous-même ou retirez le motif de la config.", "faq7_s": "Un job est en <code>needs-human<\/code>, pourquoi ?", "faq7_b": "Demandez <code>/factory pourquoi notewall#4 attend ?<\/code>. La raison est dans <code>decision.md<\/code> (escalade) ou <code>build.md<\/code> (builder bloqué). Répondez par merge, feedback ou rejet (voir « Au quotidien »).", "faq8_s": "J’ai tué la session, des agents se sont arrêtés", "faq8_b": "Relancez <code>/factory run<\/code> : l’état est dans les fichiers, chaque job reprend à son étape (un agent en cours redémarre de zéro).", "faq9_s": "Le merge échoue", "faq9_b": "Le job passe en <code>needs-human<\/code> avec la raison (conflit avec la base, gate qui échoue après resynchronisation, méthode de merge refusée, protection de branche exigeant une revue). Vérifiez <code>merge_method<\/code> avec <code>target check<\/code>.", "faq10_s": "La factory ne voit pas mes dernières modifications", "faq10_b": "Elle part de <code>origin/&lt;base&gt;<\/code> sur GitHub. Poussez vos commits ; le travail local non poussé n’existe pas pour elle.", "faq11_s": "J’ai déjà un clone local : faut-il le déclarer ?", "faq11_b": "Non. La factory garde son propre clone dans <code>targets/&lt;nom&gt;/repo<\/code> et n’utilise jamais votre dossier. Faites <code>git pull<\/code> chez vous après chaque merge.", "faq12_s": "<code>job queue<\/code> affiche une ligne <code>error<\/code>", "faq12_b": "Les appels GitHub de ce projet ont échoué (droits, réseau, repo renommé). Les autres projets continuent. Relancez <code>target check &lt;projet&gt;<\/code>.", "faq13_s": "Le dashboard est vide", "faq13_b": "Lancez le serveur <em>depuis le dossier <code>factory/<\/code><\/em> : <code>cd factory &amp;&amp; python3 -m http.server<\/code>. Sans job dans <code>factory/jobs/<\/code>, il n’y a rien à afficher.", "g_issues": "Issues GitHub", "g_label": "label : factory", "g_ask": "vaut le coup ? périmètre ? risque ?", "g_openpr": "Opus · PR draft", "g_par": "EN PARALLÈLE · routés par risque", "g_code": "Haiku · Sonnet si risqué", "g_ux": "Sonnet · si surface UI", "g_ui": "Haiku · si surface UI", "g_sec": "Opus · si surface sécurité", "g_merge": "Merge la PR", "g_human": "Humain", "g_decide": "décide", "g_nir": "NEEDS-INFO · REJECT", "g_nir_s": "pose la question · dit pourquoi", "g_fail": "FAIL : le builder reçoit le log", "g_chg": "CHANGES : le même builder corrige, puis gate → relecture (max_rounds)", "g_foot": "Un orchestrateur lance jusqu’à 3 jobs à la fois. Chaque job : son worktree, sa branche, une PR qui ferme son issue.", "g_approve": "APPROVE → PR mergée", "g_escalate": "ESCALATE → humain", "g_codeT": "Code review", "g_uxT": "UX review", "g_uiT": "UI design review", "g_secT": "Security review"}};
 (function(){
 'use strict';
 var $=function(s,r){return (r||document).querySelector(s)},$$=function(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s))};
 var store={get:function(k,d){try{var v=localStorage.getItem('factory-manual.'+k);return v==null?d:JSON.parse(v)}catch(e){return d}},
            set:function(k,v){try{localStorage.setItem('factory-manual.'+k,JSON.stringify(v))}catch(e){}}};
+
+/* ---------- language (English by default) ---------- */
+var lang='en';
+(function(){
+  var q=''; try{q=(new URLSearchParams(location.search)).get('lang')||''}catch(e){}
+  var s=store.get('lang',null);
+  lang=(q==='fr'||q==='en')?q:(s==='fr'||s==='en')?s:'en';
+})();
+function t(key,p){
+  var s=(I18N[lang]&&I18N[lang][key]);if(s==null)s=I18N.en[key];if(s==null)return key;
+  if(p)s=s.replace(/\{(\w+)\}/g,function(_,n){return p[n]!=null?p[n]:'{'+n+'}'});
+  return s;
+}
+var TITLES={en:'Software Factory manual',fr:'Manuel de la Software Factory'};
 
 /* ---------- theme ---------- */
 var root=document.documentElement,savedTheme=store.get('theme',null);if(savedTheme)root.setAttribute('data-theme',savedTheme);
@@ -396,7 +487,6 @@ $('#themeBtn').addEventListener('click',function(){
 var F={name:$('#fName'),repo:$('#fRepo'),num:$('#fNum'),base:$('#fBase'),merge:$('#fMerge')};
 var DEFAULTS={name:'notewall',repo:'monuser/notewall',num:'1',base:'main',merge:'squash'};
 var RULES={name:/^[a-z0-9][a-z0-9-]{0,30}$/,repo:/^[\w.-]+\/[\w.-]+$/,num:/^[0-9]{1,6}$/,base:/^[\w.\/-]{1,60}$/};
-var MSG={name:'Nom : minuscules, chiffres et tirets (31 caractères max).',repo:'Repo : propriétaire/nom.',num:'N° d’issue : un nombre.',base:'Branche : lettres, chiffres, . _ / -'};
 var vals=Object.assign({},DEFAULTS,store.get('fields',{}));
 Object.keys(F).forEach(function(k){F[k].value=vals[k]});
 function readFields(){
@@ -404,7 +494,7 @@ function readFields(){
   Object.keys(F).forEach(function(k){
     var v=F[k].value.trim(),ok=!RULES[k]||RULES[k].test(v);
     F[k].classList.toggle('invalid',!ok);
-    if(!ok){bad.push(MSG[k]);vals[k]=DEFAULTS[k]}else vals[k]=v;
+    if(!ok){bad.push(t('v_'+k));vals[k]=DEFAULTS[k]}else vals[k]=v;
   });
   $('#fHint').textContent=bad.join(' ');
   store.set('fields',vals);
@@ -412,7 +502,10 @@ function readFields(){
 function fill(s){return s.replace(/\{(name|repo|num|base|merge)\}/g,function(_,k){return vals[k]})}
 function renderTpl(){
   readFields();
-  $$('[data-tpl]').forEach(function(el){el.textContent=fill(el.getAttribute('data-tpl'))});
+  $$('[data-tpl]').forEach(function(el){
+    var src=(lang==='fr'&&el.hasAttribute('data-tpl-fr'))?el.getAttribute('data-tpl-fr'):el.getAttribute('data-tpl');
+    el.textContent=fill(src);
+  });
   renderStack();
 }
 Object.keys(F).forEach(function(k){F[k].addEventListener('input',renderTpl);F[k].addEventListener('change',renderTpl)});
@@ -420,9 +513,9 @@ Object.keys(F).forEach(function(k){F[k].addEventListener('input',renderTpl);F[k]
 /* ---------- copy buttons ---------- */
 document.addEventListener('click',function(e){
   var b=e.target.closest&&e.target.closest('.copy');if(!b)return;
-  var t=b.parentNode.querySelector('pre').textContent;
-  var ok=function(){b.textContent='Copié';b.classList.add('done');setTimeout(function(){b.textContent='Copier';b.classList.remove('done')},1300)};
-  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(ok,function(){})}else ok();
+  var txt=b.parentNode.querySelector('pre').textContent;
+  var ok=function(){b.textContent=t('copied');b.classList.add('done');setTimeout(function(){b.textContent=t('copy');b.classList.remove('done')},1300)};
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).then(ok,function(){})}else ok();
 });
 
 /* ---------- stack snippets ---------- */
@@ -450,7 +543,7 @@ function tabs(container,pillAttr,panelAttr,key,def){
   show(cur);
 }
 tabs('li[data-id=situation]','data-s','data-p','situation','B');
-tabs('#quotidien','data-d','data-q','day','run');
+tabs('#day','data-d','data-q','day','run');
 
 /* ---------- checklist + progress ---------- */
 var checks=store.get('checks',{});
@@ -469,48 +562,44 @@ $('#checklist').addEventListener('change',function(e){
 $('#clearChecks').addEventListener('click',function(){checks={};store.set('checks',checks);renderChecks()});
 
 /* ---------- pipeline simulator ---------- */
-var STAGES=[['intake','Intake','Fable'],['spec','Spec','Opus'],['build','Build','Opus'],['gate','Gate','script'],['review','Review','parallèle'],['approve','Approve','Opus'],['done','Fin','']];
-var SCEN=[
- {id:'ok',label:'Cas heureux'},
- {id:'gate',label:'Le gate échoue'},
- {id:'chg',label:'Un reviewer demande des changements'},
- {id:'esc',label:'L’approver escalade'},
- {id:'info',label:'L’intake pose une question'},
- {id:'rej',label:'L’intake refuse'},
- {id:'max',label:'3 tours sans succès'}];
+var STAGES=[['intake','Fable'],['spec','Opus'],['build','Opus'],['gate','script'],['review',null],['approve','Opus'],['done','']];
+var SCEN=['ok','gate','chg','esc','info','rej','max'];
 var scen=store.get('scen','ok'),step=0,timer=null,events=[];
-if(!SCEN.some(function(s){return s.id===scen}))scen='ok';
+if(SCEN.indexOf(scen)<0)scen='ok';
 
 function reviewers(){
   var r=['code'];if($('#optUi').checked){r.push('ux','ui')}if($('#optSec').checked){r.push('security')}return r;
 }
-function ev(stage,text,o){o=o||{};return {stage:stage,text:text,tone:o.tone||'',rd:o.rd||0,revs:o.revs||null}}
+function ev(stage,key,o){o=o||{};return {stage:stage,key:key,p:o.p||null,tone:o.tone||'',rd:o.rd||0,revs:o.revs||null}}
 function buildEvents(){
   var R=reviewers(),allPass={},chg={};
   R.forEach(function(r){allPass[r]='pass';chg[r]='pass'});chg[R[R.length>1?1:0]]='chg';
-  var risk=(R.length>1)?'moyen':'low';
-  var head=ev('intake','Un job démarre pour l’issue : l’intake (Fable) la lit dans le contexte du projet, juge si elle vaut d’être construite, note le risque et les surfaces.');
-  var acc=ev('intake','Verdict ACCEPT, risque '+risk+'. Un script (pas un agent) choisit les reviewers : '+R.join(', ')+'.',{tone:'good'});
-  var spec=ev('spec','Le spec-writer produit spec.md : des critères d’acceptation testables.');
-  var b=function(n,t){return ev('build',t||'Le builder code dans un worktree à part, commit, pousse et ouvre la PR draft « Closes #n ».',{rd:n})};
-  var g=function(n,ok){return ev('gate',ok?'GATE: PASS. checks.sh (tests, lint, build) est vert : les reviewers peuvent démarrer.':'GATE: FAIL. Le journal repart au builder. Aucun reviewer n’est lancé : zéro coût de relecture.',{rd:n,tone:ok?'good':'bad'})};
-  var rv=function(n,res){var bad=Object.keys(res).filter(function(k){return res[k]==='chg'}).length;
-    return ev('review',bad?'Les reviewers tournent en parallèle ; '+bad+' rend VERDICT: CHANGES. L’orchestrateur attend que tous aient fini.':'Les reviewers tournent en parallèle, tous VERDICT: PASS.',{rd:n,revs:res,tone:bad?'bad':'good'})};
-  var ap=function(n,ok){return ev('approve',ok?'Approver : APPROVE. Le job est resynchronisé avec la base, re-testé, puis la PR est mergée (gh pr merge).':'Approver : ESCALATE. La PR est marquée prête, la décision postée dessus, l’issue reçoit factory:needs-human.',{rd:n,tone:ok?'good':'warn'})};
-  var merged=ev('done','Terminé : PR mergée, issue fermée. Faites git pull dans votre clone.',{tone:'good'});
+  var riskKey=(R.length>1)?'risk_med':'risk_low';
+  var head=ev('intake','ev_start');
+  var acc=ev('intake','ev_acc',{tone:'good',p:{riskKey:riskKey,revs:R.join(', ')}});
+  var spec=ev('spec','ev_spec');
+  var b=function(n,key){return ev('build',key||'ev_build',{rd:n})};
+  var g=function(n,ok){return ev('gate',ok?'ev_gate_ok':'ev_gate_ko',{rd:n,tone:ok?'good':'bad'})};
+  var rv=function(n,res){var bad=Object.keys(res).filter(function(x){return res[x]==='chg'}).length;
+    return ev('review',bad?'ev_rv_ko':'ev_rv_ok',{rd:n,revs:res,tone:bad?'bad':'good',p:{bad:bad}})};
+  var ap=function(n,ok){return ev('approve',ok?'ev_ap_ok':'ev_ap_ko',{rd:n,tone:ok?'good':'warn'})};
+  var merged=ev('done','ev_merged',{tone:'good'});
   switch(scen){
-   case 'gate':return [head,acc,spec,b(1),g(1,false),b(2,'Tour 2 : le builder corrige à partir du journal du gate.'),g(2,true),rv(2,allPass),ap(2,true),merged];
-   case 'chg':return [head,acc,spec,b(1),g(1,true),rv(1,chg),b(2,'Tour 2 : le même builder corrige selon les reviews, puis pousse.'),g(2,true),rv(2,allPass),ap(2,true),merged];
-   case 'esc':return [head,acc,spec,b(1),g(1,true),rv(1,allPass),ap(1,false),ev('done','En attente de vous : mergez la PR (approuver), donnez du feedback avec /factory, ou rejetez le job.',{tone:'warn'})];
-   case 'info':return [head,ev('intake','Verdict NEEDS-INFO : la question est postée sur l’issue (label factory:needs-info). Le job attend l’auteur, sans occuper de slot.',{tone:'warn'}),
-      ev('intake','L’auteur répond sur GitHub. Au prochain /factory run, le job reprend à l’intake.'),acc,spec,b(1),g(1,true),rv(1,allPass),ap(1,true),merged];
-   case 'rej':return [head,ev('done','Verdict REJECT : la raison est postée sur l’issue, le label factory est retiré. Rien n’a été construit : presque rien dépensé.',{tone:'bad'})];
-   case 'max':return [head,acc,spec,b(1),g(1,true),rv(1,chg),b(2),g(2,true),rv(2,chg),b(3),g(3,true),rv(3,chg),
-      ev('done','Tours épuisés (max_rounds = 3) : le job passe en needs-human au lieu de boucler sans fin. À vous de trancher.',{tone:'warn'})];
+   case 'gate':return [head,acc,spec,b(1),g(1,false),b(2,'ev_build_gate'),g(2,true),rv(2,allPass),ap(2,true),merged];
+   case 'chg':return [head,acc,spec,b(1),g(1,true),rv(1,chg),b(2,'ev_build_chg'),g(2,true),rv(2,allPass),ap(2,true),merged];
+   case 'esc':return [head,acc,spec,b(1),g(1,true),rv(1,allPass),ap(1,false),ev('done','ev_esc_wait',{tone:'warn'})];
+   case 'info':return [head,ev('intake','ev_info_q',{tone:'warn'}),ev('intake','ev_info_a'),acc,spec,b(1),g(1,true),rv(1,allPass),ap(1,true),merged];
+   case 'rej':return [head,ev('done','ev_rej',{tone:'bad'})];
+   case 'max':return [head,acc,spec,b(1),g(1,true),rv(1,chg),b(2),g(2,true),rv(2,chg),b(3),g(3,true),rv(3,chg),ev('done','ev_max',{tone:'warn'})];
    default:return [head,acc,spec,b(1),g(1,true),rv(1,allPass),ap(1,true),merged];
   }
 }
-function stageIndex(id){for(var i=0;i<STAGES.length;i++)if(STAGES[i][0]===id)return i;return 0}
+function evText(e){
+  var p=e.p?Object.assign({},e.p):null;
+  if(p&&p.riskKey){p.risk=t(p.riskKey)}
+  return t(e.key,p);
+}
+function stageName(id){return t('st_'+id)}
 function renderSim(){
   var cur=events[step],seen={},i;
   for(i=0;i<=step;i++)seen[events[i].stage]=true;
@@ -518,35 +607,38 @@ function renderSim(){
   STAGES.forEach(function(s){
     var cls='stg';if(seen[s[0]])cls+=' seen';
     if(cur.stage===s[0]){cls+=' now';if(cur.tone)cls+=' '+cur.tone}
-    var sub=(s[0]==='build'&&cur.stage==='build'&&cur.rd)?'tour '+cur.rd:(s[2]||' ');
-    h+='<div class="'+cls+'"><b>'+s[1]+'</b><small>'+sub+'</small></div>';
+    var sub=s[1];
+    if(s[0]==='review')sub=t('st_parallel');
+    if(s[0]==='build'&&cur.stage==='build'&&cur.rd)sub=t('sim_round',{n:cur.rd});
+    h+='<div class="'+cls+'"><b>'+stageName(s[0])+'</b><small>'+(sub||' ')+'</small></div>';
   });
   $('#stages').innerHTML=h;
   var R=reviewers(),rh;
   if(cur.stage==='review'&&cur.revs){
-    rh='<span class="lbl">En parallèle</span>';
+    rh='<span class="lbl">'+t('rv_parallel')+'</span>';
     R.forEach(function(r){rh+='<span class="rv '+cur.revs[r]+'">'+r+' : '+(cur.revs[r]==='pass'?'PASS':'CHANGES')+'</span>'});
-  }else{rh='<span class="lbl">Reviewers prévus</span>';R.forEach(function(r){rh+='<span class="rv">'+r+'</span>'})}
+  }else{rh='<span class="lbl">'+t('rv_planned')+'</span>';R.forEach(function(r){rh+='<span class="rv">'+r+'</span>'})}
   $('#revs').innerHTML=rh;
-  $('#explain').textContent=cur.text;
+  $('#explain').textContent=evText(cur);
   var log=$('#log');log.textContent='';
   for(i=0;i<=step;i++){
     var d=document.createElement('div');if(i===step)d.className='cur';
-    var rd=document.createElement('span');rd.className='rd';rd.textContent=events[i].rd?'T'+events[i].rd:'·';
-    var tx=document.createElement('span');tx.textContent=STAGES[stageIndex(events[i].stage)][1]+' : '+events[i].text;
+    var rd=document.createElement('span');rd.className='rd';rd.textContent=events[i].rd?'R'+events[i].rd:'·';
+    var tx=document.createElement('span');tx.textContent=stageName(events[i].stage)+' : '+evText(events[i]);
     d.appendChild(rd);d.appendChild(tx);log.appendChild(d);
   }
   log.scrollTop=log.scrollHeight;
   $('#prev').disabled=step===0;$('#next').disabled=step>=events.length-1;
-  $('#counter').textContent='Étape '+(step+1)+' / '+events.length;
+  $('#counter').textContent=t('sim_step',{i:step+1,n:events.length});
+  $('#auto').textContent=timer?t('btn_pause'):t('btn_auto');
 }
-function stopAuto(){if(timer){clearInterval(timer);timer=null}$('#auto').textContent='▶ Lecture auto'}
+function renderScenPills(){
+  $('#scen').innerHTML=SCEN.map(function(id){return '<button class="pill" role="tab" data-id="'+id+'" type="button" aria-selected="'+(id===scen)+'">'+t('sc_'+id)+'</button>'}).join('');
+}
+function stopAuto(){if(timer){clearInterval(timer);timer=null}$('#auto').textContent=t('btn_auto')}
 function setScen(id){
-  scen=id;store.set('scen',id);stopAuto();step=0;events=buildEvents();
-  $$('#scen .pill').forEach(function(p){p.setAttribute('aria-selected',String(p.getAttribute('data-id')===id))});
-  renderSim();
+  scen=id;store.set('scen',id);stopAuto();step=0;events=buildEvents();renderScenPills();renderSim();
 }
-$('#scen').innerHTML=SCEN.map(function(s){return '<button class="pill" role="tab" data-id="'+s.id+'" type="button">'+s.label+'</button>'}).join('');
 $('#scen').addEventListener('click',function(e){var b=e.target.closest('.pill');if(b)setScen(b.getAttribute('data-id'))});
 $('#next').addEventListener('click',function(){if(step<events.length-1){step++;renderSim()}});
 $('#prev').addEventListener('click',function(){if(step>0){step--;renderSim()}});
@@ -554,21 +646,40 @@ $('#reset').addEventListener('click',function(){stopAuto();step=0;renderSim()});
 $('#auto').addEventListener('click',function(){
   if(timer){stopAuto();return}
   if(step>=events.length-1)step=0;
-  $('#auto').textContent='❚❚ Pause';renderSim();
-  timer=setInterval(function(){if(step<events.length-1){step++;renderSim()}else stopAuto()},1500);
+  timer=setInterval(function(){if(step<events.length-1){step++;renderSim()}else{stopAuto()}},1500);
+  renderSim();
 });
 ['#optUi','#optSec'].forEach(function(s){$(s).addEventListener('change',function(){setScen(scen)})});
 
 /* ---------- FAQ search ---------- */
 function norm(s){return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'')}
-$('#faqSearch').addEventListener('input',function(){
-  var q=norm(this.value.trim()),n=0;
+function filterFaq(){
+  var q=norm($('#faqSearch').value.trim()),n=0;
   $$('#faqList details').forEach(function(d){
     var hay=norm(d.textContent+' '+(d.getAttribute('data-k')||'')),ok=!q||q.split(/\s+/).every(function(w){return hay.indexOf(w)>-1});
     d.hidden=!ok;if(ok)n++;d.open=!!q&&ok;
   });
   $('#faqEmpty').hidden=n>0;
-});
+}
+$('#faqSearch').addEventListener('input',filterFaq);
+
+/* ---------- applying the language ---------- */
+function applyLang(){
+  root.setAttribute('lang',lang);
+  document.title=TITLES[lang];
+  $$('[data-i18n]').forEach(function(el){
+    var s=t(el.getAttribute('data-i18n'));
+    if(el.namespaceURI==='http://www.w3.org/2000/svg')el.textContent=s;else el.innerHTML=s;
+  });
+  $$('[data-aria]').forEach(function(el){el.setAttribute('aria-label',t(el.getAttribute('data-aria')))});
+  $('#faqSearch').setAttribute('placeholder',t('faq_ph'));
+  $('#faqSearch').setAttribute('aria-label',t('faq_ph'));
+  $$('.seg button').forEach(function(b){b.setAttribute('aria-pressed',String(b.getAttribute('data-lang')===lang))});
+  renderTpl();renderScenPills();renderSim();filterFaq();
+}
+$$('.seg button').forEach(function(b){b.addEventListener('click',function(){
+  lang=b.getAttribute('data-lang');store.set('lang',lang);applyLang();
+})});
 
 /* ---------- nav highlight ---------- */
 var links=$$('#nav a'),secs=links.map(function(a){return $(a.getAttribute('href'))});
@@ -578,8 +689,9 @@ if('IntersectionObserver' in window){
 }
 
 /* ---------- init ---------- */
-renderTpl();renderChecks();setScen(scen);
+renderChecks();events=buildEvents();applyLang();
 })();
+
 </script>
 </body>
 </html>

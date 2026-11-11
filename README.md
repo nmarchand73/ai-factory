@@ -1,31 +1,31 @@
 # AI Factory
 
-Une software factory pilotée par Claude Code : une issue GitHub étiquetée `factory` devient une pull request
-(intake → spec → build → gate → relecteurs en parallèle → approver). La factory vit **ici** et travaille sur
-autant de projets que vous voulez, qui ne reçoivent que des PR. Fork de la v2 de ZazenCodes, voir `docs/ORIGIN.md`.
+A software factory driven by Claude Code: a GitHub issue labeled `factory` becomes a pull request
+(intake → spec → build → gate → parallel reviewers → approver). The factory lives **here** and works on
+as many projects as you like; the projects only receive PRs. Fork of ZazenCodes' v2, see `docs/ORIGIN.md`.
 
-## Démarrer
+## Quick start
 
 ```bash
-factory/bin/target add mon-projet owner/repo      # clone, labels, checks.sh et notes.md à compléter
-$EDITOR targets/mon-projet/checks.sh targets/mon-projet/notes.md
-factory/bin/target check mon-projet               # doit finir par « target is ready »
+factory/bin/target add my-project owner/repo      # clone, labels, checks.sh and notes.md to complete
+$EDITOR targets/my-project/checks.sh targets/my-project/notes.md
+factory/bin/target check my-project               # must end with "target is ready"
 gh issue edit 12 --repo owner/repo --add-label factory
-claude                                            # à la racine de CE repo
-> /factory run mon-projet#12                      # ou /factory run
+claude                                            # at the root of THIS repo
+> /factory run my-project#12                      # or /factory run
 ```
 
-Dashboard (un swimlane par projet) : `cd factory && python3 -m http.server`, puis <http://localhost:8000/dashboard.html>.
+Dashboard (one swimlane per project): `cd factory && python3 -m http.server`, then <http://localhost:8000/dashboard.html>.
 
-Manuel complet : `docs/manuel-factory.html`. Tests : `python3 -m unittest tests/test_factory.py`.
+Full manual (English and French, interactive): `docs/manuel-factory.html`. Tests: `python3 -m unittest tests/test_factory.py`.
 
-## Organisation
+## Layout
 
 ```
-.claude/skills/factory, .claude/agents   l'orchestrateur et les 8 agents (une seule copie)
+.claude/skills/factory, .claude/agents   the orchestrator and the 8 agents (a single copy)
 factory/                                  config.json, bin/{job,gate,route,target}, dashboard.html
-targets/<nom>/checks.sh, notes.md         checks et consignes propres à chaque projet (commités)
-targets/<nom>/repo                        clone local du projet (gitignoré)
-workspaces/<nom>/<job>                    worktrees des jobs (gitignoré)
-factory/jobs/<job>                        état des jobs (gitignoré)
+targets/<name>/checks.sh, notes.md        per-project checks and guidance (committed)
+targets/<name>/repo                       local clone of the project (gitignored)
+workspaces/<name>/<job>                   job worktrees (gitignored)
+factory/jobs/<job>                        job state (gitignored)
 ```

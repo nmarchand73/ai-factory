@@ -1,22 +1,22 @@
 # sandbox (nmarchand73/factory-sandbox): notes for the factory's agents
 
 ## Setup
-Rien à installer (Node >= 20, aucune dépendance).
+Nothing to install (Node >= 20, no dependencies).
 
 ## Dev server
-Aucun.
+None.
 
 ## Validation
-`npm test` (voir targets/sandbox/checks.sh).
+`npm test` (see targets/sandbox/checks.sh).
 
 ## Hot spots (security reviewer)
-Aucun : bibliothèque pure, pas d'I/O.
+None: a pure library, no I/O.
 
 ## Design (UI and UX reviewers)
-Pas d'interface.
+No user interface.
 
 ## Always escalate (approver)
-Tout ajout de dépendance ou changement de la configuration de CI.
+Any added dependency or change to the CI configuration.
 
 ## What this project is for (intake)
-Terrain d'essai : petites fonctions utilitaires JavaScript avec tests.
+A test bed: small JavaScript utility functions with tests.
