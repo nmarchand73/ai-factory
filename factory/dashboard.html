@@ -259,6 +259,11 @@
   .ag-head .caret { color: var(--faint); transition: transform .15s; display: inline-block; }
   #agents.closed .caret { transform: rotate(-90deg); }
   #agents.closed .ag-grid, #agents.closed .ag-legend { display: none; }
+  .ag-chips { display: none; gap: 6px; flex-wrap: wrap; padding: 2px 0 10px; font-family: var(--mono); font-size: 11px; }
+  #agents.closed .ag-chips { display: flex; }
+  .ag-chip { border: 1px solid var(--line); border-radius: 99px; padding: 1px 9px; color: var(--muted); }
+  .ag-chip b { font-weight: 650; margin-left: 4px; }
+  .ag-chip.pass b { color: var(--pass); } .ag-chip.active b { color: var(--active); } .ag-chip.changes b { color: var(--changes); }
   .ag-legend { font-family: var(--mono); font-size: 11px; color: var(--muted); margin: 2px 0 10px; line-height: 1.6; }
   .ag-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; padding-bottom: 6px; align-items: start; }
   .acard {
@@ -433,7 +438,7 @@ let onlyLane = store.get('only', null)
 let showAllDone = new Set(store.get('allDone', []))
 let scores = null // evals/scores.json: the confidence of every agent
 let openAgents = new Set(store.get('openAgents', []))
-let agentsClosed = store.get('agentsClosed', false)
+let agentsClosed = store.get('agentsClosed', true)
 let notifyOn = store.get('notify', false) && typeof Notification !== 'undefined' && Notification.permission === 'granted'
 let knownHuman = null // ids of the jobs that needed a human at the last poll (null before the first poll)
 const roundCache = new Map() // "<job>/<n>" -> verdicts of a finished round
@@ -600,6 +605,7 @@ function renderAgents() {
     html = `<div class="ag-head" data-agents-toggle><span class="caret">▾</span><h2>Agent confidence</h2>
         <span class="sub">process ${Math.round(w.process * 100)}% + output ${Math.round(w.output * 100)}% · trusted ≥ ${t.trusted}, ok ≥ ${t.ok} · updated ${esc((scores.updated || '').slice(11, 16))} UTC</span></div>
       <div class="ag-legend">Process = how an agent works. Output = how good its work is. Each agent is judged on criteria written for its own assignment (open a card; hover a row for its definition, how it is measured and its sources). Little evidence pulls the score toward a neutral value, so a new agent is “provisional”.</div>
+      <div class="ag-chips" data-agents-toggle title="Click to expand">${AGENT_ORDER.filter((a) => scores.agents[a]).map((a) => { const r = scores.agents[a]; return `<span class="ag-chip ${labelTone(r.label)}">${esc(a)}<b>${r.confidence == null ? '–' : Math.round(r.confidence)}</b></span>` }).join('')}</div>
       <div class="ag-grid">${AGENT_ORDER.filter((a) => scores.agents[a]).map((a) => agentCard(a, scores.agents[a])).join('')}</div>`
   }
   const key = html + agentsClosed
