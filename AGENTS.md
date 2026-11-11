@@ -8,6 +8,10 @@ This repo holds the factory, not the projects' code: projects are declared in `f
 - Every `gh` call in the code names its repo (`--repo`); don't add any that depends on the working directory.
 - Never edit `targets/*/repo` or `workspaces/` by hand: only the scripts touch them.
 - A target's checks live in `targets/<name>/checks.sh` (non-interactive, never rewrites files).
+- The dashboard only reads files under `factory/`: `config.json`, `jobs/<id>/job.json` and its round files, and
+  `jobs/_orchestration.json`. A new field in `job.json` is written by `factory/bin/job` and read by `factory/dashboard.html`.
+- Costs come from Claude Code's transcripts (`cost_breakdown` in `factory/bin/job`); a model without a price in
+  `config.json` is left out of the cost with a warning, it must never stop a job.
 
 ## Validation
 `python3 -m unittest tests/test_factory.py` (uses a fake `gh` and local git repos).
