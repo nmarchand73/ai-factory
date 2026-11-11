@@ -1,5 +1,5 @@
 {
-  "description": "A clear spec is built, tested and recorded in build.md with evidence per criterion.",
+  "description": "A clear spec is built, tested and recorded in build.md with evidence per criterion; a change inside an existing component leaves the diagrams alone and writes no ADR.",
   "fixture": "mini-lib",
   "expect": {
     "files": {
@@ -7,10 +7,16 @@
         "first_line": "STATUS: READY",
         "sections": [
           "Changes",
+          "Documentation",
           "Acceptance criteria",
           "Validation",
           "Log"
-        ]
+        ],
+        "section_contains": {
+          "Documentation": [
+            "unchanged"
+          ]
+        }
       }
     },
     "worktree": {
@@ -20,9 +26,15 @@
         "test/index.test.js": "multiply"
       },
       "files_unchanged": [
-        "package.json"
+        "package.json",
+        "docs/architecture/c4-1-context.md",
+        "docs/architecture/c4-2-containers.md",
+        "docs/architecture/c4-3-components.md"
       ],
-      "tests_discriminate": true
+      "tests_discriminate": true,
+      "added_none": [
+        "docs/adr/"
+      ]
     }
   }
 }

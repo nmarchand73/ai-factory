@@ -1,0 +1,15 @@
+{
+  "description": "A new component and a design choice with no C4 update and no ADR, while build.md says nothing changed, is sent back.",
+  "fixture": "mini-lib",
+  "expect": {
+    "files": {
+      "round-1/review-code.md": {
+        "first_line": "VERDICT: CHANGES",
+        "contains": [
+          "(docs/architecture|C4|ADR|architecture)",
+          "cache"
+        ]
+      }
+    }
+  }
+}

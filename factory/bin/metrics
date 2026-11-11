@@ -1,0 +1,395 @@
+#!/usr/bin/env python3
+"""The factory's health: how fast it delivers, how well it works, whether it is alive and learning.
+
+Reads what already exists (factory/jobs/*/job.json, evals/scores.json, evolution/board.json, the eval runs) and
+writes factory/metrics.json, which the dashboard's Factory health board shows. Nothing here costs tokens.
+
+Usage:
+  metrics write        compute and write factory/metrics.json (the scripts call this after a change)
+  metrics show         print the same numbers as text
+  metrics --help
+
+Five groups, each answering one question:
+  productivity   how much gets done and how fast: throughput, lead time (and how much of it a person adds), WIP
+  flow quality   how clean the flow is: first-pass yield, rounds, autonomy (merged with no human), escalations
+  agents         how good the agents are: confidence scores, the weakest agent, eval health
+  cost           what a merged job costs, what is wasted, what the orchestrator adds
+  vitality       is it alive and improving: recent activity, stuck jobs, the retrospective loop
+
+Each KPI has a target and a direction (higher or lower is better) in factory/config.json under `metrics.targets`;
+its status is good (meets the target), watch (within 25% of it) or bad. Targets are starting points, not truths:
+change them to what your team expects. Jobs from before stage history was recorded have no stage times: their
+lead time is end minus start and their human wait is unknown, which is left out, never guessed.
+"""
+import json
+import os
+import sys
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+FACTORY = ROOT / "factory"
+CONFIG = json.loads((FACTORY / "config.json").read_text())
+TERMINAL = {"merged", "rejected"}
+WAITING = {"needs-info", "needs-human"}
+ACTIVE = ["intake", "spec", "build", "gate", "review", "approve", "merging"]
+
+DEFAULTS = {
+    "window_days": 28,
+    "weeks": 8,
+    "stuck_hours": {"needs-human": 24, "needs-info": 72, "active": 4},
+    "targets": {   # value, higher_is_better
+        "throughput_7d": [3, True],
+        "lead_time_p50_h": [4, False],
+        "cycle_efficiency": [0.6, True],
+        "first_pass_yield": [0.6, True],
+        "avg_rounds": [1.5, False],
+        "autonomy": [0.6, True],
+        "escalation_rate": [0.3, False],
+        "agent_confidence": [80, True],
+        "weakest_agent": [65, True],
+        "eval_pass_rate": [0.85, True],
+        "cost_per_merged_job_usd": [3.0, False],
+        "waste_share": [0.2, False],
+        "overhead_share": [0.3, False],
+        "stuck_jobs": [0, False],
+        "idle_days": [3, False],
+        "change_delivery_rate": [0.5, True],
+    },
+}
+
+
+def settings():
+    s = json.loads(json.dumps(DEFAULTS))
+    user = CONFIG.get("metrics", {})
+    for k, v in user.items():
+        if isinstance(v, dict) and isinstance(s.get(k), dict):
+            s[k].update(v)
+        else:
+            s[k] = v
+    return s
+
+
+def now():
+    return datetime.now(timezone.utc)
+
+
+def ts(text):
+    if not text:
+        return None
+    try:
+        return datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def hours(a, b):
+    return None if a is None or b is None else max(0.0, (b - a).total_seconds() / 3600)
+
+
+def load(path, default=None):
+    try:
+        return json.loads(Path(path).read_text())
+    except (OSError, ValueError):
+        return default
+
+
+def pct(values, p):
+    vals = sorted(v for v in values if v is not None)
+    if not vals:
+        return None
+    k = max(0, min(len(vals) - 1, int(round(p * (len(vals) - 1)))))
+    return round(vals[k], 2)
+
+
+def ratio(a, b):
+    return None if not b else round(a / b, 3)
+
+
+def mean(vals):
+    vals = [v for v in vals if v is not None]
+    return round(sum(vals) / len(vals), 3) if vals else None
+
+
+# ---- Jobs ------------------------------------------------------------------
+
+
+def jobs():
+    out = []
+    d = FACTORY / "jobs"
+    for p in sorted(d.glob("*/job.json")) if d.exists() else []:
+        j = load(p)
+        if j:
+            out.append(j)
+    return out
+
+
+def stage_hours(j, at):
+    """{stage: hours spent} from the job's stage history, or None when it has none (older jobs)."""
+    hist = j.get("history") or []
+    if not hist:
+        return None
+    out = {}
+    for i, h in enumerate(hist):
+        start = ts(h["ts"])
+        end = ts(hist[i + 1]["ts"]) if i + 1 < len(hist) else (ts(j.get("ended")) if j.get("stage") in TERMINAL else at)
+        if h["stage"] in TERMINAL:
+            continue
+        v = hours(start, end)
+        if v is not None:
+            out[h["stage"]] = out.get(h["stage"], 0.0) + v
+    return out
+
+
+def job_facts(j, at):
+    started, ended = ts(j.get("started")), ts(j.get("ended"))
+    stages = [h["stage"] for h in (j.get("history") or [])]
+    sh = stage_hours(j, at)
+    human = sum(v for k, v in (sh or {}).items() if k in WAITING) if sh is not None else None
+    lead = hours(started, ended) if j.get("stage") == "merged" else None
+    if lead is not None and human is not None:
+        # a job sent back from needs-human keeps its `ended` cleared until it finishes, so lead time is total time
+        pass
+    return {
+        "id": j["id"], "target": j.get("target"), "stage": j.get("stage"), "title": j.get("title"),
+        "url": j.get("pr_url") or j.get("issue_url"), "started": started, "ended": ended,
+        "lead_h": lead, "human_h": human, "stage_h": sh, "rounds": j.get("round") or 0,
+        "cost": j.get("cost_usd") or 0.0, "by_agent": j.get("cost_by_agent") or {},
+        "escalated": "needs-human" in stages or j.get("stage") == "needs-human",
+        "asked": "needs-info" in stages or j.get("stage") == "needs-info",
+        "rejected": j.get("stage") == "rejected",
+        "autonomous": j.get("stage") == "merged" and ("merging" in stages) and "needs-human" not in stages if stages else None,
+        "human_merged": (j.get("stage") == "merged" and bool(stages) and "merging" not in stages),
+        "rework": max(0, stages.count("build") - 1) if stages else None,
+        "last_change": ts((j.get("history") or [{}])[-1].get("ts")) if j.get("history") else (ended or started),
+        "decided": bool((j.get("intake") or {}).get("decision") == "ACCEPT"),
+    }
+
+
+def week_start(d):
+    d = d.astimezone(timezone.utc)
+    return (d - timedelta(days=d.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+
+
+# ---- Compute ---------------------------------------------------------------
+
+
+def status(value, target, higher):
+    if value is None or target is None:
+        return "none"
+    if higher:
+        return "good" if value >= target else "watch" if value >= target * 0.75 else "bad"
+    if target == 0:
+        return "good" if value == 0 else "watch" if value <= 1 else "bad"
+    return "good" if value <= target else "watch" if value <= target * 1.25 else "bad"
+
+
+def compute():
+    s = settings()
+    at = now()
+    facts = [job_facts(j, at) for j in jobs()]
+    window = at - timedelta(days=s["window_days"])
+    recent = [f for f in facts if (f["ended"] or f["started"] or at) >= window or f["stage"] not in TERMINAL]
+    merged = [f for f in recent if f["stage"] == "merged"]
+    finished = [f for f in recent if f["stage"] in TERMINAL or f["escalated"]]
+    week_ago = at - timedelta(days=7)
+
+    # productivity
+    lead = [f["lead_h"] for f in merged]
+    with_wait = [f for f in merged if f["human_h"] is not None and f["lead_h"]]
+    active_h = [f["lead_h"] - f["human_h"] for f in with_wait]
+    timed = [f for f in merged if f["stage_h"]]
+    stage_avg = {st: (round(sum(f["stage_h"].get(st, 0.0) for f in timed) / len(timed), 3) if timed else None)
+                 for st in ACTIVE + ["needs-human", "needs-info"]}
+    productivity = {
+        "throughput_7d": sum(1 for f in merged if f["ended"] and f["ended"] >= week_ago),
+        "throughput_window": len(merged),
+        "lead_time_p50_h": pct(lead, 0.5), "lead_time_p90_h": pct(lead, 0.9),
+        "active_time_p50_h": pct(active_h, 0.5),
+        "human_wait_p50_h": pct([f["human_h"] for f in with_wait], 0.5),
+        "cycle_efficiency": ratio(sum(active_h), sum(f["lead_h"] for f in with_wait)),
+        "wip": sum(1 for f in facts if f["stage"] in ACTIVE),
+        "waiting_on_human": sum(1 for f in facts if f["stage"] in WAITING),
+        "stage_avg_h": stage_avg,   # average hours a merged job spends in each stage
+    }
+
+    # flow quality
+    decided = [f for f in recent if f["decided"]]
+    flow = {
+        "first_pass_yield": ratio(sum(1 for f in merged if f["rounds"] <= 1), len(merged)),
+        "avg_rounds": mean([f["rounds"] for f in merged]),
+        "rework_rate": ratio(sum(1 for f in merged if (f["rework"] or 0) > 0), len([f for f in merged if f["rework"] is not None])),
+        "autonomy": ratio(sum(1 for f in merged if f["autonomous"]), len([f for f in merged if f["autonomous"] is not None])),
+        "human_merged": sum(1 for f in merged if f["human_merged"]),
+        "escalation_rate": ratio(sum(1 for f in decided if f["escalated"]), len(decided)),
+        "needs_info_rate": ratio(sum(1 for f in recent if f["asked"]), len(recent)),
+        "intake_reject_rate": ratio(sum(1 for f in recent if f["rejected"]), len(recent)),
+        "jobs": len(recent), "merged": len(merged),
+    }
+
+    # cost
+    total = sum(f["cost"] for f in recent)
+    orch = load(FACTORY / "jobs" / "_orchestration.json", {}) or {}
+    overhead = float(orch.get("outside_jobs_usd") or 0)
+    by_agent = {}
+    for f in recent:
+        for a, c in f["by_agent"].items():
+            by_agent[a] = by_agent.get(a, 0.0) + c
+    wasted = sum(f["cost"] for f in recent if f["stage"] in TERMINAL and f["stage"] != "merged")
+    cost = {
+        "total_usd": round(total, 4), "per_merged_job_usd": round(sum(f["cost"] for f in merged) / len(merged), 4) if merged else None,
+        "waste_usd": round(wasted, 4), "waste_share": ratio(wasted, total),
+        "orchestrator_overhead_usd": round(overhead, 4), "overhead_share": ratio(overhead, total + overhead),
+        "by_agent_usd": {k: round(v, 4) for k, v in sorted(by_agent.items(), key=lambda kv: -kv[1])},
+    }
+
+    # agents
+    scores = load(FACTORY / "evals" / "scores.json", {}) or {}
+    ag = {a: v for a, v in (scores.get("agents") or {}).items() if v.get("confidence") is not None}
+    confs = {a: v["confidence"] for a, v in ag.items()}
+    runs = {}
+    for p in sorted((FACTORY / "evals").glob("runs/*/*/result.json")) if (FACTORY / "evals").exists() else []:
+        r = load(p, {})
+        if r.get("agent") and r.get("case"):
+            runs[(r["agent"], r["case"])] = r
+    cases_total = len(list((ROOT / "evals").glob("*/*/case.json")))
+    last_eval = max((ts(r.get("ts")) for r in runs.values() if ts(r.get("ts"))), default=None)
+    agents = {
+        "avg_confidence": mean(confs.values()),
+        "weakest": ({"agent": min(confs, key=confs.get), "confidence": min(confs.values())} if confs else None),
+        "by_agent": {a: {"confidence": v["confidence"], "label": v.get("label"), "process": v["process"]["score"],
+                         "output": v["output"]["score"], "provisional": v.get("provisional")} for a, v in ag.items()},
+        "labels": {k: sum(1 for v in ag.values() if v.get("label") == k) for k in ("trusted", "ok", "watch")},
+        "provisional": sum(1 for v in ag.values() if v.get("provisional")),
+        "eval_pass_rate": ratio(sum(1 for r in runs.values() if r.get("passed")), len(runs)),
+        "eval_cases": cases_total, "eval_cases_run": len(runs),
+        "eval_coverage": ratio(len(runs), cases_total),
+        "last_eval_age_days": round(hours(last_eval, at) / 24, 1) if last_eval else None,
+    }
+
+    # vitality and learning
+    board = load(FACTORY / "evolution" / "board.json", {}) or {}
+    audit = board.get("audit") or []
+    cycles = board.get("cycles") or []
+    measured = [a for a in audit if a.get("verdict") and a["verdict"] != "inconclusive"]
+    last_cycle = max((ts(c.get("ts")) for c in cycles if ts(c.get("ts"))), default=None)
+    learning = {
+        "cycles": len(cycles), "proposed": len(audit),
+        "approved": sum(1 for a in audit if a.get("status") in {"approved", "deployed", "measured", "rolled_back"}),
+        "rejected": sum(1 for a in audit if a.get("status") == "rejected"),
+        "deployed": sum(1 for a in audit if a.get("version")),
+        "delivered": sum(1 for a in measured if a["verdict"] == "delivered"),
+        "regressed": sum(1 for a in measured if a["verdict"] == "regressed"),
+        "change_delivery_rate": ratio(sum(1 for a in measured if a["verdict"] == "delivered"), len(measured)),
+        "last_cycle_age_days": round(hours(last_cycle, at) / 24, 1) if last_cycle else None,
+        "overall_trend": [c.get("overall") for c in cycles][-8:],
+    }
+    stuck_cfg = s["stuck_hours"]
+    stuck = []
+    for f in facts:
+        if f["stage"] in TERMINAL:
+            continue
+        age = hours(f["last_change"], at)
+        limit = stuck_cfg.get(f["stage"], stuck_cfg["active"])
+        if age is not None and age > limit:
+            stuck.append({"job": f["id"], "target": f["target"], "stage": f["stage"], "hours": round(age, 1),
+                          "title": f["title"], "url": f["url"], "limit_h": limit})
+    last_activity = max((f["last_change"] for f in facts if f["last_change"]), default=None)
+    active_days = {(f["last_change"] or at).date() for f in facts if f["last_change"] and f["last_change"] >= window}
+    vitality = {
+        "jobs_started_7d": sum(1 for f in facts if f["started"] and f["started"] >= week_ago),
+        "active_days_window": len(active_days), "window_days": s["window_days"],
+        "idle_days": round(hours(last_activity, at) / 24, 1) if last_activity else None,
+        "stuck": sorted(stuck, key=lambda x: -x["hours"]), "learning": learning,
+    }
+
+    # weekly series
+    nweeks = s["weeks"]
+    first = week_start(at) - timedelta(weeks=nweeks - 1)
+    buckets = [first + timedelta(weeks=i) for i in range(nweeks)]
+    def bucket_of(d):
+        i = int((week_start(d) - first).days // 7)
+        return i if 0 <= i < nweeks else None
+    per = [[] for _ in range(nweeks)]
+    for f in facts:
+        d = f["ended"] if f["stage"] in TERMINAL | WAITING and f["ended"] else None
+        if d and bucket_of(d) is not None:
+            per[bucket_of(d)].append(f)
+    series = {
+        "weeks": [b.strftime("%m-%d") for b in buckets],
+        "throughput": [sum(1 for f in w if f["stage"] == "merged") for w in per],
+        "lead_time_p50_h": [pct([f["lead_h"] for f in w if f["stage"] == "merged"], 0.5) for w in per],
+        "first_pass_yield": [ratio(sum(1 for f in w if f["stage"] == "merged" and f["rounds"] <= 1), sum(1 for f in w if f["stage"] == "merged")) for w in per],
+        "escalation_rate": [ratio(sum(1 for f in w if f["escalated"]), len(w)) for w in per],
+        "cost_per_merged_job_usd": [(round(sum(f["cost"] for f in w if f["stage"] == "merged") / n, 4) if (n := sum(1 for f in w if f["stage"] == "merged")) else None) for w in per],
+    }
+
+    # per target
+    by_target = {}
+    for t in sorted({f["target"] for f in facts if f["target"]}):
+        mine = [f for f in recent if f["target"] == t]
+        m = [f for f in mine if f["stage"] == "merged"]
+        dec = [f for f in mine if f["decided"]]
+        by_target[t] = {
+            "jobs": len(mine), "merged": len(m), "lead_time_p50_h": pct([f["lead_h"] for f in m], 0.5),
+            "first_pass_yield": ratio(sum(1 for f in m if f["rounds"] <= 1), len(m)),
+            "escalation_rate": ratio(sum(1 for f in dec if f["escalated"]), len(dec)),
+            "cost_usd": round(sum(f["cost"] for f in mine), 4),
+            "waiting_on_human": sum(1 for f in facts if f["target"] == t and f["stage"] in WAITING)}
+
+    values = {
+        "throughput_7d": productivity["throughput_7d"], "lead_time_p50_h": productivity["lead_time_p50_h"],
+        "cycle_efficiency": productivity["cycle_efficiency"], "first_pass_yield": flow["first_pass_yield"],
+        "avg_rounds": flow["avg_rounds"], "autonomy": flow["autonomy"], "escalation_rate": flow["escalation_rate"],
+        "agent_confidence": agents["avg_confidence"], "weakest_agent": (agents["weakest"] or {}).get("confidence"),
+        "eval_pass_rate": agents["eval_pass_rate"], "cost_per_merged_job_usd": cost["per_merged_job_usd"],
+        "waste_share": cost["waste_share"], "overhead_share": cost["overhead_share"], "stuck_jobs": len(stuck),
+        "idle_days": vitality["idle_days"], "change_delivery_rate": learning["change_delivery_rate"],
+    }
+    kpis = {k: {"value": v, "target": s["targets"][k][0], "higher_is_better": s["targets"][k][1],
+                "status": status(v, s["targets"][k][0], s["targets"][k][1])} for k, v in values.items() if k in s["targets"]}
+    return {"generated": at.strftime("%Y-%m-%dT%H:%M:%SZ"), "window_days": s["window_days"], "kpis": kpis,
+            "productivity": productivity, "flow": flow, "cost": cost, "agents": agents, "vitality": vitality,
+            "series": series, "by_target": by_target}
+
+
+def write():
+    data = compute()
+    path = FACTORY / "metrics.json"
+    tmp = path.with_name("metrics.json.tmp")
+    tmp.write_text(json.dumps(data, indent=2) + "\n")
+    tmp.replace(path)
+    return data
+
+
+def fmt(v, unit=""):
+    return "-" if v is None else (f"{v:.2f}".rstrip("0").rstrip(".") if isinstance(v, float) else str(v)) + unit
+
+
+def show():
+    d = write()
+    print(f"Factory health, last {d['window_days']} days (as of {d['generated']})\n")
+    mark = {"good": "ok   ", "watch": "watch", "bad": "BAD  ", "none": "-    "}
+    for k, v in d["kpis"].items():
+        arrow = ">=" if v["higher_is_better"] else "<="
+        print(f"  {mark[v['status']]} {k:<26}{fmt(v['value']):>9}   target {arrow} {fmt(v['target'])}")
+    if d["vitality"]["stuck"]:
+        print("\nStuck:")
+        for x in d["vitality"]["stuck"]:
+            print(f"  {x['job']}  {x['stage']}  {x['hours']}h (limit {x['limit_h']}h)  {x['url'] or ''}")
+
+
+def main(argv):
+    if not argv or argv[0] in {"-h", "--help"}:
+        print(__doc__.strip())
+    elif argv[0] == "write":
+        write()
+    elif argv[0] == "show":
+        show()
+    else:
+        print(f"metrics: bad arguments\n\n{__doc__.strip()}", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])

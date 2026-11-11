@@ -669,6 +669,7 @@ def advance(job, stage):
 
     job["stage"] = stage
     job["ended"] = now() if stage in TERMINAL | WAITING else None
+    job.setdefault("history", []).append({"stage": stage, "ts": now()})   # read by factory/bin/metrics: time per stage
     return job
 
 
@@ -727,6 +728,7 @@ def cmd_create(target, number):
         "cost_usd": 0.0, "cost_by_agent": {}, "started": now(), "ended": None,
         **evolution_stamp(),
     }
+    job["history"] = [{"stage": "intake", "ts": job["started"]}]
     write_issue_md(job)
     save(job)
     print(job_id)
@@ -982,5 +984,13 @@ def main(argv):
         die(str(e))
 
 
+def refresh_metrics(cmd):
+    """After a change of state, rewrite factory/metrics.json for the dashboard's health board (best effort)."""
+    script = BIN / "metrics"
+    if cmd in {"create", "advance", "merge", "feedback", "reject", "sync", "queue"} and script.exists():
+        subprocess.run([sys.executable, str(script), "write"], capture_output=True, check=False)
+
+
 if __name__ == "__main__":
     main(sys.argv[1:])
+    refresh_metrics(sys.argv[1] if len(sys.argv) > 1 else "")

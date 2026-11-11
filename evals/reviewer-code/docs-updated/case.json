@@ -1,0 +1,15 @@
+{
+  "description": "A new component with its C4 level 3 update and an ADR passes: no false demand for more docs.",
+  "fixture": "mini-lib",
+  "expect": {
+    "files": {
+      "round-1/review-code.md": {
+        "first_line": "VERDICT: PASS",
+        "sections": [
+          "Summary",
+          "Findings"
+        ]
+      }
+    }
+  }
+}

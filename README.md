@@ -45,7 +45,7 @@ transcript or the file, an outcome of the real job, or a score from the `eval-ju
 on a source or on our own reasoning. They come from a research pass (Anthropic's agent-eval guidance, OWASP, DORA,
 Google's review guide, NN/g, WCAG, METR and others); see `docs/EVALS.md` and `evals/criteria.json`.
 
-Evidence comes from live jobs (free: job files and transcripts) and from eval cases, 24 replayable situations in
+Evidence comes from live jobs (free: job files and transcripts) and from eval cases, 27 replayable situations in
 `evals/` (at least one per agent). Little evidence pulls a score toward a neutral value, so a new agent shows as
 *provisional*.
 
@@ -54,6 +54,31 @@ factory/bin/eval report            # confidence of every agent; also fills the d
 factory/bin/eval score builder     # every metric of one agent
 > /factory eval builder            # in Claude Code: replay an agent's cases, score them, call the judge
 ```
+
+## Factory health
+
+The dashboard's *Factory health* board (top of the page, collapsed to a row of coloured chips) answers three questions
+with numbers computed from what the factory already writes, at no token cost:
+
+- **Productivity**: merged per week, lead time (median), how much of it the factory holds rather than a person, where the time
+  goes per stage, work in progress.
+- **Quality**: first-pass yield, rounds per job, autonomy (merged with no human), escalation rate, agent confidence, the
+  weakest agent, eval pass rate, and the cost of jobs that delivered nothing.
+- **Vitality**: stuck jobs (with links), idle time, orchestrator overhead, and the retrospective loop (cycles, changes
+  delivered).
+
+Each KPI has a target in `factory/config.json` (`metrics.targets`, starting points) and a status: good, watch or bad. Weekly
+trends and a per-project table sit under it. `factory/bin/metrics show` prints the same in the terminal; `/factory health` in
+Claude Code explains it. See `docs/HEALTH.md`.
+
+## Application documentation
+
+The builder keeps the documentation of the project it changes true: C4 diagrams level 1 (context), 2 (containers) and
+3 (components) as Mermaid in `docs/architecture/`, and an ADR in `docs/adr/` for each architecturally significant decision (a
+new dependency, framework or datastore, a module boundary, a data format). It reports what it did in a `## Documentation`
+section of build.md; a change inside an existing component leaves the diagrams alone. The spec-writer asks for them in the
+acceptance criteria, the code reviewer sends back a branch that lacks them, and the evals score them (completeness, sync with
+the code, ADR format, a judge for accuracy and quality).
 
 ## Self-improvement
 
@@ -86,13 +111,13 @@ running at the time (use a session dedicated to the factory).
 ## Documentation
 
 Full manual (English and French, interactive): `docs/manuel-factory.html`.
-Tests: `python3 -m unittest tests/test_factory.py tests/test_eval.py tests/test_evolve.py`.
+Tests: `python3 -m unittest tests/test_factory.py tests/test_eval.py tests/test_evolve.py tests/test_metrics.py`.
 
 ## Layout
 
 ```
 .claude/skills/factory, .claude/agents   the orchestrator and the 9 agents (a single copy)
-factory/                                  config.json, bin/{job,gate,route,target,eval,evolve}, dashboard.html, evolution/ (versions, cycles, audit)
+factory/                                  config.json, bin/{job,gate,route,target,eval,evolve,metrics}, dashboard.html, evolution/ (versions, cycles, audit)
 evals/                                    eval cases, fixtures and judge rubrics per agent
 targets/<name>/checks.sh, notes.md        per-project checks and guidance (committed)
 targets/<name>/repo                       local clone of the project (gitignored)
