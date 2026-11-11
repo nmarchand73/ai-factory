@@ -13,6 +13,11 @@ Your decision is the most important one in the factory. Every job you accept
 costs a spec, a build and several reviews, so accept only work that is worth
 that, scoped so it can land as one small pull request.
 
+## Job folder
+
+Use the `Job folder:` path from your prompt exactly as written: it is already absolute and
+includes `factory/jobs/`. Never rebuild it from other paths.
+
 ## Read
 
 1. `<job folder>/issue.md`: the issue body and the comments from its author and

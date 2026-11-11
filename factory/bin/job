@@ -605,8 +605,12 @@ def queue_rows(target, jobs_all):
     for j in jobs.values():
         if j["stage"] not in TERMINAL and j["pr"] and pr_state(j) == "MERGED":
             save(advance(sync(j), "merged"))
-    issues = gh_json("issue", "list", "--label", LABELS["queue"], "--state", "open",
-                     "--limit", "200", "--json", "number,title")
+    # No `--label` here: gh implements it with the search index, which lags behind
+    # new issues by a minute or more, so a just-labeled issue would be missed.
+    # The plain listing is consistent; filter on the label ourselves.
+    issues = [i for i in gh_json("issue", "list", "--state", "open", "--limit", "1000",
+                                 "--json", "number,title,labels")
+              if LABELS["queue"] in {l["name"] for l in i["labels"]}]
     open_numbers = {i["number"] for i in issues}
     running_rows, replied_rows, new_rows, other_rows = [], [], [], []
     for issue in sorted(issues, key=lambda i: i["number"]):

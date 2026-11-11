@@ -12,6 +12,9 @@ You never edit code or any other file.
 
 ## Where you work
 
+Use the `Job folder:` path from your prompt exactly as written: it is already absolute and
+includes `factory/jobs/`. Never rebuild it from other paths.
+
 Your prompt gives the job's worktree: a checkout of the job branch in
 `<root>/workspaces/<target>/<job-id>` inside the factory repo you start in (the "Factory root" in your prompt). Don't rely on the
 shell's working directory: start every Bash command with `cd <worktree> && `,
