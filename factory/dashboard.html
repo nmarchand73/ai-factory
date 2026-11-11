@@ -252,6 +252,41 @@
   }
 
 
+
+  /* Factory health: productivity, flow quality, agents, cost, vitality */
+  #health { padding: 6px 32px 0; }
+  #health.closed .hl-body { display: none; }
+  #health .caret { transition: transform .15s; display: inline-block; color: var(--faint); }
+  #health.closed .caret { transform: rotate(-90deg); }
+  .hl-chips { display: none; gap: 6px; flex-wrap: wrap; padding: 2px 0 10px; font-family: var(--mono); font-size: 11px; }
+  #health.closed .hl-chips { display: flex; }
+  .hl-chip { border: 1px solid var(--line); border-radius: 99px; padding: 1px 9px; color: var(--muted); }
+  .hl-chip b { margin-left: 4px; font-weight: 650; }
+  .hl-chip.good b { color: var(--pass); } .hl-chip.watch b { color: var(--changes); } .hl-chip.bad b { color: var(--human); }
+  .hl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 12px; align-items: start; margin-bottom: 12px; }
+  .hl-card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; }
+  .hl-card h3 { margin: 0 0 2px; font-size: 12px; font-weight: 650; }
+  .hl-card .q { font-family: var(--mono); font-size: 10.5px; color: var(--faint); margin-bottom: 6px; }
+  .kpi { display: grid; grid-template-columns: 10px 1fr auto auto; gap: 8px; align-items: baseline; padding: 3px 0; font-family: var(--mono); font-size: 11.5px; color: var(--muted); border-top: 1px solid var(--line); }
+  .kpi:first-of-type { border-top: 0; }
+  .kpi .dot { width: 8px; height: 8px; border-radius: 99px; background: var(--faint); align-self: center; }
+  .kpi.good .dot { background: var(--pass); } .kpi.watch .dot { background: var(--changes); } .kpi.bad .dot { background: var(--human); }
+  .kpi b { color: var(--text); font-weight: 650; font-variant-numeric: tabular-nums; }
+  .kpi em { font-style: normal; font-size: 10px; color: var(--faint); }
+  .hl-trends { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; margin-bottom: 12px; }
+  .trend { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  .trend b { color: var(--text); margin-left: 6px; }
+  .trend svg { width: 100%; height: 38px; display: block; margin-top: 4px; }
+  .timebar { display: flex; height: 16px; border-radius: 6px; overflow: hidden; background: var(--line); margin: 6px 0 4px; }
+  .timebar i { display: block; height: 100%; }
+  .timelegend { display: flex; gap: 10px; flex-wrap: wrap; font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
+  .timelegend span::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; background: var(--c); }
+  .hl-sec h3 { margin: 10px 0 6px; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  .attn { font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
+  .attn a { color: var(--active); text-decoration: none; }
+  .attn div { padding: 2px 0; }
+  @media (max-width: 720px) { #health { padding-left: 16px; padding-right: 16px; } }
+
   /* Evolution board: how each skill changed, and whether it helped */
   #evolution { padding: 6px 32px 0; }
   #evolution.closed .evo-body { display: none; }
@@ -416,6 +451,7 @@
   </div>
 </header>
 <div id="banner"></div>
+<section id="health" aria-label="Factory health"></section>
 <section id="agents" aria-label="Agent confidence"></section>
 <section id="evolution" aria-label="Evolution board"></section>
 <div class="filters" id="filters"></div>
@@ -477,6 +513,8 @@ let closedLanes = new Set(store.get('closed', []))
 let onlyLane = store.get('only', null)
 let showAllDone = new Set(store.get('allDone', []))
 let scores = null // evals/scores.json: the confidence of every agent
+let metrics = null // metrics.json: the factory's health numbers (written by factory/bin/metrics)
+let healthClosed = store.get('healthClosed', true)
 let board = null // evolution/board.json: versions of every skill, cycles, audit trail (written by factory/bin/evolve)
 let evoClosed = store.get('evoClosed', true)
 let openVersions = new Set(store.get('openVersions', [])) // "<skill>@<version>"
@@ -675,6 +713,101 @@ document.addEventListener('keydown', (e) => {
   if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.acard')) { e.preventDefault(); e.target.click() }
 })
 
+
+// ---- Factory health ------------------------------------------------------
+
+const hrs = (v) => v == null ? '–' : v < 1 ? `${Math.round(v * 60)} min` : v < 48 ? `${v.toFixed(1)} h` : `${(v / 24).toFixed(1)} d`
+const pc = (v) => v == null ? '–' : `${Math.round(v * 100)}%`
+const num = (v, d = 1) => v == null ? '–' : Number(v).toFixed(d).replace(/\.0+$/, '')
+const usd = (v) => v == null ? '–' : `$${Number(v).toFixed(v < 1 ? 3 : 2)}`
+const KPI = {
+  throughput_7d: ['Merged this week', num, 'Jobs merged in the last 7 days.'],
+  lead_time_p50_h: ['Lead time (median)', hrs, 'From the job starting to its merge, median of merged jobs, including the time a person took.'],
+  cycle_efficiency: ['Hands-off share of lead time', pc, 'Share of lead time when the factory, not a person or an author, held the job. Low means jobs wait for people.'],
+  first_pass_yield: ['First-pass yield', pc, 'Merged jobs that needed only one build round: right the first time.'],
+  avg_rounds: ['Rounds per job', (v) => num(v, 2), 'Average build rounds of merged jobs. Each extra round is rework.'],
+  autonomy: ['Autonomy', pc, 'Merged jobs that no human had to touch (approver said APPROVE, the factory merged).'],
+  escalation_rate: ['Escalation rate', pc, 'Accepted jobs that ended up needing a human.'],
+  agent_confidence: ['Average agent confidence', (v) => num(v, 0), 'Mean confidence score of the agents that have one (see Agent confidence).'],
+  weakest_agent: ['Weakest agent', (v) => num(v, 0), 'The lowest confidence among the agents: where to look first.'],
+  eval_pass_rate: ['Eval cases passing', pc, 'Share of eval cases whose latest run passed.'],
+  cost_per_merged_job_usd: ['Cost per merged job', usd, 'API-equivalent cost of the merged jobs, orchestrator share included.'],
+  waste_share: ['Cost of jobs not merged', pc, 'Share of spend on jobs that were rejected: money that delivered nothing.'],
+  overhead_share: ['Orchestrator overhead', pc, 'Orchestrator spend while no job was running, as a share of all spend.'],
+  stuck_jobs: ['Stuck jobs', (v) => num(v, 0), 'Jobs waiting longer than their limit (a person: 24 h, an author: 72 h, a running stage: 4 h).'],
+  idle_days: ['Idle for', (v) => v == null ? '–' : v < 1 ? 'today' : `${num(v)} d`, 'Time since any job last changed stage: is the factory being used?'],
+  change_delivery_rate: ['Changes that delivered', pc, 'Of the approved skill changes that could be measured, how many delivered the expected improvement.'],
+}
+const GROUPS = [
+  ['Productivity', 'How much gets done, and how fast?', ['throughput_7d', 'lead_time_p50_h', 'cycle_efficiency']],
+  ['Flow quality', 'How clean is the flow?', ['first_pass_yield', 'avg_rounds', 'autonomy', 'escalation_rate']],
+  ['Agents', 'How good are the agents?', ['agent_confidence', 'weakest_agent', 'eval_pass_rate']],
+  ['Cost', 'What does delivery cost?', ['cost_per_merged_job_usd', 'waste_share', 'overhead_share']],
+  ['Vitality', 'Is it alive and learning?', ['stuck_jobs', 'idle_days', 'change_delivery_rate']],
+]
+const HEADLINE = ['throughput_7d', 'lead_time_p50_h', 'first_pass_yield', 'autonomy', 'agent_confidence', 'cost_per_merged_job_usd', 'stuck_jobs']
+const STAGE_COLOR = { intake: '#8be9fd', spec: '#bd93f9', build: '#50fa7b', gate: '#f1fa8c', review: '#ffb86c', approve: '#ff79c6', merging: '#6272a4', 'needs-human': '#ff5555', 'needs-info': '#ff9580' }
+
+function kpiRow(k) {
+  const v = metrics.kpis[k]
+  if (!v) return ''
+  const [label, f, help] = KPI[k]
+  const tgt = `${v.higher_is_better ? '≥' : '≤'} ${f === pc ? pc(v.target) : f === hrs ? hrs(v.target) : f(v.target)}`
+  return `<div class="kpi ${esc(v.status)}" title="${esc(help)}\nTarget ${esc(tgt)} (factory/config.json, metrics.targets)"><span class="dot"></span><span>${esc(label)}</span><b>${esc(f(v.value))}</b><em>${esc(tgt)}</em></div>`
+}
+
+function miniSpark(vals) {
+  const pts = vals.map((v, i) => ({ v, i })).filter((p) => p.v != null)
+  if (!pts.length) return '<svg viewBox="0 0 160 38"></svg>'
+  const lo = Math.min(...pts.map((p) => p.v), 0), hi = Math.max(...pts.map((p) => p.v), lo + 1e-9)
+  const x = (i) => 4 + 152 * (i / Math.max(vals.length - 1, 1)), y = (v) => 34 - 30 * ((v - lo) / (hi - lo))
+  const line = pts.length > 1 ? `<polyline points="${pts.map((p) => `${x(p.i).toFixed(1)},${y(p.v).toFixed(1)}`).join(' ')}" fill="none" stroke="var(--muted)" stroke-width="1.5"/>` : ''
+  return `<svg viewBox="0 0 160 38" preserveAspectRatio="none">${line}${pts.map((p) => `<circle cx="${x(p.i).toFixed(1)}" cy="${y(p.v).toFixed(1)}" r="2.2" fill="var(--text)"><title>${esc(String(p.v))}</title></circle>`).join('')}</svg>`
+}
+
+let lastHealth = ''
+function renderHealth() {
+  const el = $('health')
+  let html
+  if (!metrics) {
+    html = '<div class="ag-head"><span class="caret">▾</span><h2>Factory health</h2></div><div class="ag-empty">No numbers yet: <code>factory/bin/metrics write</code> (it also runs after every job change).</div>'
+  } else {
+    const k = metrics.kpis, p = metrics.productivity, c = metrics.cost, v = metrics.vitality, a = metrics.agents, L = v.learning
+    const bad = Object.values(k).filter((x) => x.status === 'bad').length, watch = Object.values(k).filter((x) => x.status === 'watch').length
+    const head = `<div class="ag-head" data-health-toggle><span class="caret">▾</span><h2>Factory health</h2>
+      <span class="sub">last ${metrics.window_days} days · ${bad} to fix · ${watch} to watch · as of ${esc((metrics.generated || '').slice(11, 16))} UTC</span></div>`
+    const chips = `<div class="hl-chips" data-health-toggle title="Click to expand">${HEADLINE.filter((x) => k[x]).map((x) => `<span class="hl-chip ${esc(k[x].status)}">${esc(KPI[x][0])}<b>${esc(KPI[x][1](k[x].value))}</b></span>`).join('')}</div>`
+    const cards = GROUPS.map(([t, q, keys]) => `<div class="hl-card"><h3>${esc(t)}</h3><div class="q">${esc(q)}</div>${keys.map(kpiRow).join('')}</div>`).join('')
+    const S = metrics.series
+    const trends = [['Merged / week', S.throughput, (x) => num(x, 0)], ['Lead time p50', S.lead_time_p50_h, hrs], ['First-pass yield', S.first_pass_yield, pc],
+      ['Escalation rate', S.escalation_rate, pc], ['Cost / merged job', S.cost_per_merged_job_usd, usd]]
+    const trendHtml = trends.map(([t, vals, f]) => { const last = [...vals].reverse().find((x) => x != null); return `<div class="trend">${esc(t)}<b>${esc(f(last))}</b>${miniSpark(vals)}<span style="color:var(--faint)">${esc(S.weeks[0])} → ${esc(S.weeks[S.weeks.length - 1])}</span></div>` }).join('')
+    const sm = p.stage_avg_h || {}
+    const total = Object.values(sm).reduce((n, x) => n + (x || 0), 0)
+    const bar = total ? `<div class="timebar">${Object.entries(sm).filter(([, x]) => x).map(([st, x]) => `<i style="width:${(100 * x / total).toFixed(1)}%;background:${STAGE_COLOR[st] || '#888'}" title="${esc(st)}: ${esc(hrs(x))}"></i>`).join('')}</div>
+      <div class="timelegend">${Object.entries(sm).filter(([, x]) => x).map(([st, x]) => `<span style="--c:${STAGE_COLOR[st] || '#888'}">${esc(st)} ${esc(hrs(x))}</span>`).join('')}</div>` : '<div class="ag-note">Stage times appear once jobs run with the stage history (new jobs).</div>'
+    const stuck = v.stuck.length ? v.stuck.map((s) => `<div>⏳ <a href="${esc(s.url || '#')}" target="_blank" rel="noopener">${esc(s.job)}</a> (${esc(s.target || '')}) ${esc(s.stage)} for ${esc(hrs(s.hours))}, limit ${esc(hrs(s.limit_h))}</div>`).join('') : '<div>Nothing is stuck.</div>'
+    const weak = a.weakest ? `<div>🎯 Weakest agent: <b>${esc(a.weakest.agent)}</b> at ${esc(num(a.weakest.confidence, 0))}. ${a.provisional} agent(s) provisional, ${a.eval_cases_run}/${a.eval_cases} eval cases run${a.last_eval_age_days != null ? `, last ${esc(num(a.last_eval_age_days))} d ago` : ''}.</div>` : ''
+    const learn = `<div>🔁 Learning loop: ${L.cycles} cycle(s), ${L.proposed} change(s) proposed, ${L.approved} approved, ${L.rejected} rejected, ${L.delivered} delivered, ${L.regressed} regressed${L.last_cycle_age_days != null ? `; last retrospective ${esc(num(L.last_cycle_age_days))} d ago` : ''}.</div>`
+    const targets = Object.entries(metrics.by_target || {}).map(([t, x]) => `<tr><td>${esc(t)}</td><td>${x.jobs}</td><td>${x.merged}</td><td>${esc(hrs(x.lead_time_p50_h))}</td><td>${esc(pc(x.first_pass_yield))}</td><td>${esc(pc(x.escalation_rate))}</td><td>${x.waiting_on_human}</td><td>${esc(usd(x.cost_usd))}</td></tr>`).join('')
+    html = head + chips + `<div class="hl-body"><div class="hl-grid">${cards}</div>
+      <div class="hl-trends">${trendHtml}</div>
+      <div class="hl-sec"><h3>Where the time goes (average per merged job; red and orange are waits for a person)</h3>${bar}</div>
+      <div class="hl-sec"><h3>Needs attention</h3><div class="attn">${stuck}${weak}${learn}</div></div>
+      ${targets ? `<div class="hl-sec"><h3>By project</h3><table class="evo-table"><tr><th>project</th><th>jobs</th><th>merged</th><th>lead p50</th><th>first pass</th><th>escalated</th><th>waiting on you</th><th>cost</th></tr>${targets}</table></div>` : ''}
+      <div class="ag-note">Targets are starting points: change them in factory/config.json under metrics.targets. Hover a number for its definition.</div></div>`
+  }
+  const key = html + healthClosed
+  if (key !== lastHealth) {
+    lastHealth = key
+    el.className = healthClosed ? 'closed' : ''
+    el.innerHTML = html
+  }
+}
+
+document.addEventListener('click', (e) => {
+  if (e.target.closest('[data-health-toggle]')) { healthClosed = !healthClosed; store.set('healthClosed', healthClosed); lastHealth = ''; renderHealth() }
+})
 
 // ---- Evolution board -----------------------------------------------------
 
@@ -990,6 +1123,8 @@ async function poll() {
     try { overhead = Number(JSON.parse(await fetchText('jobs/_orchestration.json')).outside_jobs_usd) || 0 } catch { overhead = 0 }
     try { scores = JSON.parse(await fetchText('evals/scores.json')) } catch { scores = null }
     try { board = JSON.parse(await fetchText('evolution/board.json')) } catch { board = null }
+    try { metrics = JSON.parse(await fetchText('metrics.json')) } catch { metrics = null }
+    renderHealth()
     renderAgents()
     renderEvolution()
     await render()

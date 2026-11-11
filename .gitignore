@@ -6,3 +6,4 @@ node_modules/
 /factory/config.tmp
 __pycache__/
 /factory/evals/
+/factory/metrics.json

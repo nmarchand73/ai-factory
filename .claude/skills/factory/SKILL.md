@@ -1,6 +1,6 @@
 ---
 name: factory
-description: Run the software factory on GitHub issues. Use when the user types /factory run, /factory run <target>, /factory run <target>#<n>, /factory eval, /factory scores, /factory retro, /factory evolve, or /factory followed by anything else (a question, feedback on a job, or a new feature). The session that runs it becomes the one orchestrator for every job.
+description: Run the software factory on GitHub issues. Use when the user types /factory run, /factory run <target>, /factory run <target>#<n>, /factory eval, /factory scores, /factory retro, /factory evolve, /factory health, or /factory followed by anything else (a question, feedback on a job, or a new feature). The session that runs it becomes the one orchestrator for every job.
 ---
 
 # Factory
@@ -20,6 +20,7 @@ tell the user; never work around it.
 /factory <anything>   talk to the factory: ask about jobs, give feedback, file a feature
 /factory eval [<agent>|all] [<case>]   replay the eval cases of an agent and score the runs
 /factory scores       the confidence score of every agent
+/factory health    the factory's health: lead time, quality, cost, vitality
 /factory retro [<cycle>]               run (or rerun) the retrospective of a cycle
 /factory evolve [rollback <skill> <version>]   the evolution status, or restore an earlier version of a skill
 ```
@@ -278,6 +279,14 @@ last one by default): `factory/bin/evolve cycle close <cycle>` again if `input.j
 `/factory evolve rollback <skill> <version>` after the user confirms,
 `factory/bin/evolve rollback <skill> <version> --reason "<their words>"`. The history is kept; the
 rollback is a new version. The dashboard's Evolution board shows the same.
+
+## /factory health
+
+`factory/bin/metrics show` prints every KPI with its target and status, then the stuck jobs; the dashboard's
+Factory health board shows the same from `factory/metrics.json`, which the scripts refresh after every job
+change. Read it for the user: what is red or orange, what is stuck and for whom (give the PR or issue URL),
+which agent is weakest, whether the retrospective loop is delivering. Explain a number from its definition
+(`factory/bin/metrics --help`), not from guesses. Targets live in `factory/config.json` under `metrics.targets`.
 
 ## /factory scores
 

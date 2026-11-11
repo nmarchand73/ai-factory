@@ -657,6 +657,10 @@ def board():
               for h in hist]
     write_json(EVO / "board.json", {"updated": now(), "current_cycle": current_cycle(), "cycles": cycles,
                                     "skills": skills, "audit": audit_rows})
+    m = FACTORY / "bin" / "metrics"   # the health board shows the learning loop too
+    if m.exists():
+        import subprocess
+        subprocess.run([sys.executable, str(m), "write"], capture_output=True, check=False)
 
 
 def main(argv):
