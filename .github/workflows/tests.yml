@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   unittest:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04   # pinned: ubuntu-latest moved to 26.04 and changed Chrome's sandbox behaviour
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
