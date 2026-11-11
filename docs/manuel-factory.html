@@ -166,31 +166,55 @@ footer{margin-top:70px;padding-top:22px;border-top:1px solid var(--line);color:v
   <p class="intro">Une « software factory » transforme une file de demandes en code fusionné via un pipeline fixe. Les scripts font le déterministe (tests, état, merge) ; les agents font le jugement (est-ce utile ? que construire ? est-ce bon ?).</p>
 
   <figure>
-  <svg viewBox="0 0 980 330" role="img" aria-label="Pipeline de la factory">
-    <defs><marker id="ar" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="var(--muted)"/></marker></defs>
-    <rect class="box" x="10" y="30" width="110" height="56" rx="10"/><text class="svg-t" x="65" y="55" text-anchor="middle">Issue</text><text class="svg-s" x="65" y="72" text-anchor="middle">label « factory »</text>
-    <rect class="box-a" x="150" y="30" width="110" height="56" rx="10"/><text class="svg-t" x="205" y="55" text-anchor="middle">Intake</text><text class="svg-s" x="205" y="72" text-anchor="middle">Fable · 1×/issue</text>
-    <rect class="box" x="290" y="30" width="110" height="56" rx="10"/><text class="svg-t" x="345" y="55" text-anchor="middle">Route</text><text class="svg-s" x="345" y="72" text-anchor="middle">script</text>
-    <rect class="box-a" x="430" y="30" width="110" height="56" rx="10"/><text class="svg-t" x="485" y="55" text-anchor="middle">Spec</text><text class="svg-s" x="485" y="72" text-anchor="middle">Opus</text>
-    <rect class="box-a" x="570" y="30" width="110" height="56" rx="10"/><text class="svg-t" x="625" y="55" text-anchor="middle">Build</text><text class="svg-s" x="625" y="72" text-anchor="middle">Opus · PR draft</text>
-    <rect class="box-w" x="710" y="30" width="110" height="56" rx="10"/><text class="svg-t" x="765" y="55" text-anchor="middle">Gate</text><text class="svg-s" x="765" y="72" text-anchor="middle">checks.sh</text>
-    <rect class="box-a" x="850" y="30" width="120" height="56" rx="10"/><text class="svg-t" x="910" y="55" text-anchor="middle">Reviewers</text><text class="svg-s" x="910" y="72" text-anchor="middle">code · ux · ui · sécu</text>
-    <path class="ln" d="M120 58H148" marker-end="url(#ar)"/><path class="ln" d="M260 58H288" marker-end="url(#ar)"/><path class="ln" d="M400 58H428" marker-end="url(#ar)"/><path class="ln" d="M540 58H568" marker-end="url(#ar)"/><path class="ln" d="M680 58H708" marker-end="url(#ar)"/><path class="ln" d="M820 58H848" marker-end="url(#ar)"/>
-    <!-- loops -->
-    <path class="ln" stroke-dasharray="5 4" d="M765 86V130H625V88" marker-end="url(#ar)"/><text class="svg-s" x="695" y="146" text-anchor="middle">FAIL → retour builder</text>
-    <path class="ln" stroke-dasharray="5 4" d="M910 86V190H640V88" marker-end="url(#ar)"/><text class="svg-s" x="790" y="206" text-anchor="middle">CHANGES → retour builder (max_rounds)</text>
-    <!-- exits -->
-    <path class="ln" d="M910 86V240" /><path class="ln" d="M910 240H760" marker-end="url(#ar)"/>
-    <rect class="box-a" x="590" y="215" width="170" height="52" rx="10"/><text class="svg-t" x="675" y="238" text-anchor="middle">Approver (Opus)</text><text class="svg-s" x="675" y="254" text-anchor="middle">tous les verdicts = PASS</text>
-    <path class="ln" d="M590 232H500V225H470" marker-end="url(#ar)"/>
-    <path class="ln" d="M590 252H500V282H470" marker-end="url(#ar)"/>
-    <rect class="box-ok" x="300" y="205" width="170" height="40" rx="10"/><text class="svg-t" x="385" y="230" text-anchor="middle">APPROVE → PR mergée</text>
-    <rect class="box-w" x="300" y="262" width="170" height="40" rx="10"/><text class="svg-t" x="385" y="287" text-anchor="middle">ESCALATE → humain</text>
+  <svg viewBox="0 0 990 500" role="img" aria-label="Pipeline de la factory avec relecteurs en parallèle">
+    <defs><marker id="ar" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="var(--muted)"/></marker>
+    <marker id="arw" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="var(--warn)"/></marker>
+    <marker id="arb" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="var(--accent)"/></marker></defs>
+
+    <!-- main row -->
+    <rect class="box" x="10" y="140" width="100" height="50" rx="10"/><text class="svg-t" x="60" y="162" text-anchor="middle">Issues GitHub</text><text class="svg-s" x="60" y="179" text-anchor="middle">label : factory</text>
+    <rect class="box-a" x="140" y="140" width="100" height="50" rx="10"/><text class="svg-t" x="190" y="162" text-anchor="middle">Intake</text><text class="svg-s" x="190" y="179" text-anchor="middle">Fable</text>
+    <rect class="box-a" x="270" y="140" width="95" height="50" rx="10"/><text class="svg-t" x="317" y="162" text-anchor="middle">Spec writer</text><text class="svg-s" x="317" y="179" text-anchor="middle">Opus</text>
+    <rect class="box-a" x="390" y="140" width="95" height="50" rx="10"/><text class="svg-t" x="437" y="162" text-anchor="middle">Builder</text><text class="svg-s" x="437" y="179" text-anchor="middle">Opus · PR draft</text>
+    <rect class="box-w" x="510" y="140" width="100" height="50" rx="10"/><text class="svg-t" x="560" y="162" text-anchor="middle">Gate</text><text class="svg-s" x="560" y="179" text-anchor="middle">checks.sh · script</text>
+    <path class="ln" d="M110 165H138" marker-end="url(#ar)"/><path class="ln" d="M240 165H268" marker-end="url(#ar)"/><path class="ln" d="M365 165H388" marker-end="url(#ar)"/><path class="ln" d="M485 165H508" marker-end="url(#ar)"/>
+    <text class="svg-s" x="190" y="128" text-anchor="middle">vaut le coup ? périmètre ? risque ?</text>
+
+    <!-- parallel group -->
+    <rect x="632" y="30" width="176" height="272" rx="16" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="6 5"/>
+    <text class="svg-t" x="720" y="20" text-anchor="middle" style="fill:var(--accent)">EN PARALLÈLE · routés par risque</text>
+    <rect class="box-a" x="648" y="44" width="144" height="50" rx="10"/><text class="svg-t" x="720" y="66" text-anchor="middle">Code review</text><text class="svg-s" x="720" y="83" text-anchor="middle">Haiku · Sonnet si risqué</text>
+    <rect class="box-a" x="648" y="108" width="144" height="50" rx="10"/><text class="svg-t" x="720" y="130" text-anchor="middle">UX review</text><text class="svg-s" x="720" y="147" text-anchor="middle">Sonnet · si surface UI</text>
+    <rect class="box-a" x="648" y="172" width="144" height="50" rx="10"/><text class="svg-t" x="720" y="194" text-anchor="middle">UI design review</text><text class="svg-s" x="720" y="211" text-anchor="middle">Haiku · si surface UI</text>
+    <rect class="box-a" x="648" y="236" width="144" height="50" rx="10"/><text class="svg-t" x="720" y="258" text-anchor="middle">Security review</text><text class="svg-s" x="720" y="275" text-anchor="middle">Opus · si surface sécurité</text>
+    <!-- fan-out -->
+    <path class="ln" d="M610 165H628"/><path class="ln" d="M628 69V261"/>
+    <path class="ln" d="M628 69H646" marker-end="url(#ar)"/><path class="ln" d="M628 133H646" marker-end="url(#ar)"/><path class="ln" d="M628 197H646" marker-end="url(#ar)"/><path class="ln" d="M628 261H646" marker-end="url(#ar)"/>
+
+    <!-- fan-in -->
+    <path class="ln" d="M792 69H822"/><path class="ln" d="M792 133H822"/><path class="ln" d="M792 197H822"/><path class="ln" d="M792 261H822"/><path class="ln" d="M822 69V261"/>
+    <path class="ln" d="M822 165H840" marker-end="url(#ar)"/>
+
+    <!-- approver -->
+    <rect class="box-a" x="842" y="140" width="138" height="50" rx="10"/><text class="svg-t" x="911" y="162" text-anchor="middle">Approver</text><text class="svg-s" x="911" y="179" text-anchor="middle">Opus</text>
+    <path class="ln" d="M911 190V370"/><path class="ln" d="M911 370H820V398" marker-end="url(#ar)"/><path class="ln" d="M911 370H935V398" marker-end="url(#ar)"/>
+    <text class="svg-s" x="860" y="362" text-anchor="middle">approve</text><text class="svg-s" x="950" y="362" text-anchor="middle">escalate</text>
+    <rect class="box-ok" x="745" y="400" width="150" height="50" rx="10"/><text class="svg-t" x="820" y="422" text-anchor="middle">Merge la PR</text><text class="svg-s" x="820" y="439" text-anchor="middle">gh pr merge</text>
+    <rect class="box-w" x="905" y="400" width="80" height="50" rx="10"/><text class="svg-t" x="945" y="422" text-anchor="middle">Humain</text><text class="svg-s" x="945" y="439" text-anchor="middle">décide</text>
+
     <!-- intake exits -->
-    <path class="ln" stroke-dasharray="5 4" d="M205 86V130" marker-end="url(#ar)"/>
-    <rect class="box-b" x="100" y="132" width="210" height="40" rx="10"/><text class="svg-t" x="205" y="157" text-anchor="middle">NEEDS-INFO / REJECT</text>
+    <path class="ln" d="M190 190V232" marker-end="url(#ar)"/>
+    <rect class="box-b" x="90" y="234" width="200" height="50" rx="10"/><text class="svg-t" x="190" y="256" text-anchor="middle">NEEDS-INFO · REJECT</text><text class="svg-s" x="190" y="273" text-anchor="middle">pose la question · dit pourquoi</text>
+
+    <!-- loops -->
+    <path d="M560 190V230H460V192" fill="none" stroke="var(--warn)" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#arw)"/>
+    <text class="svg-s" x="510" y="248" text-anchor="middle" style="fill:var(--warn)">FAIL : le builder reçoit le log</text>
+    <path d="M720 302V350H412V192" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#arb)"/>
+    <text class="svg-s" x="560" y="344" text-anchor="middle" style="fill:var(--accent)">CHANGES : le même builder corrige, puis gate → relecture (max_rounds)</text>
+
+    <text class="svg-s" x="10" y="488">Un orchestrateur lance jusqu’à 3 jobs à la fois. Chaque job : son worktree, sa branche, une PR qui ferme son issue.</text>
   </svg>
-  <figcaption>Les flèches en pointillés sont les boucles d’auto-correction. Un job fait au plus <code>max_rounds</code> tours (3 par défaut).</figcaption>
+  <figcaption>Les boucles en pointillés sont l’auto-correction. Les reviewers sont lancés <b>dans le même message</b> : ils tournent en parallèle et l’orchestrateur attend que tous aient fini. L’approver n’intervient que si tous les verdicts sont PASS.</figcaption>
   </figure>
 
   <h3>Les huit rôles</h3>
