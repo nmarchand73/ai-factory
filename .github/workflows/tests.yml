@@ -22,6 +22,8 @@ jobs:
           git config --global user.email ci@example.invalid
           git config --global init.defaultBranch main
       - name: Unit tests
+        env:
+          BROWSE_NO_SANDBOX: "1"   # the runner image restricts Chrome's sandbox
         run: python3 -m unittest tests/test_factory.py tests/test_eval.py tests/test_evolve.py tests/test_metrics.py tests/test_target.py
       - name: docs/EVALS.md is up to date
         run: |

@@ -22,7 +22,8 @@ Modes:
 --eval JS        evaluate this JavaScript expression after load and print its JSON result
                  (use it to read state, e.g. "document.querySelectorAll('li').length")
 
-Environment: BROWSE_CHROME overrides the Chrome binary. Exit code 0 on success, 1 on failure,
+Environment: BROWSE_CHROME overrides the Chrome binary. BROWSE_NO_SANDBOX=1 starts Chrome with --no-sandbox, for
+containers and CI runners where the sandbox is not allowed (only use it on pages you trust). Exit code 0 on success, 1 on failure,
 2 when no Chrome is found. Needs only the Python standard library.
 """
 
@@ -222,11 +223,13 @@ def main(argv):
         die("no Chrome or Chromium found (set BROWSE_CHROME to its path)", 2)
     w, h = opts["size"]
     profile = tempfile.mkdtemp(prefix="browse-")
+    flags = ["--no-sandbox"] if os.environ.get("BROWSE_NO_SANDBOX") == "1" else []
+    log = Path(profile + ".log")
     proc = subprocess.Popen(
-        [chrome, "--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check",
+        [chrome, "--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check", *flags,
          "--hide-scrollbars", f"--user-data-dir={profile}", "--remote-debugging-port=0",
          f"--window-size={w},{h}", "about:blank"],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        stdout=subprocess.DEVNULL, stderr=log.open("w"))
     try:
         port_file = Path(profile) / "DevToolsActivePort"
         for _ in range(100):
@@ -234,7 +237,8 @@ def main(argv):
                 break
             time.sleep(0.1)
         else:
-            die("Chrome did not start")
+            tail = " | ".join(log.read_text(errors="replace").strip().splitlines()[-3:]) if log.exists() else ""
+            die("Chrome did not start" + (f": {tail}" if tail else "") + " (in a container or CI, try BROWSE_NO_SANDBOX=1)")
         port = port_file.read_text().split()[0]
         targets = json.load(urllib.request.urlopen(f"http://127.0.0.1:{port}/json"))
         page_ws = next(t["webSocketDebuggerUrl"] for t in targets if t["type"] == "page")
@@ -294,6 +298,7 @@ def main(argv):
         except subprocess.TimeoutExpired:
             proc.kill()
         shutil.rmtree(profile, ignore_errors=True)
+        log.unlink(missing_ok=True)
 
 
 if __name__ == "__main__":
