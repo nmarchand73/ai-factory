@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/nmarchand73/ai-factory/security/advisories/new
+    about: Report it privately, not in a public issue.
+  - name: Manual
+    url: https://github.com/nmarchand73/ai-factory/blob/main/docs/manuel-factory.html
+    about: Read the manual before asking how something works.

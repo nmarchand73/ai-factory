@@ -1,0 +1,9 @@
+NG AI Factory
+=============
+
+This project is a derivative work of the "software factory v2" by ZazenCodes:
+https://github.com/zazencodes/zazencodes-season-3/tree/main/src/software-factory-claude-code-v2
+
+The original is published under the GNU General Public License v3.0, and so is this
+project (see LICENSE). It evolves independently: see docs/ORIGIN.md for what was
+added and changed.
