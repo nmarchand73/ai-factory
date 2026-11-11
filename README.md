@@ -1,16 +1,48 @@
-# AI Factory
+# NG AI Factory
 
-**Label a GitHub issue. Get back a reviewed, tested pull request.** Claude Code agents read the issue, write a spec,
-build the change, run your project's checks, review it from several angles, and either merge it or hand it to you with a
-clear reason. You stay in charge of what matters: what gets built, and anything the factory is not sure about.
+**The AI software factory that gets better with every run, and only changes when you say so.**
 
-Why this one:
+Label a GitHub issue; Claude Code agents spec, build, check and review it, then merge the PR or hand it to you with a clear
+reason. What sets it apart is what happens next: after each run the factory **grades its own agents, finds where they fell
+short, and proposes precise fixes to their prompts**. You approve or reject each one, it measures whether the fix worked,
+and you can roll any of them back.
+
+## The improvement loop
+
+```
+run jobs  →  grade every agent  →  retrospective finds the gaps  →  you approve each change
+   ↑                                                                          │
+   └────  measure: delivered, not delivered or regressed  ←  new version  ←───┘
+```
+
+It has already done this on its own prompts. After the first two real runs, the retrospective proposed these changes, you
+approved them, and the next run measured the effect:
+
+| Agent | Change | Measured on the next run |
+|---|---|---|
+| reviewer-ux | Check the page in a real browser instead of passing from the code | reliability 50 → 90 |
+| reviewer-ux | Answer every checklist topic, or say N/A and why | checklist coverage 60 → 100 |
+| spec-writer | One condition per requirement | atomic requirements 12.5 → 42.9 (+30 expected) |
+| builder | No baseline C4 docs for a styling change the spec excludes: it cost a review round | pending |
+| spec-writer | No "and/or", "etc." or "should" in criteria | pending |
+| reviewer-ui | Search the diff for raw colours and sizes | pending |
+
+Honest reading: each measurement rests on **one job**, so these are trends, not proof, and the retrospective itself said
+so. The loop also corrected its own tooling: it exposed graders that misjudged good work, which we then fixed by hand,
+since the retrospective may not touch the grader, the scripts or the config.
+
+Why it is safe to let a factory edit itself: every change is one reviewed diff of an agent's prompt; nothing applies
+without your approval; the previous version is kept; the audit trail records who approved what and why.
+See [EVOLUTION](docs/EVOLUTION.md).
+
+![The evolution board: versions, scores before and after, audit trail](docs/img/evolution-board.png)
+
+
+## Why use it
 
 - **It works on your projects, not inside them.** One factory runs any number of repos; they only receive PRs.
-- **It tells you how good it is.** Every agent has a confidence score and every run has a cost, lead time and
-  first-pass yield, instead of a feeling that "it seems to work".
-- **It gets better, on your terms.** After each run it proposes precise changes to its own agents; nothing changes until
-  you approve that change, and each one is measured afterwards and can be rolled back.
+- **It tells you how good it is.** Every agent has a confidence score, every run a cost, lead time and first-pass yield,
+  instead of a feeling that "it seems to work".
 - **It leaves the project better documented.** C4 diagrams and ADRs are kept up to date as part of the change.
 - **It is cheap enough to try.** Two real jobs on a static site cost $1.84 (9 min) and $3.09 (16 min, two review rounds), in
   API-equivalent terms.
@@ -112,7 +144,6 @@ precise text changes to agent prompts, and you approve each. `evolve apply` writ
 and the next cycle measures whether the targeted score moved: delivered, not delivered or regressed.
 `factory/bin/evolve status` lists the changes; `/factory evolve rollback <skill> <version>` restores one.
 
-![The evolution board: versions, scores before and after, audit trail](docs/img/evolution-board.png)
 
 **Security review.** The security reviewer reads the diff and traces untrusted input to sinks; it is scored on findings that
 give the vector, a fix and ideally a CWE id. It runs when intake rates a security surface (auth, input reaching queries or HTML,
