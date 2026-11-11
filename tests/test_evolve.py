@@ -297,6 +297,11 @@ class Measure(Evolve):
     def test_inconclusive_with_too_few_samples(self):
         self.assertEqual(self.verdict(40, 90, n=1)["verdict"], "inconclusive")
 
+    def test_measuring_the_same_cycle_twice_logs_one_event(self):
+        self.verdict(40, 65)
+        self.evolve("measure", "c002")
+        self.assertEqual(len([e for e in self.audit() if e["event"] == "measured"]), 1)
+
     def test_a_cycle_that_ran_before_the_change_does_not_count(self):
         self.deployed()
         self.history(40, 90, version="1.0")
@@ -348,6 +353,41 @@ class Close(Evolve):
         self.assertEqual(hist[0]["skill_versions"]["agent:builder"], "1.0")
         self.assertEqual(json.loads((self.evo / "cycles" / cid / "cycle.json").read_text())["status"], "closed")
         self.assertEqual(self.evolve("cycle", "start").stdout.strip(), "c002")      # a closed cycle is not reopened
+
+    def set_stage(self, d, stage):
+        j = json.loads((d / "job.json").read_text())
+        j["stage"] = stage
+        (d / "job.json").write_text(json.dumps(j))
+
+    def test_a_cycle_is_not_closed_while_a_job_is_running_or_waiting_for_its_author(self):
+        cid = self.start()
+        d = self.make_job("001-a", cid)
+        for stage in ("build", "needs-info"):          # the c002 incident: a parked job ended the run
+            self.set_stage(d, stage)
+            res = self.evolve("cycle", "close", cid, ok=False)
+            self.assertIn("001-a", res.stderr)
+            self.assertEqual(json.loads((self.evo / "cycles" / cid / "cycle.json").read_text())["status"], "open")
+        self.set_stage(d, "needs-human")                # an escalation is feedback for the retrospective, not a wait
+        self.evolve("cycle", "close", cid)
+
+    def test_a_closed_cycle_is_not_closed_twice_unless_forced(self):
+        cid = self.start()
+        self.make_job("001-a", cid)
+        self.evolve("cycle", "close", cid)
+        input_before = (self.evo / "cycles" / cid / "input.json").read_text()
+        self.assertIn("already closed", self.evolve("cycle", "close", cid, ok=False).stderr)
+        self.assertEqual((self.evo / "cycles" / cid / "input.json").read_text(), input_before)
+        self.evolve("cycle", "close", cid, "--force")
+
+    def test_a_job_created_after_a_close_does_not_join_the_closed_cycle(self):
+        cid = self.start()
+        self.evolve("cycle", "close", cid)
+        loader = importlib.machinery.SourceFileLoader("jobmod2", str(self.root / "factory" / "bin" / "job"))
+        job = importlib.util.module_from_spec(importlib.util.spec_from_loader("jobmod2", loader))
+        loader.exec_module(job)
+        self.assertIsNone(job.evolution_stamp()["cycle"])
+        self.assertEqual(self.evolve("cycle", "start").stdout.strip(), "c002")
+        self.assertEqual(job.evolution_stamp()["cycle"], "c002")
 
     def test_the_board_shows_versions_scores_and_the_audit_trail(self):
         cid = self.start()

@@ -10,13 +10,14 @@ Usage:
 scaffolds targets/<name>/checks.sh and notes.md, and registers it in
 factory/config.json. `check` proves the target is ready: gh access, push
 permission, the base branch, the merge method, the labels, and that a fresh
-worktree passes checks.sh.
+worktree passes checks.sh. It also warns (never fails) when `agent-browser` is not on PATH.
 """
 
 import fcntl
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -50,6 +51,8 @@ How to prepare a fresh checkout (install dependencies, env files to copy).
 
 ## Dev server
 How to start it on a given port, if the project has one.
+Pages are viewed with `agent-browser`; when it is not installed, agents use `factory/bin/browse <url>` (headless
+Chrome, read-only: `--mode text|summary|shot`, `--viewport WxH`).
 
 ## Validation
 The commands that targets/{name}/checks.sh runs.
@@ -192,6 +195,7 @@ def cmd_check(name):
             failures.append(label)
         return ok
 
+    check_browser_tool()
     res = gh("auth", "status", check=False)
     step("gh is authenticated", res.returncode == 0)
     res = gh("repo", "view", repo, "--json", "viewerPermission,defaultBranchRef", check=False)
@@ -224,6 +228,16 @@ def cmd_check(name):
             step("checks.sh passes on a fresh checkout", res.returncode == 0, "" if res.returncode == 0 else "\n" + tail)
             sh(["git", "worktree", "remove", "--force", str(tmp)], cwd=clone, check=False)
     finish(failures)
+
+
+def check_browser_tool():
+    """Agents open pages with `agent-browser`; without it they fall back to factory/bin/browse. A warning, never a failure."""
+    if shutil.which("agent-browser"):
+        print("ok    agent-browser is installed")
+    else:
+        print("WARN  agent-browser not found on PATH: builder and the UX/UI reviewers will use the shared "
+              "fallback `factory/bin/browse <url> --mode summary|text|shot` (headless Chrome, read-only) "
+              "instead of writing their own script. Install agent-browser to use the full tool.")
 
 
 def finish(failures):

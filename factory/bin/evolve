@@ -275,12 +275,23 @@ def agent_snapshot(a):
             "output": a["output"]["score"], "n": a["samples"]["live"], "criteria": crit}
 
 
-def cmd_cycle_close(cid):
+UNFINISHED_BLOCKING = {"merged", "rejected", "needs-human"}   # a needs-human job is feedback for the retrospective, not a reason to wait
+
+
+def cmd_cycle_close(cid, force=False):
     reg = sync()
     cid = cid or current_cycle() or die("no open cycle")
     meta = load_json(cycle_dir(cid) / "cycle.json", None) or die(f"no cycle {cid}")
-    scores = run_eval_report(cid)
     jobs = jobs_of(cid)
+    if not force:
+        if meta.get("status") == "closed":
+            die(f"cycle {cid} is already closed (its input.json would be overwritten and its measurements logged twice); "
+                f"pass --force to close it again")
+        busy = [j["id"] + " (" + str(j.get("stage")) + ")" for _, j in jobs if j.get("stage") not in UNFINISHED_BLOCKING]
+        if busy:
+            die(f"cycle {cid} still has jobs running or waiting for the author: {', '.join(busy)}; "
+                f"close it when they finish, or pass --force")
+    scores = run_eval_report(cid)
     agents = {a: agent_snapshot(v) for a, v in scores["agents"].items() if v["samples"]["live"]}
     escalated = [j for d, j in jobs if j.get("stage") == "needs-human" or (read(d / "decision.md") or "").startswith("ESCALATE")]
     metrics = {
@@ -604,6 +615,10 @@ def measure(cid):
             want = abs(ei["delta"])
             verdict = ("delivered" if signed >= s["delivered_fraction"] * want else
                        "regressed" if signed <= -s["regression_points"] else "not_delivered")
+        same = [s for s in c["stages"] if s.get("event") == "measured" and s.get("measured_in") == cid
+                and (s.get("verdict"), s.get("before"), s.get("after"), s.get("n_after")) == (verdict, before, after, n_after)]
+        if same:
+            continue   # re-closing a cycle must not log the same measurement twice
         log("measured", cycle=c["cycle"], change=c["change"], skill=c["skill"], version=c["version"], verdict=verdict,
             before=before, after=after, delta=delta, n_after=n_after, measured_in=cid)
 
@@ -667,6 +682,8 @@ def main(argv):
     if not argv or argv[0] in {"-h", "--help"}:
         print(__doc__.strip())
         return
+    force = "--force" in argv
+    argv = [a for a in argv if a != "--force"]
     opts, pos, i = {}, [], 0
     while i < len(argv):
         if argv[i].startswith("--") and i + 1 < len(argv):
@@ -681,7 +698,7 @@ def main(argv):
     elif cmd == "cycle" and pos[1:2] == ["start"]:
         cmd_cycle_start()
     elif cmd == "cycle" and pos[1:2] == ["close"]:
-        cmd_cycle_close(pos[2] if len(pos) > 2 else None)
+        cmd_cycle_close(pos[2] if len(pos) > 2 else None, force)
     elif cmd == "cycle" and pos[1:2] == ["show"]:
         cid = pos[2] if len(pos) > 2 else current_cycle()
         print(json.dumps(load_json(cycle_dir(cid) / "cycle.json", {}), indent=2))

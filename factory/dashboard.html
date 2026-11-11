@@ -737,13 +737,16 @@ const KPI = {
   stuck_jobs: ['Stuck jobs', (v) => num(v, 0), 'Jobs waiting longer than their limit (a person: 24 h, an author: 72 h, a running stage: 4 h).'],
   idle_days: ['Idle for', (v) => v == null ? '–' : v < 1 ? 'today' : `${num(v)} d`, 'Time since any job last changed stage: is the factory being used?'],
   change_delivery_rate: ['Changes that delivered', pc, 'Of the approved skill changes that could be measured, how many delivered the expected improvement.'],
+  security_lens_fire_rate: ['Security review rate', pc, 'Reviewed jobs where the security reviewer ran (intake rated it, or the diff touched a sensitive path). Never running means the lens is never exercised.'],
+  browser_tool_available: ['Shared browser tool', (v) => v == null ? '–' : v ? 'yes' : 'missing', 'agent-browser or factory/bin/browse is available, so agents do not each write their own browser script.'],
+  cycles_with_zero_jobs: ['Empty cycles', (v) => num(v, 0), 'Cycles closed without any job: a cycle closed too early or opened by mistake.'],
 }
 const GROUPS = [
   ['Productivity', 'How much gets done, and how fast?', ['throughput_7d', 'lead_time_p50_h', 'cycle_efficiency']],
   ['Flow quality', 'How clean is the flow?', ['first_pass_yield', 'avg_rounds', 'autonomy', 'escalation_rate']],
-  ['Agents', 'How good are the agents?', ['agent_confidence', 'weakest_agent', 'eval_pass_rate']],
+  ['Agents', 'How good are the agents?', ['agent_confidence', 'weakest_agent', 'eval_pass_rate', 'security_lens_fire_rate', 'browser_tool_available']],
   ['Cost', 'What does delivery cost?', ['cost_per_merged_job_usd', 'waste_share', 'overhead_share']],
-  ['Vitality', 'Is it alive and learning?', ['stuck_jobs', 'idle_days', 'change_delivery_rate']],
+  ['Vitality', 'Is it alive and learning?', ['stuck_jobs', 'idle_days', 'change_delivery_rate', 'cycles_with_zero_jobs']],
 ]
 const HEADLINE = ['throughput_7d', 'lead_time_p50_h', 'first_pass_yield', 'autonomy', 'agent_confidence', 'cost_per_merged_job_usd', 'stuck_jobs']
 const STAGE_COLOR = { intake: '#8be9fd', spec: '#bd93f9', build: '#50fa7b', gate: '#f1fa8c', review: '#ffb86c', approve: '#ff79c6', merging: '#6272a4', 'needs-human': '#ff5555', 'needs-info': '#ff9580' }

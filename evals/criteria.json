@@ -236,11 +236,11 @@
         },
         {
           "id": "reply",
-          "label": "One-line reply",
+          "label": "Verdict on the first line",
           "kind": "rule",
           "weight": 0.05,
-          "description": "It ends with the DECISION line and nothing else.",
-          "measure": "Final message against the expected line.",
+          "description": "The first line of its final report is the DECISION line.",
+          "measure": "First line of the final report against the expected line.",
           "basis": "inference",
           "sources": []
         },
@@ -441,11 +441,11 @@
         },
         {
           "id": "reply",
-          "label": "One-line reply",
+          "label": "Verdict on the first line",
           "kind": "rule",
           "weight": 0.05,
-          "description": "It ends with SPEC: <title> and nothing else.",
-          "measure": "Final message against the expected line.",
+          "description": "The first line of its final report is SPEC: <title>.",
+          "measure": "First line of the final report against the expected line.",
           "basis": "inference",
           "sources": []
         },
@@ -654,11 +654,11 @@
         },
         {
           "id": "reply",
-          "label": "One-line reply",
+          "label": "Verdict on the first line",
           "kind": "rule",
           "weight": 0.05,
-          "description": "It ends with the STATUS line of build.md and nothing else.",
-          "measure": "Final message against the expected line.",
+          "description": "The first line of its final report is the STATUS line of build.md.",
+          "measure": "First line of the final report against the expected line.",
           "basis": "inference",
           "sources": []
         },
@@ -1024,11 +1024,11 @@
         },
         {
           "id": "reply",
-          "label": "One-line reply",
+          "label": "Verdict on the first line",
           "kind": "rule",
           "weight": 0.05,
-          "description": "It ends with the VERDICT line and nothing else.",
-          "measure": "Final message against the expected line.",
+          "description": "The first line of its final report is the VERDICT line.",
+          "measure": "First line of the final report against the expected line.",
           "basis": "inference",
           "sources": []
         },
@@ -1241,11 +1241,11 @@
         },
         {
           "id": "reply",
-          "label": "One-line reply",
+          "label": "Verdict on the first line",
           "kind": "rule",
           "weight": 0.05,
-          "description": "It ends with the VERDICT line and nothing else.",
-          "measure": "Final message against the expected line.",
+          "description": "The first line of its final report is the VERDICT line.",
+          "measure": "First line of the final report against the expected line.",
           "basis": "inference",
           "sources": []
         },
@@ -1448,11 +1448,11 @@
         },
         {
           "id": "reply",
-          "label": "One-line reply",
+          "label": "Verdict on the first line",
           "kind": "rule",
           "weight": 0.05,
-          "description": "It ends with the VERDICT line and nothing else.",
-          "measure": "Final message against the expected line.",
+          "description": "The first line of its final report is the VERDICT line.",
+          "measure": "First line of the final report against the expected line.",
           "basis": "inference",
           "sources": []
         },
@@ -1655,11 +1655,11 @@
         },
         {
           "id": "reply",
-          "label": "One-line reply",
+          "label": "Verdict on the first line",
           "kind": "rule",
           "weight": 0.05,
-          "description": "It ends with the VERDICT line and nothing else.",
-          "measure": "Final message against the expected line.",
+          "description": "The first line of its final report is the VERDICT line.",
+          "measure": "First line of the final report against the expected line.",
           "basis": "inference",
           "sources": []
         },
@@ -1829,11 +1829,11 @@
         },
         {
           "id": "reply",
-          "label": "One-line reply",
+          "label": "Verdict on the first line",
           "kind": "rule",
           "weight": 0.05,
-          "description": "It ends with APPROVE or ESCALATE and nothing else.",
-          "measure": "Final message against the expected line.",
+          "description": "The first line of its final report is APPROVE or ESCALATE.",
+          "measure": "First line of the final report against the expected line.",
           "basis": "inference",
           "sources": []
         },

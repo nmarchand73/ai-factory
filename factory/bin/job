@@ -13,7 +13,7 @@ Usage:
   job merge <job>                APPROVE → sync with the base branch, gate, merge the PR
   job feedback <job>             needs-human → build, with your feedback (stdin) as feedback-<k>.md
   job reject <job>               needs-info or needs-human → rejected, with your reason (stdin) as rejection.md
-  job agents <job> <json>        record the routed agent set (called by factory/bin/route)
+  job agents <job> <json>        record the routed agent set (called by factory/bin/route; in review it may only add reviewers)
   job sync <job>                 refresh reviews, gate and cost from the job's files
   job summary [<job>...]         table of jobs (issue, stage, PR, cost, time) and the cost per project, step and agent
 
@@ -31,7 +31,7 @@ import os
 import re
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -357,7 +357,7 @@ def starts_factory(entry):
 
 
 def orchestration_events():
-    """(time, dollars) of every orchestrator message sent after /factory was first used in a session.
+    """(session, time, dollars) of every orchestrator message sent after /factory was first used in a session.
 
     The orchestrator is the Claude Code session that runs /factory; its own tokens are in the
     session transcript <config>/projects/<project>/<session>.jsonl, not in the sub-agents' files.
@@ -385,46 +385,79 @@ def orchestration_events():
                 seen.add(msg.get("id"))
                 usd = usage_cost(msg.get("model", ""), msg["usage"])
                 if usd:
-                    events.append((parse_ts(entry["timestamp"]), usd))
-    return sorted(events)
+                    events.append((path.stem, parse_ts(entry["timestamp"]), usd))
+    return sorted(events, key=lambda e: e[1])
 
 
 def job_windows():
-    """(job id, start, end or None) of every job, read straight from job.json (no locks)."""
+    """(job id, [(start, end or None), ...]) of every job, read straight from job.json (no locks).
+
+    A job runs between its stage changes, except while it waits for a person (`needs-info`,
+    `needs-human`): that time is not billed to it. A job without a history runs from start to end."""
     out = []
     if JOBS.exists():
         for d in sorted(JOBS.iterdir()):
             try:
                 j = json.loads((d / "job.json").read_text())
-                out.append((j["id"], parse_ts(j["started"]), parse_ts(j["ended"]) if j.get("ended") else None))
+                started = parse_ts(j["started"])
+                ended = parse_ts(j["ended"]) if j.get("ended") else None
+                hist = [(h["stage"], parse_ts(h["ts"])) for h in j.get("history") or []]
+                if not hist:
+                    out.append((j["id"], [(started, ended)]))
+                    continue
+                spans = []
+                for i, (stage, ts) in enumerate(hist):
+                    nxt = hist[i + 1][1] if i + 1 < len(hist) else ended
+                    if stage in WAITING or stage in TERMINAL:
+                        continue
+                    spans.append((ts, nxt))
+                out.append((j["id"], spans))
             except (OSError, ValueError, KeyError):
                 continue
     return out
 
 
 _orchestration = None
+OVERHEAD_GRACE = timedelta(hours=1)   # retrospective and summary after a run still belong to that run
 
 
 def orchestration_costs():
-    """({job id: dollars}, dollars outside every job) for the orchestrator's own tokens.
+    """({job id: dollars}, overhead dollars) for the orchestrator's own tokens.
 
     A message is split equally between the jobs running when it was sent (one that is
-    waiting on a human or an author is not running); one sent while no job runs is overhead."""
+    waiting on a human or an author is not running). One sent while no job runs is overhead, but only inside
+    a session that actually ran jobs, from its first /factory to an hour after its last running job:
+    everything else (a session where the factory itself was being developed, messages long after the last
+    job) is reported apart as `outside_sessions_usd` and is not the orchestrator's overhead."""
     global _orchestration
     if _orchestration is None:
         windows = job_windows()
-        shares, overhead = {}, 0.0
-        for t, usd in orchestration_events():
-            active = [w[0] for w in windows if w[1] <= t and (w[2] is None or t <= w[2])]
-            if not active:
-                overhead += usd
+        active_at = lambda t: [jid for jid, spans in windows
+                               if any(s <= t and (e is None or t <= e) for s, e in spans)]
+        by_session = {}
+        for sess, t, usd in orchestration_events():
+            by_session.setdefault(sess, []).append((t, usd))
+        shares, overhead, apart = {}, 0.0, 0.0
+        for evs in by_session.values():
+            busy = [t for t, _ in evs if active_at(t)]
+            if not busy:
+                apart += sum(usd for _, usd in evs)
                 continue
-            for jid in active:
-                shares[jid] = shares.get(jid, 0.0) + usd / len(active)
+            last = max(busy) + OVERHEAD_GRACE
+            for t, usd in evs:
+                active = active_at(t)
+                if active:
+                    for jid in active:
+                        shares[jid] = shares.get(jid, 0.0) + usd / len(active)
+                elif t <= last:
+                    overhead += usd
+                else:
+                    apart += usd
         _orchestration = (shares, overhead)
         if JOBS.exists():
             (JOBS / "_orchestration.json").write_text(json.dumps(
-                {"outside_jobs_usd": round(overhead, 4), "updated": now()}, indent=2) + "\n")
+                {"outside_jobs_usd": round(overhead, 4), "outside_sessions_usd": round(apart, 4),
+                 "updated": now()}, indent=2) + "\n")
     return _orchestration
 
 
@@ -700,6 +733,11 @@ def evolution_stamp():
         reg = json.loads((evo / "registry.json").read_text())
     except (OSError, ValueError):
         return {"cycle": None, "skill_versions": {}}
+    try:   # a job never joins a closed cycle: it would be missing from that cycle's snapshot
+        if json.loads((evo / "cycles" / str(cycle) / "cycle.json").read_text()).get("status") != "open":
+            cycle = None
+    except (OSError, ValueError):
+        cycle = None
     return {"cycle": cycle, "skill_versions": {k: v["current"] for k, v in reg.get("skills", {}).items()}}
 
 
@@ -867,9 +905,14 @@ def cmd_reject(job, text):
 
 
 def cmd_agents(job, spec):
-    if job["stage"] != "intake" or (job["intake"] or {}).get("decision") != "ACCEPT":
-        die(f"{job['id']}: route only an intake job that intake ACCEPTed")
-    job["agents"] = json.loads(spec)
+    new = json.loads(spec)
+    if job["stage"] == "review":   # `route <job> --diff` may add a reviewer the diff calls for, never drop one
+        old = (job["agents"] or {}).get("reviewers", {})
+        if not set(old) <= set(new.get("reviewers", {})):
+            die(f"{job['id']}: a routed reviewer can't be removed during review")
+    elif job["stage"] != "intake" or (job["intake"] or {}).get("decision") != "ACCEPT":
+        die(f"{job['id']}: route only an intake job that intake ACCEPTed (or add a reviewer during review)")
+    job["agents"] = new
     save(job)
 
 

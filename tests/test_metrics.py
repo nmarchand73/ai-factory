@@ -116,6 +116,29 @@ class Metrics(unittest.TestCase):
         self.assertIsNone(k["agent_confidence"]["value"])                # no scores yet
         self.assertEqual(k["agent_confidence"]["status"], "none")
 
+    def test_cost_per_merged_job_leaves_out_jobs_from_before_cost_tracking(self):
+        self.put(job("001-old", "merged", [("intake", 50), ("merged", 49)], cost=0.0, ended=iso(49)))
+        self.put(job("002-new", "merged", [("intake", 20), ("merged", 19)], cost=3.0, ended=iso(19), skill_versions={"agent:builder": "1.0"}))
+        self.assertEqual(self.data()["cost"]["per_merged_job_usd"], 3.0)
+
+    def test_security_lens_rate_browser_tool_and_empty_cycles(self):
+        self.put(job("001-ui", "merged", [("intake", 20), ("review", 19), ("merged", 18)], ended=iso(18),
+                     agents={"reviewers": {"code": "haiku", "ux": "sonnet"}}))
+        self.put(job("002-sec", "merged", [("intake", 20), ("review", 19), ("merged", 18)], ended=iso(18),
+                     agents={"reviewers": {"code": "haiku", "security": "opus"}}))
+        self.put(job("003-early", "build", [("intake", 2), ("build", 1)]))        # never reviewed: not in the rate
+        evo = self.root / "factory" / "evolution"
+        evo.mkdir()
+        (evo / "board.json").write_text(json.dumps({"cycles": [
+            {"cycle": "c001", "ts": iso(48), "overall": 70, "jobs": 2}, {"cycle": "c002", "ts": iso(24), "overall": None, "jobs": 0}], "audit": []}))
+        (self.root / "factory" / "bin" / "browse").write_text("#!/bin/sh\n")
+        k = self.data()["kpis"]
+        self.assertEqual(k["security_lens_fire_rate"]["value"], 0.5)
+        self.assertEqual(k["security_lens_fire_rate"]["status"], "good")
+        self.assertEqual(k["cycles_with_zero_jobs"]["value"], 1)
+        self.assertEqual(k["cycles_with_zero_jobs"]["status"], "watch")
+        self.assertEqual(k["browser_tool_available"]["value"], 1)
+
     def test_targets_come_from_the_config(self):
         self.seed()
         cfg = json.loads((self.root / "factory" / "config.json").read_text())

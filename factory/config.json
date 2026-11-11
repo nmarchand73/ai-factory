@@ -68,6 +68,17 @@
       "protected_paths": [
         ".github/workflows/*"
       ]
+    },
+    "djset": {
+      "repo": "nmarchand73/djset",
+      "base_branch": "main",
+      "merge_method": "squash",
+      "security_paths": [
+        "serve.py"
+      ],
+      "protected_paths": [
+        ".github/workflows/*"
+      ]
     }
   },
   "evals": {

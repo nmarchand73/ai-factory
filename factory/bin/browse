@@ -1,0 +1,300 @@
+#!/usr/bin/env python3
+"""Shared headless-Chrome helper for the factory's agents (builder, reviewer-ux, reviewer-ui).
+
+Use it when the `agent-browser` CLI is not installed (`factory/bin/target check` warns about that),
+instead of writing your own Chrome script. It is read-only: it loads one page in a throwaway Chrome
+profile, optionally reads or screenshots it, and quits. It never clicks, types or submits anything,
+and it only opens http(s) and file URLs.
+
+Usage:
+  browse <url> [--viewport WxH] [--mode text|summary|html|shot] [--out FILE] [--wait SECONDS]
+         [--eval JS]
+
+Modes:
+  text     the page's visible text (document.body.innerText)           (default)
+  summary  an outline of what a user can perceive and use: title, viewport, headings, landmarks,
+           links, buttons, form fields with their labels, images with their alt text, and
+           console errors / failed requests seen while loading
+  html     the rendered DOM (after scripts ran)
+  shot     a PNG screenshot saved to --out (default: browse-shot.png); prints the path
+--viewport WxH   window size, default 1280x800 (try 375x812 for a phone)
+--wait SECONDS   extra time for the page to settle after load, default 1
+--eval JS        evaluate this JavaScript expression after load and print its JSON result
+                 (use it to read state, e.g. "document.querySelectorAll('li').length")
+
+Environment: BROWSE_CHROME overrides the Chrome binary. Exit code 0 on success, 1 on failure,
+2 when no Chrome is found. Needs only the Python standard library.
+"""
+
+import base64
+import hashlib
+import json
+import os
+import shutil
+import socket
+import struct
+import subprocess
+import sys
+import tempfile
+import time
+import urllib.request
+from pathlib import Path
+from urllib.parse import urlparse
+
+CHROME_CANDIDATES = [
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    "/Applications/Chromium.app/Contents/MacOS/Chromium",
+    "google-chrome", "google-chrome-stable", "chromium", "chromium-browser", "chrome",
+]
+
+SUMMARY_JS = r"""(() => {
+  const t = (e) => (e.innerText || e.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 80);
+  const label = (e) => {
+    const l = e.labels && e.labels[0];
+    return e.getAttribute('aria-label') || (l && t(l)) || e.placeholder || e.name || '';
+  };
+  const list = (sel, f) => [...document.querySelectorAll(sel)].slice(0, 40).map(f);
+  return {
+    title: document.title,
+    viewport: [innerWidth, innerHeight],
+    scrollWidth: document.documentElement.scrollWidth,
+    lang: document.documentElement.lang,
+    headings: list('h1,h2,h3,h4', e => e.tagName.toLowerCase() + ' ' + t(e)),
+    landmarks: list('header,nav,main,aside,footer,[role=main],[role=navigation]', e => e.tagName.toLowerCase() + (e.getAttribute('aria-label') ? ' "' + e.getAttribute('aria-label') + '"' : '')),
+    links: list('a[href]', e => t(e) + ' -> ' + e.getAttribute('href')),
+    buttons: list('button,[role=button],input[type=button],input[type=submit]', e => (t(e) || e.value || e.getAttribute('aria-label') || '(no name)') + (e.disabled ? ' [disabled]' : '')),
+    fields: list('input:not([type=button]):not([type=submit]):not([type=hidden]),textarea,select', e => e.tagName.toLowerCase() + (e.type ? '[' + e.type + ']' : '') + ' "' + label(e) + '"' + (e.required ? ' required' : '')),
+    images: list('img', e => (e.getAttribute('alt') === null ? '(NO ALT) ' : 'alt="' + e.alt + '" ') + e.getAttribute('src')),
+  };
+})()"""
+
+
+def die(msg, code=1):
+    print(f"browse: {msg}", file=sys.stderr)
+    sys.exit(code)
+
+
+def find_chrome():
+    cands = ([os.environ["BROWSE_CHROME"]] if os.environ.get("BROWSE_CHROME") else []) + CHROME_CANDIDATES
+    for c in cands:
+        p = c if os.path.isabs(c) and os.access(c, os.X_OK) else shutil.which(c)
+        if p:
+            return p
+    return None
+
+
+class WS:
+    """Just enough of a WebSocket client (RFC 6455, text frames) to talk to Chrome's DevTools."""
+
+    def __init__(self, url):
+        u = urlparse(url)
+        self.s = socket.create_connection((u.hostname, u.port), timeout=30)
+        key = base64.b64encode(os.urandom(16)).decode()
+        self.s.sendall((f"GET {u.path} HTTP/1.1\r\nHost: {u.hostname}:{u.port}\r\nUpgrade: websocket\r\n"
+                        f"Connection: Upgrade\r\nSec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n\r\n").encode())
+        buf = b""
+        while b"\r\n\r\n" not in buf:
+            chunk = self.s.recv(4096)
+            if not chunk:
+                raise RuntimeError("websocket handshake failed")
+            buf += chunk
+        if b" 101 " not in buf.split(b"\r\n")[0]:
+            raise RuntimeError("websocket handshake refused")
+        self.rest = buf.split(b"\r\n\r\n", 1)[1]
+
+    def _read(self, n):
+        while len(self.rest) < n:
+            chunk = self.s.recv(65536)
+            if not chunk:
+                raise RuntimeError("connection closed")
+            self.rest += chunk
+        out, self.rest = self.rest[:n], self.rest[n:]
+        return out
+
+    def send(self, text):
+        data = text.encode()
+        head = bytes([0x81])
+        n = len(data)
+        mask = os.urandom(4)
+        if n < 126:
+            head += bytes([0x80 | n])
+        elif n < 65536:
+            head += bytes([0x80 | 126]) + struct.pack(">H", n)
+        else:
+            head += bytes([0x80 | 127]) + struct.pack(">Q", n)
+        self.s.sendall(head + mask + bytes(b ^ mask[i % 4] for i, b in enumerate(data)))
+
+    def recv(self):
+        msg = b""
+        while True:
+            b1, b2 = self._read(2)
+            n = b2 & 0x7F
+            if n == 126:
+                n = struct.unpack(">H", self._read(2))[0]
+            elif n == 127:
+                n = struct.unpack(">Q", self._read(8))[0]
+            payload = self._read(n)
+            op = b1 & 0x0F
+            if op == 8:
+                raise RuntimeError("connection closed by Chrome")
+            if op in (1, 0):
+                msg += payload
+                if b1 & 0x80:
+                    return msg.decode()
+
+
+class Page:
+    def __init__(self, ws):
+        self.ws, self.n, self.events = ws, 0, []
+
+    def call(self, method, **params):
+        self.n += 1
+        mid = self.n
+        self.ws.send(json.dumps({"id": mid, "method": method, "params": params}))
+        while True:
+            m = json.loads(self.ws.recv())
+            if m.get("id") == mid:
+                if "error" in m:
+                    raise RuntimeError(f"{method}: {m['error'].get('message')}")
+                return m.get("result", {})
+            if "method" in m:
+                self.events.append(m)
+
+    def pump(self, seconds):
+        self.ws.s.settimeout(0.2)
+        end = time.time() + seconds
+        while time.time() < end:
+            try:
+                m = json.loads(self.ws.recv())
+                if "method" in m:
+                    self.events.append(m)
+            except (socket.timeout, TimeoutError):
+                pass
+        self.ws.s.settimeout(30)
+
+    def evaluate(self, expr):
+        r = self.call("Runtime.evaluate", expression=expr, returnByValue=True, awaitPromise=True)
+        if "exceptionDetails" in r:
+            raise RuntimeError("JS error: " + r["exceptionDetails"].get("text", "") + " " +
+                               str(r["exceptionDetails"].get("exception", {}).get("description", "")))
+        return r["result"].get("value")
+
+
+def parse_args(argv):
+    opts = {"url": None, "viewport": "1280x800", "mode": "text", "out": None, "wait": 1.0, "eval": None}
+    i = 0
+    while i < len(argv):
+        a = argv[i]
+        if a in {"-h", "--help"}:
+            print(__doc__.strip())
+            sys.exit(0)
+        if a in {"--viewport", "--mode", "--out", "--wait", "--eval"}:
+            if i + 1 >= len(argv):
+                die(f"{a} needs a value")
+            opts[a[2:]] = argv[i + 1]
+            i += 2
+        elif a.startswith("-"):
+            die(f"unknown option {a}")
+        else:
+            if opts["url"]:
+                die("only one URL")
+            opts["url"] = a
+            i += 1
+    if not opts["url"]:
+        die("usage: browse <url> [--viewport WxH] [--mode text|summary|html|shot] [--out FILE]")
+    if urlparse(opts["url"]).scheme not in {"http", "https", "file"}:
+        die("only http, https and file URLs are allowed")
+    if opts["mode"] not in {"text", "summary", "html", "shot"}:
+        die("--mode must be text, summary, html or shot")
+    try:
+        w, h = opts["viewport"].lower().split("x")
+        opts["size"] = (int(w), int(h))
+        opts["wait"] = float(opts["wait"])
+    except ValueError:
+        die("--viewport must look like 1280x800 and --wait must be a number")
+    return opts
+
+
+def main(argv):
+    opts = parse_args(argv)
+    chrome = find_chrome()
+    if not chrome:
+        die("no Chrome or Chromium found (set BROWSE_CHROME to its path)", 2)
+    w, h = opts["size"]
+    profile = tempfile.mkdtemp(prefix="browse-")
+    proc = subprocess.Popen(
+        [chrome, "--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check",
+         "--hide-scrollbars", f"--user-data-dir={profile}", "--remote-debugging-port=0",
+         f"--window-size={w},{h}", "about:blank"],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+        port_file = Path(profile) / "DevToolsActivePort"
+        for _ in range(100):
+            if port_file.exists() and port_file.read_text().strip():
+                break
+            time.sleep(0.1)
+        else:
+            die("Chrome did not start")
+        port = port_file.read_text().split()[0]
+        targets = json.load(urllib.request.urlopen(f"http://127.0.0.1:{port}/json"))
+        page_ws = next(t["webSocketDebuggerUrl"] for t in targets if t["type"] == "page")
+        page = Page(WS(page_ws))
+        page.call("Page.enable")
+        page.call("Runtime.enable")
+        page.call("Network.enable")
+        page.call("Emulation.setDeviceMetricsOverride", width=w, height=h, deviceScaleFactor=1, mobile=False)
+        page.call("Page.navigate", url=opts["url"])
+        deadline = time.time() + 30
+        while time.time() < deadline and not any(e["method"] == "Page.loadEventFired" for e in page.events):
+            page.pump(0.2)
+        page.pump(opts["wait"])
+        problems = []
+        for e in page.events:
+            p = e.get("params", {})
+            if e["method"] == "Runtime.exceptionThrown":
+                problems.append("exception: " + p["exceptionDetails"].get("text", ""))
+            elif e["method"] == "Runtime.consoleAPICalled" and p.get("type") == "error":
+                problems.append("console.error: " + " ".join(str(a.get("value", a.get("description", ""))) for a in p.get("args", [])))
+            elif e["method"] == "Network.loadingFailed":
+                problems.append("request failed: " + p.get("errorText", ""))
+            elif e["method"] == "Network.responseReceived" and p["response"]["status"] >= 400:
+                problems.append(f"HTTP {p['response']['status']}: {p['response']['url']}")
+        mode = opts["mode"]
+        if opts["eval"] is not None:
+            print(json.dumps(page.evaluate(opts["eval"]), indent=2))
+        elif mode == "text":
+            print(page.evaluate("document.body ? document.body.innerText : ''"))
+        elif mode == "html":
+            print(page.evaluate("document.documentElement.outerHTML"))
+        elif mode == "summary":
+            s = page.evaluate(SUMMARY_JS)
+            print(f"title: {s['title']}\nlang: {s['lang'] or '(none)'}\nviewport: {s['viewport'][0]}x{s['viewport'][1]}"
+                  f"{'  HORIZONTAL OVERFLOW (scrollWidth ' + str(s['scrollWidth']) + ')' if s['scrollWidth'] > s['viewport'][0] else ''}")
+            for key in ("headings", "landmarks", "links", "buttons", "fields", "images"):
+                print(f"{key} ({len(s[key])}):")
+                for item in s[key]:
+                    print(f"  - {item}")
+            print(f"problems ({len(problems)}):")
+            for p in problems:
+                print(f"  - {p}")
+        else:
+            out = Path(opts["out"] or "browse-shot.png")
+            data = page.call("Page.captureScreenshot", format="png")["data"]
+            out.write_bytes(base64.b64decode(data))
+            print(out)
+        if problems and mode != "summary":
+            for p in problems:
+                print(f"browse: {p}", file=sys.stderr)
+    except (RuntimeError, OSError, StopIteration) as exc:
+        die(str(exc))
+    finally:
+        proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+        shutil.rmtree(profile, ignore_errors=True)
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])

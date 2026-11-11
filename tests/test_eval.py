@@ -108,7 +108,10 @@ class Pure(unittest.TestCase):
 
     def test_reply_discipline_grounding_efficiency(self):
         self.assertEqual(EV.reply_score("intake", "DECISION: ACCEPT", GOOD_INTAKE), 1.0)
-        self.assertEqual(EV.reply_score("intake", "DECISION: ACCEPT\n\nWrote the file.", GOOD_INTAKE), 0.7)
+        # the harness hands back the whole report: only its first line is the verdict
+        self.assertEqual(EV.reply_score("intake", "DECISION: ACCEPT\n\nWrote the file.\n\n## Summary\n- a", GOOD_INTAKE), 1.0)
+        self.assertEqual(EV.reply_score("intake", "Wrote the file.\nDECISION: ACCEPT", GOOD_INTAKE), 0.0)
+        self.assertEqual(EV.reply_score("intake", "", GOOD_INTAKE), 0.0)
         self.assertEqual(EV.reply_score("spec-writer", "SPEC: Add multiply", "# Add multiply\n"), 1.0)
         c = {"job_dir": "/j", "output_path": "/j/spec.md"}
         ok = [call("Write", file_path="/j/spec.md")]
@@ -195,6 +198,77 @@ None.
         seen = [call("Read", file_path="/c/src/index.js"), call("Write", file_path="/j/spec.md")]
         self.assertAlmostEqual(EV.RULES["paths_verified"](ctx("spec-writer", self.SPEC, seen)), 0.5)
         self.assertEqual(EV.RULES["paths_verified"](ctx("spec-writer", self.SPEC, [call("Read", file_path="/c/src/index.js"), call("Glob", pattern="test/index.test.js"), call("Write", file_path="/j/spec.md")])), 1.0)
+
+
+    # ---- regressions from job 004 (spec and intake copied in evals/regressions/job-004)
+    REG = SRC / "evals" / "regressions" / "job-004"
+
+    def reg(self, **kw):
+        return ctx("spec-writer", (self.REG / "spec.md").read_text(), intake=(self.REG / "intake.md").read_text(), **kw)
+
+    def test_regression_atomic_requirements_flag_verb_phrases_not_noun_lists(self):
+        c = self.reg()
+        self.assertGreaterEqual(EV.RULES["atomic_requirements"](c), 0.9)          # nouns in a list are fine
+        self.assertFalse(EV.joins_verb_phrases("The header, the player and the tracklist stay readable."))
+        self.assertFalse(EV.joins_verb_phrases("Width and height stay equal, with X in 36-42 and Y in 364-416."))
+        self.assertTrue(EV.joins_verb_phrases("It reads the file and writes the report."))
+        self.assertTrue(EV.joins_verb_phrases("The sun grows, and the glow is wider."))
+
+    def test_regression_behavioural_criteria_accept_commands_and_more_verbs(self):
+        self.assertGreaterEqual(EV.RULES["behavioural_criteria"](self.reg()), 0.7)
+        for ok in ("`grep -n 'filter' index.html` shows no filter.", "The page lists every theme.", "The rule matches `.sun`.",
+                   "Run `sed -n 1,5p index.html` and compare.", "`scrollWidth <= innerWidth` in the console."):
+            self.assertTrue(EV.OBSERVABLE.search(ok), ok)
+        for vague in ("The sun looks nice.", "The `.sun` rule is good."):
+            self.assertFalse(EV.OBSERVABLE.search(vague), vague)
+
+    def test_regression_out_of_scope_reads_the_whole_left_out_list_and_ignores_conditions(self):
+        c = self.reg()
+        items = EV.left_out_items(c["intake"])
+        self.assertTrue(any("gradients" in i for i in items) and any("grain" in i for i in items))
+        self.assertFalse(any("tweak" in i for i in items))        # "fine only if ..." is a permission, not a left-out item
+        self.assertEqual(EV.RULES["out_of_scope_kept"](c), 1.0)
+        dropped = ctx("spec-writer", c["text"].replace("- Changing the `--sky` gradients, `.sky-drift-a/b`, `.sky-veil`, `.grain` or `.horizon` (colours, position or animation).\n", ""),
+                      intake=c["intake"])
+        self.assertLess(EV.RULES["out_of_scope_kept"](dropped), 1.0)
+        leaked = ctx("spec-writer", c["text"].replace("15. ", "15. "), intake=c["intake"])
+        built = c["text"].replace("## Acceptance criteria", "15. The `.grain` layer gets rewritten, drift glows are changed.\n\n## Acceptance criteria", 1)
+        self.assertLess(EV.RULES["out_of_scope_kept"](ctx("spec-writer", built, intake=c["intake"])), 1.0)
+
+    def test_regression_paths_verified_counts_tool_results_and_needs_the_exact_name(self):
+        spec = "## Context\n`index.html` and `themes.js` and `src/app.js`.\n"
+        listing = {"name": "Bash", "input": {"command": "ls"}, "error": False, "result": "index.html\nthemes.js\nsrc/app.js\n"}
+        self.assertEqual(EV.RULES["paths_verified"](ctx("spec-writer", spec, [listing, call("Write", file_path="/j/spec.md")])), 1.0)
+        # a longer name does not verify a shorter one
+        other = call("Read", file_path="/c/myindex.html.bak")
+        self.assertEqual(EV.RULES["paths_verified"](ctx("spec-writer", "`index.html`\n", [other, call("Write", file_path="/j/spec.md")])), 0.0)
+        self.assertEqual(EV.RULES["paths_verified"](ctx("spec-writer", "`index.html`\n", [call("Read", file_path="/c/index.html"), call("Write", file_path="/j/spec.md")])), 1.0)
+
+    def test_regression_reads_through_globs_folders_and_loops_count(self):
+        with tempfile.TemporaryDirectory() as t:
+            job = Path(t) / "job"
+            (job / "round-1").mkdir(parents=True)
+            for n in ("issue.md", "intake.md", "spec.md", "build.md", "round-1/checks.md", "round-1/review-code.md"):
+                (job / n).write_text("x")
+            repo = Path(t) / "repo"
+            repo.mkdir()
+            (repo / "AGENTS.md").write_text("x")
+            c = {"job_dir": job, "clone": repo}
+            w = call("Write", file_path=str(job / "spec.md"))
+            self.assertEqual(EV.grounding_score("spec-writer", [call("Glob", pattern=str(job / "*.md")), call("Read", file_path=str(repo / "AGENTS.md")), w], c), 1.0)
+            self.assertEqual(EV.grounding_score("spec-writer", [call("Bash", command=f'for f in "$J"/*.md; do cat "$f"; done; cat {repo}/AGENTS.md'), w], c), 1.0)
+            self.assertEqual(EV.grounding_score("spec-writer", [call("Read", file_path=str(job)), call("Read", file_path=str(repo)), w], c), 1.0)
+            # negative: a glob that reaches nothing relevant, or reading after the write, earns nothing
+            self.assertEqual(EV.grounding_score("spec-writer", [call("Glob", pattern=str(job / "*.json")), w], c), 0.0)
+            self.assertEqual(EV.grounding_score("spec-writer", [w, call("Glob", pattern=str(job / "*.md"))], c), 0.0)
+            dec = "ESCALATE\n"
+            ev = {"job_dir": job, "worktree": None, "clone": None}
+            c1 = ctx("approver", dec, [call("Bash", command=f"cat {job}/round-1/*.md")], job_dir=job)
+            self.assertEqual(EV.RULES["evidence_reread"](c1), 2 / 3)          # checks.md and review-code.md; no diff
+            c2 = ctx("approver", dec, [call("Read", file_path=str(job / "round-1"))], job_dir=job)
+            self.assertEqual(EV.RULES["evidence_reread"](c2), 2 / 3)
+            c3 = ctx("approver", dec, [call("Read", file_path=str(job / "spec.md"))], job_dir=job)
+            self.assertEqual(EV.RULES["evidence_reread"](c3), 0.0)
 
     # ---- builder
     def test_builder_runs_the_checks_and_never_weakens_a_test(self):

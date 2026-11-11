@@ -88,11 +88,11 @@ class Factory(unittest.TestCase):
         self.bin("job", "advance", job_id, "build")
         return job_id, d
 
-    def build_commit(self, job_id, d, path="feature.txt", pr=1, repo=None):
+    def build_commit(self, job_id, d, path="feature.txt", pr=1, repo=None, text="x\n"):
         job = self.job_json(job_id)
         wt = Path(job["worktree"])
         (wt / path).parent.mkdir(parents=True, exist_ok=True)
-        (wt / path).write_text("x\n")
+        (wt / path).write_text(text)
         sh("git", "add", "-A", cwd=wt)
         sh("git", "commit", "-q", "-m", "feat", cwd=wt)
         sh("git", "push", "-q", "origin", job["branch"], cwd=wt)
@@ -163,6 +163,39 @@ class Factory(unittest.TestCase):
         self.assertEqual(self.job_json(job_id)["stage"], "merged")
         self.assertEqual(self.gh_state()["prs"]["me/alpha"]["1"]["state"], "MERGED")
         self.assertFalse(wt.exists())
+
+    def in_review(self, number, path, text):
+        self.add_issue("me/alpha", number, f"Feature {number}")
+        job_id, d = self.to_build("alpha", number)
+        self.build_commit(job_id, d, path=path, pr=number, text=text)
+        self.bin("job", "advance", job_id, "gate")
+        self.bin("gate", job_id)
+        self.bin("job", "advance", job_id, "review")
+        return job_id
+
+    def test_the_diff_adds_the_security_reviewer_when_intake_rated_the_job_ui_only(self):
+        safe = self.in_review(21, "style.css", ".sun { width: 40vw; }\n")
+        self.assertIn("no security trigger", self.bin("route", safe, "--diff").stdout)
+        self.assertNotIn("security", self.job_json(safe)["agents"]["reviewers"])
+        risky = self.in_review(22, "search.js", "box.innerHTML = query;\n")
+        out = self.bin("route", risky, "--diff").stdout
+        self.assertIn("security reviewer added", out)
+        self.assertIn("search.js", out)
+        self.assertIn("security", self.job_json(risky)["agents"]["reviewers"])
+        self.assertIn("code", self.job_json(risky)["agents"]["reviewers"])      # adds, never replaces
+        self.assertIn("already routed", self.bin("route", risky, "--diff").stdout)
+
+    def test_a_sensitive_path_alone_adds_the_security_reviewer(self):
+        job_id = self.in_review(23, "deploy.sh", "echo hi\n")
+        self.assertIn("deploy.sh matches", self.bin("route", job_id, "--diff").stdout)
+
+    def test_route_diff_needs_a_job_in_review_and_cannot_drop_a_reviewer(self):
+        self.add_issue("me/alpha", 24, "Early")
+        job_id, _ = self.to_build("alpha", 24)
+        self.assertIn("once the gate has passed", self.bin("route", job_id, "--diff", ok=False).stderr)
+        review = self.in_review(25, "a.txt", "x\n")
+        res = self.bin("job", "agents", review, json.dumps({"reviewers": {}}), ok=False)
+        self.assertIn("can't be removed", res.stderr)
 
     def test_gate_uses_the_targets_own_checks_and_protects_its_paths(self):
         self.add_issue("me/beta", 2, "Touch CI")
@@ -282,6 +315,41 @@ class Factory(unittest.TestCase):
         out = self.bin("job", "summary").stdout
         self.assertIn("orchestration while no job was running", out)
         self.assertRegex(out, r"Orchestr\.\s+\$")
+
+    def test_orchestration_while_a_job_waits_for_its_author_is_not_billed_to_it(self):
+        import re as _re
+        from datetime import datetime, timedelta, timezone
+        self.add_issue("me/alpha", 15, "Waits")
+        a = self.bin("job", "create", "alpha", "15").stdout.strip()
+        base = datetime.now(timezone.utc) - timedelta(minutes=30)
+        iso = lambda dt: dt.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        path = self.root / "factory" / "jobs" / a / "job.json"
+        job = json.loads(path.read_text())
+        job.update(started=iso(base), ended=iso(base + timedelta(minutes=20)), stage="merged", history=[
+            {"stage": "intake", "ts": iso(base)}, {"stage": "needs-info", "ts": iso(base + timedelta(minutes=5))},
+            {"stage": "intake", "ts": iso(base + timedelta(minutes=15))}, {"stage": "merged", "ts": iso(base + timedelta(minutes=20))}])
+        path.write_text(json.dumps(job))
+        slug = _re.sub(r"[^A-Za-z0-9]", "-", str(self.root))
+        proj = self.tmp / "claude" / "projects" / slug
+        proj.mkdir(parents=True)
+        asst = lambda mid, when: {"type": "assistant", "timestamp": iso(when), "message": {
+            "id": mid, "model": "claude-opus-5-5", "usage": {"input_tokens": 1000000, "output_tokens": 0}}}
+        skill = {"type": "assistant", "timestamp": iso(base - timedelta(minutes=1)), "message": {
+            "id": "s0", "model": "claude-opus-5-5", "usage": {"input_tokens": 0, "output_tokens": 0},
+            "content": [{"type": "tool_use", "name": "Skill", "input": {"skill": "factory"}}]}}
+        lines = [skill, asst("running", base + timedelta(minutes=1)), asst("parked", base + timedelta(minutes=10)),
+                 asst("much-later", base + timedelta(hours=5))]
+        (proj / "run.jsonl").write_text("\n".join(json.dumps(x) for x in lines) + "\n")
+        other = [{"type": "assistant", "timestamp": iso(base - timedelta(hours=3)), "message": {   # a session that ran no job
+            "id": "d0", "model": "claude-opus-5-5", "usage": {"input_tokens": 0, "output_tokens": 0},
+            "content": [{"type": "tool_use", "name": "Skill", "input": {"skill": "factory"}}]}}, asst("dev", base - timedelta(hours=2))]
+        (proj / "dev.jsonl").write_text("\n".join(json.dumps(x) for x in other) + "\n")
+        self.bin("job", "sync", a)
+        price = json.loads((self.root / "factory" / "config.json").read_text())["prices_usd_per_mtok"]["claude-opus-5-5"]["input"]
+        self.assertAlmostEqual(self.job_json(a)["cost_by_agent"]["orchestrator"], price, places=3)   # only the running minute
+        over = json.loads((self.root / "factory" / "jobs" / "_orchestration.json").read_text())
+        self.assertAlmostEqual(over["outside_jobs_usd"], price, places=3)       # the parked minute, inside a run
+        self.assertAlmostEqual(over["outside_sessions_usd"], 2 * price, places=3)  # a dev session and a message hours later
 
     def test_queue_gives_the_pr_url_for_a_job_that_needs_a_human(self):
         self.add_issue("me/alpha", 13, "Needs me")

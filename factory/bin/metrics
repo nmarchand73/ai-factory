@@ -13,7 +13,8 @@ Five groups, each answering one question:
   productivity   how much gets done and how fast: throughput, lead time (and how much of it a person adds), WIP
   flow quality   how clean the flow is: first-pass yield, rounds, autonomy (merged with no human), escalations
   agents         how good the agents are: confidence scores, the weakest agent, eval health
-  cost           what a merged job costs, what is wasted, what the orchestrator adds
+  cost           what a merged job costs (jobs from before cost tracking are left out), what is wasted, what the
+                 orchestrator adds
   vitality       is it alive and improving: recent activity, stuck jobs, the retrospective loop
 
 Each KPI has a target and a direction (higher or lower is better) in factory/config.json under `metrics.targets`;
@@ -23,6 +24,7 @@ lead time is end minus start and their human wait is unknown, which is left out,
 """
 import json
 import os
+import shutil
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -55,6 +57,9 @@ DEFAULTS = {
         "stuck_jobs": [0, False],
         "idle_days": [3, False],
         "change_delivery_rate": [0.5, True],
+        "security_lens_fire_rate": [0.1, True],
+        "browser_tool_available": [1, True],
+        "cycles_with_zero_jobs": [0, False],
     },
 }
 
@@ -163,6 +168,9 @@ def job_facts(j, at):
         "rework": max(0, stages.count("build") - 1) if stages else None,
         "last_change": ts((j.get("history") or [{}])[-1].get("ts")) if j.get("history") else (ended or started),
         "decided": bool((j.get("intake") or {}).get("decision") == "ACCEPT"),
+        "instrumented": bool(j.get("skill_versions")),   # jobs from before skill versions were recorded had no cost tracking either
+        "reviewed": any(h["stage"] == "review" for h in (j.get("history") or [])) or bool((j.get("agents") or {}).get("reviewers")),
+        "security": "security" in ((j.get("agents") or {}).get("reviewers") or {}),
     }
 
 
@@ -236,8 +244,9 @@ def compute():
         for a, c in f["by_agent"].items():
             by_agent[a] = by_agent.get(a, 0.0) + c
     wasted = sum(f["cost"] for f in recent if f["stage"] in TERMINAL and f["stage"] != "merged")
+    costed = [f for f in merged if f["instrumented"]] or merged   # jobs run before cost tracking would drag the average down
     cost = {
-        "total_usd": round(total, 4), "per_merged_job_usd": round(sum(f["cost"] for f in merged) / len(merged), 4) if merged else None,
+        "total_usd": round(total, 4), "per_merged_job_usd": round(sum(f["cost"] for f in costed) / len(costed), 4) if costed else None,
         "waste_usd": round(wasted, 4), "waste_share": ratio(wasted, total),
         "orchestrator_overhead_usd": round(overhead, 4), "overhead_share": ratio(overhead, total + overhead),
         "by_agent_usd": {k: round(v, 4) for k, v in sorted(by_agent.items(), key=lambda kv: -kv[1])},
@@ -266,6 +275,10 @@ def compute():
         "eval_coverage": ratio(len(runs), cases_total),
         "last_eval_age_days": round(hours(last_eval, at) / 24, 1) if last_eval else None,
     }
+    reviewed = [f for f in recent if f["reviewed"]]
+    agents["security_lens_fire_rate"] = ratio(sum(1 for f in reviewed if f["security"]), len(reviewed))
+    # the browser reviewers and the builder need a shared tool, not one script per agent (job 004 had five)
+    agents["browser_tool_available"] = 1 if shutil.which("agent-browser") or (FACTORY / "bin" / "browse").exists() else 0
 
     # vitality and learning
     board = load(FACTORY / "evolution" / "board.json", {}) or {}
@@ -283,6 +296,8 @@ def compute():
         "change_delivery_rate": ratio(sum(1 for a in measured if a["verdict"] == "delivered"), len(measured)),
         "last_cycle_age_days": round(hours(last_cycle, at) / 24, 1) if last_cycle else None,
         "overall_trend": [c.get("overall") for c in cycles][-8:],
+        # a cycle closed with no job is a sign it was closed too early or opened by mistake
+        "cycles_with_zero_jobs": sum(1 for c in cycles if c.get("jobs") == 0),
     }
     stuck_cfg = s["stuck_hours"]
     stuck = []
@@ -345,6 +360,8 @@ def compute():
         "eval_pass_rate": agents["eval_pass_rate"], "cost_per_merged_job_usd": cost["per_merged_job_usd"],
         "waste_share": cost["waste_share"], "overhead_share": cost["overhead_share"], "stuck_jobs": len(stuck),
         "idle_days": vitality["idle_days"], "change_delivery_rate": learning["change_delivery_rate"],
+        "security_lens_fire_rate": agents["security_lens_fire_rate"], "browser_tool_available": agents["browser_tool_available"],
+        "cycles_with_zero_jobs": learning["cycles_with_zero_jobs"],
     }
     kpis = {k: {"value": v, "target": s["targets"][k][0], "higher_is_better": s["targets"][k][1],
                 "status": status(v, s["targets"][k][0], s["targets"][k][1])} for k, v in values.items() if k in s["targets"]}

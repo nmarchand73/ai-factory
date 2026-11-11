@@ -77,6 +77,23 @@ Read `job.json` with `cat` when you need a field. Read agents' files only by
 their first line (`head -1`); the agents put the detail there for the next
 agent and for the human, not for you. Your context has to last the whole run.
 
+## Keeping the run cheap
+
+Your own tokens were about 40% of a job's cost (job 004: roughly 35 turns, each re-reading a 125-167k token
+context). The cost is the size of the context times the number of turns, so spend neither.
+
+- **One run, one session.** `/factory run` belongs in a session of its own, started fresh. Don't run it in a
+  session that already built the factory, ran an earlier run, or held a retrospective: its context is paid
+  again on every turn. If your context is already large when a run starts, say so in one line and ask the user to
+  start a new session. After a run, `/factory retro`, `eval`, `health` and chatting about a job go in another one.
+- **Few, full turns.** Chain what a transition needs in one Bash call (`factory/bin/job advance <id> spec && factory/bin/route <id>`
+  where order allows; never chain across an agent). Advance every job whose agent has finished in the same message, and
+  start every `new` and `resume` line from one `job queue` in one message.
+- **Say nothing between agents.** While agents run, end the turn with the one-line status and nothing else. When a
+  notification needs no action (one reviewer of several finished: run `job sync`, then stop), don't narrate it.
+- **Read fields, not files.** `jq -r .stage factory/jobs/<id>/job.json`, not `cat`; `head -1` for an agent's
+  file. Never read a transcript or an agent's output file.
+
 ## Spawning agents
 
 Spawn every agent with the Agent tool, in the background, with
@@ -132,7 +149,8 @@ gate's `round-<N-1>/checks.md`, the reviews in `round-<N-1>/`, or
 
 **gate.** Run `factory/bin/gate <id>`. It prints `GATE: PASS` or `GATE: FAIL`.
 
-- PASS: `factory/bin/job advance <id> review` and go to **review**.
+- PASS: `factory/bin/job advance <id> review`, then `factory/bin/route <id> --diff` (it adds the security reviewer when
+  the diff touches a sensitive path or adds a risky line, whatever intake rated), and go to **review**.
 - FAIL: `factory/bin/job advance <id> build`. If it refuses because this was the
   last round, `factory/bin/job advance <id> needs-human` instead. Otherwise
   resume the builder for the next round with
@@ -161,7 +179,8 @@ finished:
   posts the decision on it and labels the issue `factory:needs-human`.
 
 A job is finished for this run when it reaches `merged`, `rejected`,
-`needs-info` or `needs-human`.
+`needs-info` or `needs-human`. `needs-info` only pauses it: the job keeps its cycle and `evolve cycle close`
+waits until it has been answered and has finished.
 
 A person can merge a job's PR by hand at any stage. `factory/bin/job queue`
 then moves the job to `merged`; stop any agents still running for it.
@@ -193,9 +212,12 @@ then moves the job to `merged`; stop any agents still running for it.
    and questions waiting on authors, each with its issue URL (`issue_url` in `job.json`).
    Then run `factory/bin/eval report`: it prints the confidence score of every
    agent and refreshes the dashboard's Agents panel.
-5. **Retrospective.** Run `factory/bin/evolve cycle close`: it scores the cycle, snapshots it, measures
-   the earlier changes and writes `factory/evolution/cycles/<cycle>/input.json`. When the cycle had no
-   job, stop here. Otherwise spawn `retrospective` with a header
+5. **Retrospective.** Only when no job of the run is still running or waiting for an author (`needs-info`):
+   a parked job resumes later in the same cycle, so don't close it yet. `needs-human` jobs don't block. Run
+   `factory/bin/evolve cycle close`: it scores the cycle, snapshots it, measures
+   the earlier changes and writes `factory/evolution/cycles/<cycle>/input.json`. It refuses a cycle that is
+   already closed or that still has jobs running or waiting (`--force` overrides, only to rebuild a stale
+   snapshot). When the cycle had no job, stop here. Otherwise spawn `retrospective` with a header
    `Job: <cycle>. Job folder: <root>/factory/evolution/cycles/<cycle>/. Factory root: <root>. Cycle: <cycle>.`
    It writes `plan.json`. Run `factory/bin/evolve plan check <cycle>`: when it refuses, send its message
    back to the retrospective (`SendMessage`), at most twice. Then follow **Human review of the plan**.

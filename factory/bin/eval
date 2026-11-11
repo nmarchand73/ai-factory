@@ -33,6 +33,8 @@ Usage:
 
 import importlib.machinery
 import importlib.util
+import fnmatch
+import glob
 import json
 import os
 import re
@@ -232,9 +234,16 @@ def format_checks(agent, text):
 # ---- Transcripts: process metrics ------------------------------------------
 
 
+def result_text(content):
+    """The text of a tool result (a string or a list of blocks)."""
+    if isinstance(content, str):
+        return content[:20000]
+    return "\n".join(b.get("text", "") for b in content or [] if isinstance(b, dict))[:20000]
+
+
 def parse_transcript(path):
     """A subagent transcript reduced to what the process metrics need."""
-    calls, results, final_text, final_handback = [], {}, None, None
+    calls, results, texts, final_text, final_handback = [], {}, {}, None, None
     stamps, usage = [], {}
     with open(path) as f:
         for line in f:
@@ -263,8 +272,10 @@ def parse_transcript(path):
                 for block in content:
                     if block.get("type") == "tool_result":
                         results[block.get("tool_use_id")] = bool(block.get("is_error"))
+                        texts[block.get("tool_use_id")] = result_text(block.get("content"))
     for c in calls:
         c["error"] = results.get(c["id"], False)
+        c["result"] = texts.get(c["id"], "")
     cost = 0.0
     for model, u in usage.values():
         usd = jobmod().usage_cost(model, u)
@@ -278,6 +289,73 @@ def parse_transcript(path):
 def call_text(call):
     i = call["input"]
     return " ".join(str(i.get(k, "")) for k in ("file_path", "path", "command", "pattern"))
+
+
+GLOB_CHARS = re.compile(r"[*?\[]")
+TOKEN_RE = re.compile(r"[^\s'\"`;|&()<>=]+")
+
+
+def _names_under(d, depth=2):
+    """File names (relative to d) under a directory, a couple of levels deep."""
+    out = []
+    base = Path(d)
+    try:
+        for p in base.rglob("*"):
+            if p.is_file() and len(p.relative_to(base).parts) <= depth:
+                out.append(str(p.relative_to(base)))
+    except OSError:
+        pass
+    return out
+
+
+def expand_touched(calls, ctx):
+    """Names a call reaches without spelling them: a glob (`round-*/review-*.md`) or a directory (Read, Glob, ls, cat,
+    or a shell loop over the job folder), expanded against the job folder, the worktree and the clone."""
+    bases = [Path(p) for p in (ctx.get("job_dir"), ctx.get("worktree"), ctx.get("clone")) if p and Path(p).exists()]
+    out = []
+    for c in calls:
+        cmd = str(c["input"].get("command", ""))
+        shell_read = c["name"] == "Bash" and re.search(r"\b(for|cat|head|tail|ls|find|grep|rg|wc)\b", cmd)
+        for tok in TOKEN_RE.findall(call_text(c)):
+            if tok.startswith("-"):
+                continue
+            glob_tok = bool(GLOB_CHARS.search(tok))
+            for base in bases:
+                rel = None
+                if tok.startswith("/"):
+                    try:
+                        rel = str(Path(tok).relative_to(base))
+                    except ValueError:
+                        # an unresolved variable ("$J"/*.md) leaves "/*.md": match its pattern in the folder
+                        if shell_read and glob_tok and tok.count("/") <= 1:
+                            rel = tok.lstrip("/")
+                else:
+                    rel = tok
+                if rel is None:
+                    continue
+                names = _names_under(base, 3)
+                if glob_tok:
+                    out += [n for n in names if fnmatch.fnmatch(n, rel) or fnmatch.fnmatch(Path(n).name, rel.rsplit("/", 1)[-1]) and "/" not in rel]
+                elif (base / rel).is_dir():
+                    pre = rel.rstrip("/") + "/" if rel not in {"", "."} else ""
+                    out += [n for n in names if n.startswith(pre)] + [Path(n).name for n in names if n.startswith(pre)]
+    return out
+
+
+def touched_blob(calls, ctx, results=False):
+    """What the calls name or reach: their text, the names their globs and folders expand to and, when asked, their results."""
+    parts = [call_text(c) for c in calls] + expand_touched(calls, ctx)
+    if results:
+        parts += [str(c.get("result", "")) for c in calls]
+    return "\n".join(parts)
+
+
+def mentions(blob, path):
+    """The full path or its exact basename appears in blob (not as part of a longer name)."""
+    for cand in {path, path.rsplit("/", 1)[-1]}:
+        if re.search(r"(?<![\w.-])" + re.escape(cand) + r"(?![\w-]|\.\w)", blob):
+            return True
+    return False
 
 
 def write_paths(calls):
@@ -319,12 +397,8 @@ def grounding_score(agent, calls, ctx):
     needs = REQUIRED_READS.get(key, [])
     if not needs:
         return None
-    before = []
-    for c in calls:
-        if c["name"] in {"Write", "Edit", "NotebookEdit"}:
-            break
-        before.append(call_text(c))
-    blob = "\n".join(before)
+    pre = before_first_write(calls)
+    blob = touched_blob(pre, ctx)
     return sum(1 for pat in needs if re.search(pat, blob)) / len(needs)
 
 
@@ -345,15 +419,13 @@ def expected_reply(agent, text):
 
 
 def reply_score(agent, final, text):
+    """The FIRST LINE of the final report is the verdict. The harness hands the whole report back, so the rest of it
+    is not held against the agent."""
     want = expected_reply(agent, text)
-    if not want or not final.strip():
+    lines = [l for l in (final or "").strip().splitlines() if l.strip()]
+    if not want or not lines:
         return 0.0
-    lines = [l for l in final.strip().splitlines() if l.strip()]
-    if len(lines) == 1 and lines[0].strip() == want:
-        return 1.0
-    if lines and lines[0].strip() == want:
-        return 0.7
-    return 0.3 if len(lines) <= 3 else 0.0
+    return 1.0 if lines[0].strip() == want else 0.0
 
 
 def efficiency_score(cost, peers):
@@ -561,8 +633,8 @@ def r_paths_verified(ctx):
     cited = sorted(set(FILE_RE.findall(ctx["text"] or "")))
     if not cited:
         return None
-    blob = "\n".join(call_text(c) for c in before_first_write(ctx["calls"]))
-    return sum(1 for p in cited if p in blob or p.rsplit("/", 1)[-1] in blob) / len(cited)
+    blob = touched_blob(before_first_write(ctx["calls"]), ctx, results=True)
+    return sum(1 for p in cited if mentions(blob, p)) / len(cited)
 
 
 @rule("no_vague_words")
@@ -571,10 +643,40 @@ def r_no_vague(ctx):
     return max(0.0, 1 - len(VAGUE.findall(body)) / 5)
 
 
+VERBS = set("""add adds apply applies are be becomes block blocks bump bumps call calls can change changes check checks clip clips close
+closes compute computes contain contains convert converts create creates delete deletes display displays do does draw draws emit emits
+equal equals exit exits export exports fail fails get gets handle handles has have import imports is keep keeps list lists load loads log
+logs make makes match matches move moves must open opens parse parses pass passes print prints raise raises read reads reject rejects
+remove removes render renders replace replaces report reports return returns run runs save saves send sends set sets shall should show
+shows sit sits start starts stay stays stop stops support supports take takes test tests throw throws trigger triggers update updates use
+uses validate validates will write writes""".split())
+SKIP_WORDS = {"also", "then", "still", "never", "always", "not", "it", "they", "both", "only", "just"}
+DETERMINERS = {"the", "a", "an", "its", "their", "each", "every", "no", "this", "that", "these", "those"}
+
+
+def joins_verb_phrases(req):
+    """True when an `and` / `but` joins two verb phrases or two clauses; false when it joins nouns in a list
+    ("header, player and tracklist stay readable", "X in 36-42 and Y in 364-416")."""
+    words = re.findall(r"[\w'-]+|[,;]", req.lower())
+    for i, w in enumerate(words):
+        if w not in {"and", "but"}:
+            continue
+        j = i + 1
+        while j < len(words) and words[j] in SKIP_WORDS:
+            j += 1
+        if j < len(words) and words[j] in VERBS:
+            return True
+        # a new clause: ", and the X <verb>" or "but the X <verb>"
+        if j < len(words) and words[j] in DETERMINERS and (w == "but" or (i > 0 and words[i - 1] == ",")):
+            if any(x in VERBS for x in words[j + 1:j + 4]):
+                return True
+    return False
+
+
 @rule("atomic_requirements")
 def r_atomic(ctx):
     reqs = numbered_items(section_text(ctx["text"], "Requirements"))
-    return share(reqs, lambda r: not re.search(r"\b(and|but)\b", strip_code(r), re.I))
+    return share(reqs, lambda r: not joins_verb_phrases(re.sub(r"`[^`]*`", "code", r)))
 
 
 def keywords(text):
@@ -592,7 +694,9 @@ def r_traced(ctx):
 
 
 OBSERVABLE = re.compile(r"\b(returns?|prints?|shows?|displays?|exits?|throws?|raises?|contains?|equals?|passes?|fails?|"
-                        r"is (true|false|empty|visible)|=== |== )|`(npm|node|python|pytest|go|cargo|curl|git|make)\b|\$ ", re.I)
+                        r"uses|lists|matches|keeps|stays|appears|grep|rg|sed|awk|"
+                        r"is (true|false|empty|visible)|=== |== )|`(npm|node|python3?|pytest|go|cargo|curl|git|make|grep|rg|sed|awk|ls|cat|head|diff|test)\b|\$ |"
+                        r"`[a-z][\w.-]*\s+-{1,2}[\w-]+[^`]*`|`[^`]*(<=|>=|===)[^`]*`", re.I)
 
 
 @rule("behavioural_criteria")
@@ -600,12 +704,51 @@ def r_behavioural(ctx):
     return share(numbered_items(section_text(ctx["text"], "Acceptance criteria")), lambda a: OBSERVABLE.search(a))
 
 
+CONDITION_RE = re.compile(r"\b(unless|fine only if|only if|except|if one|since|because)\b.*", re.I)
+STOP = {"this", "that", "with", "from", "into", "only", "also", "than", "your", "have", "them", "they", "away", "answer", "asked", "didn",
+        "the", "any", "and", "for", "its", "all", "new", "one", "per", "are", "not", "has", "can", "but", "you", "our", "was"}
+
+
+def content_words(text):
+    """Lower-case words of 3+ letters, without gerunds ("changing", "reworking") and filler."""
+    return [w for w in re.findall(r"[a-z]{3,}", (text or "").lower()) if not w.endswith("ing") and w not in STOP]
+
+
 def left_out_items(intake):
-    scope = (section_text(intake, "Scope") or "") + "\n" + (section_text(intake, "Summary") or "")
-    m = re.search(r"(?:left out|leaves out|out of scope)[:\s]+([^\n.]+)", scope, re.I)
-    if not m:
-        return []
-    return [i.strip(" .`") for i in re.split(r",| and ", m.group(1)) if len(i.strip(" .`")) > 3]
+    """What intake leaves out: every `Left out:` (inline or as a bullet list) of Summary and Scope, conditions removed."""
+    scope = (section_text(intake, "Scope") or "") + "\n\n" + (section_text(intake, "Summary") or "")
+    lines = scope.splitlines()
+    chunks = []
+    for n, line in enumerate(lines):
+        m = re.search(r"(?:left out|leaves out|out of scope)\s*:?\s*(.*)", line, re.I)
+        if not m:
+            continue
+        if m.group(1).strip():
+            chunks.append(re.sub(r"^[-*]\s*", "", m.group(1)))
+        for nxt in lines[n + 1:]:
+            if re.match(r"\s*[-*] ", nxt):
+                chunks.append(re.sub(r"^\s*[-*]\s*", "", nxt))
+            elif nxt.strip():
+                break
+            else:
+                break
+    items = []
+    for chunk in chunks:
+        for sentence in re.split(r"(?<=[.;])\s+", chunk):
+            if re.search(r"\b(is|are) (fine|ok|allowed)\b", sentence, re.I):
+                continue   # "A per-theme tweak is fine only if ...": a permission, not something left out
+            sentence = CONDITION_RE.sub("", sentence).strip(" .`")
+            if not sentence:
+                continue
+            for part in re.split(r",| or | and ", sentence):
+                part = part.strip(" .`")
+                if content_words(part):
+                    items.append(part)
+    return items
+
+
+def _hit(words, text, need):
+    return sum(1 for w in words if re.search(rf"\b{re.escape(w)}", text)) >= need
 
 
 @rule("out_of_scope_kept")
@@ -614,9 +757,18 @@ def r_out_of_scope(ctx):
     if not items:
         return None
     oos = (section_text(ctx["text"], "Out of scope") or "").lower()
-    reqs = (section_text(ctx["text"], "Requirements") or "").lower()
-    listed = sum(1 for i in items if i.lower() in oos or all(w in oos for w in re.findall(r"\w{4,}", i.lower())[:2]))
-    leaked = any(re.search(rf"\b{re.escape(w)}\b", reqs) for i in items for w in re.findall(r"\w{5,}", i.lower())[:1])
+    reqs = numbered_items(section_text(ctx["text"], "Requirements")) or [section_text(ctx["text"], "Requirements") or ""]
+    listed = 0
+    leaked = False
+    for i in items:
+        words = content_words(i)
+        if i.lower() in oos or _hit(words, oos, max(1, len(words) // 2)):
+            listed += 1
+        for r in reqs:
+            r = r.lower()
+            # a requirement that keeps, forbids or limits the thing does not build it
+            if not re.search(r"\b(not|never|no|keeps?|stays?|unchanged|only|without|unless|except)\b", r) and _hit(words, r, 1 if len(words) == 1 else 2):
+                leaked = True
     return (listed / len(items)) * (0.5 if leaked else 1.0)
 
 
@@ -1031,9 +1183,9 @@ def r_cite_value(ctx):
 
 @rule("evidence_reread")
 def r_evidence_reread(ctx):
-    blob = "\n".join(call_text(c) for c in ctx["calls"])
+    blob = touched_blob(ctx["calls"], ctx)
     files = changed_files(ctx)
-    diff = bool(re.search(r"git diff|git show", blob)) or bool(files and any(f in blob or f.rsplit("/", 1)[-1] in blob for f in files))
+    diff = bool(re.search(r"git diff|git show", blob)) or bool(files and any(mentions(blob, f) for f in files))
     return (diff + bool(re.search(r"checks\.md|checks\.log", blob)) + bool(re.search(r"review-", blob))) / 3
 
 
