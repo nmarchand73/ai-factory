@@ -389,9 +389,11 @@ gh issue edit {num} --repo {repo} --add-label factory"></pre><button class="copy
   <div class="panel" data-q="status" hidden>
     <div class="cb"><pre data-tpl="/factory what happened to {name}#{num}?
 /factory which jobs are waiting for a human?
-factory/bin/job summary          # table: job, project, stage, PR, cost, time" data-tpl-fr="/factory qu'est-il arrivé à {name}#{num} ?
+factory/bin/job summary          # table: job, project, stage, PR, cost, time
+                                 # + cost per project, step and agent" data-tpl-fr="/factory qu'est-il arrivé à {name}#{num} ?
 /factory quels jobs attendent un humain ?
-factory/bin/job summary          # tableau : job, projet, étape, PR, coût, durée"></pre><button class="copy" type="button" data-i18n="copy">Copy</button></div>
+factory/bin/job summary          # tableau : job, projet, étape, PR, coût, durée
+                                 # + coût par projet, étape et agent"></pre><button class="copy" type="button" data-i18n="copy">Copy</button></div>
     <p><span data-i18n="st_p">The dashboard shows one lane per project, chips per round (gate, code, ux, ui, security), and each job’s cost and duration. Click a card to read all its files.</span></p>
   </div>
   <div class="panel" data-q="human" hidden>

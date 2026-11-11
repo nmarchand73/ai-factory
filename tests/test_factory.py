@@ -242,6 +242,11 @@ class Factory(unittest.TestCase):
         self.assertEqual(set(job["cost_by_agent"]), {"builder", "reviewer-code", "reviewer-ux"})
         self.assertAlmostEqual(job["cost_by_agent"]["builder"], prices["claude-opus-5-5"]["input"], places=3)
         self.assertAlmostEqual(job["cost_usd"], sum(job["cost_by_agent"].values()), places=3)
+        out = self.bin("job", "summary").stdout
+        self.assertIn("cost by project, step and agent", out)
+        self.assertRegex(out, r"alpha\s+\$[\d.]+\s+\(1 job\)")
+        self.assertRegex(out, r"Build\s+\$[\d.]+\s+builder")
+        self.assertRegex(out, r"Review\s+\$[\d.]+\s+(code|ux)")
 
     def test_unknown_target_is_refused(self):
         res = self.bin("job", "create", "nope", "1", ok=False)
