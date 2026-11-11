@@ -145,6 +145,9 @@ def cmd_add(argv):
     info = json.loads(gh("repo", "view", repo, "--json", "defaultBranchRef,viewerPermission").stdout)
     if info["viewerPermission"] not in {"ADMIN", "MAINTAIN", "WRITE"}:
         die(f"your permission on {repo} is {info['viewerPermission']}; the factory needs write access")
+    if not info.get("defaultBranchRef"):
+        die(f"{repo} has no commits yet, so no base branch exists. Make a first commit and push it "
+            "(e.g. create it with --add-readme), then run this again.")
     base = opts["base"] or info["defaultBranchRef"]["name"]
     allowed = json.loads(gh("api", f"repos/{repo}").stdout)
     methods = [m for m, key in (("squash", "allow_squash_merge"), ("merge", "allow_merge_commit"),

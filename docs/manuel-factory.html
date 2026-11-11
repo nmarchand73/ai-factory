@@ -111,6 +111,13 @@ summary{cursor:pointer;font-weight:600;padding:10px 0}
 details[open] summary{border-bottom:1px solid var(--line);margin-bottom:8px}
 .check{list-style:none;padding:0}
 .check li{padding-left:30px;position:relative}
+.where{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin:16px 0}
+.where .card.yes{border-color:var(--ok)} .where .card.no{border-color:var(--bad)}
+.where h4 .tag{margin-left:6px}
+.case{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:6px 20px 14px;margin:18px 0;box-shadow:var(--shadow)}
+.case>h3{margin:14px 0 2px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.case .badge{display:inline-grid;place-items:center;width:28px;height:28px;border-radius:8px;background:var(--accent);color:#fff;font-size:14px;font-weight:700}
+.case .when{color:var(--muted);margin:0 0 6px;font-size:14.5px}
 .check li::before{content:"☐";position:absolute;left:0;color:var(--accent);font-size:18px;line-height:1.4}
 footer{margin-top:70px;padding-top:22px;border-top:1px solid var(--line);color:var(--muted);font-size:13.5px}
 @media (max-width:900px){
@@ -272,6 +279,17 @@ factory/bin/target list                       <span class="c"># les projets déj
       <div class="codeblock"><pre>claude</pre></div>
     </li>
   </ol>
+
+  <h3>Où lancer quoi : la règle à retenir</h3>
+  <p><b>Tout se lance depuis le repo factory.</b> Jamais depuis le projet cible. Le projet ne contient ni <code>/factory</code> ni agents : si vous y ouvrez Claude Code, la commande n’existe pas.</p>
+  <div class="where">
+    <div class="card yes"><h4>Depuis le repo factory <span class="tag t-ok">oui</span></h4><p><code>claude</code> + <code>/factory …</code><br><code>factory/bin/target add | check | list</code><br><code>factory/bin/job summary</code><br>le dashboard (<code>cd factory &amp;&amp; python3 -m http.server</code>)<br>l’édition de <code>targets/&lt;nom&gt;/checks.sh</code> et <code>notes.md</code></p></div>
+    <div class="card no"><h4>Depuis le projet cible <span class="tag t-bad">non</span></h4><p>Pas de <code>/factory</code>, pas de lancement d’agents. Vous y faites seulement votre travail habituel, et un <code>git pull</code> pour récupérer ce que la factory a fusionné.</p></div>
+    <div class="card"><h4>Depuis GitHub <span class="tag t-in">au choix</span></h4><p>Créer et étiqueter les issues, relire et merger les PR, répondre aux questions de l’intake. Aucune commande locale requise.</p></div>
+  </div>
+  <div class="callout info"><div class="t">Deux copies du projet, c’est voulu</div>
+  <p>Votre clone de travail (où vous codez) et le <b>clone de la factory</b> (<code>targets/&lt;nom&gt;/repo</code>) sont deux dossiers distincts. La factory ne lit ni n’écrit jamais votre clone : elle part toujours de la branche de base <em>sur GitHub</em> (<code>origin/main</code>), travaille dans ses propres worktrees <code>workspaces/&lt;nom&gt;/&lt;job&gt;</code>, et le résultat revient par une PR. Conséquence : <b>ce qui n’est pas poussé sur GitHub n’existe pas pour la factory</b> (commits locaux, travail non commité, branche non poussée).</p></div>
+
   <h3>Organisation du repo factory</h3>
   <div class="codeblock"><pre>.claude/skills/factory/SKILL.md    <span class="c"># /factory : l'orchestrateur</span>
 .claude/agents/                    <span class="c"># intake, spec-writer, builder, reviewer-*, approver (une seule copie)</span>
@@ -289,7 +307,58 @@ workspaces/&lt;nom&gt;/&lt;job&gt;/         <span class="c"># un worktree git pa
 <!-- 4 -->
 <section id="adapter">
   <h2><span class="num">4</span>Ajouter un projet</h2>
-  <p class="intro">Une commande déclare le projet ; deux fichiers par projet décident de la qualité de ce que la factory produira.</p>
+  <p class="intro">Le parcours est toujours le même : <b>(1)</b> le projet doit exister sur GitHub avec au moins un commit sur sa branche de base, <b>(2)</b> vous le déclarez avec <code>target add</code>, <b>(3)</b> vous complétez <code>checks.sh</code> et <code>notes.md</code>, <b>(4)</b> vous vérifiez avec <code>target check</code>. Seule l’étape (1) dépend de votre situation de départ.</p>
+
+  <h3>Quelle est votre situation de départ ?</h3>
+  <table>
+    <tr><th>Votre projet…</th><th>Aller à</th><th>À faire avant <code>target add</code></th></tr>
+    <tr><td>n’est pas encore sur GitHub (dossier local, éventuellement même pas de git)</td><td>Cas A</td><td>Le publier sur GitHub</td></tr>
+    <tr><td>est sur GitHub mais pas cloné sur cette machine</td><td>Cas B</td><td>Rien : la factory le clone elle-même</td></tr>
+    <tr><td>est sur GitHub et déjà cloné dans un dossier local</td><td>Cas C</td><td>Rien, mais pousser ce que la factory doit voir</td></tr>
+    <tr><td>n’existe pas du tout (nouveau projet)</td><td>Cas D</td><td>Créer le repo avec un premier commit</td></tr>
+  </table>
+
+  <div class="case">
+    <h3><span class="badge">A</span>Le projet n’est pas encore sur GitHub</h3>
+    <p class="when">Vous avez un dossier local (avec ou sans git). La factory ne travaille que sur GitHub : issues, branches, PR.</p>
+    <div class="codeblock"><div class="cap"><span>dans le dossier du projet (pas dans la factory)</span><button class="copy" type="button">Copier</button></div><pre>cd ~/dev/notewall
+git init -b main            <span class="c"># seulement si ce n'est pas déjà un repo git</span>
+git add -A &amp;&amp; git commit -m "Initial commit"
+gh repo create monuser/notewall --private --source . --remote origin --push</pre></div>
+    <p>Puis, <b>depuis le repo factory</b> : <code>factory/bin/target add notewall monuser/notewall</code>. La factory fait son propre clone ; votre dossier d’origine reste votre clone de travail (voir cas C pour la suite).</p>
+    <div class="callout warn"><div class="t">À vérifier</div><p>Un <code>.gitignore</code> correct avant le premier commit (pas de <code>node_modules/</code>, de secrets ni de <code>.env</code> poussés), et les <b>Issues</b> activées sur le repo (c’est le cas par défaut ; pas sur un fork).</p></div>
+  </div>
+
+  <div class="case">
+    <h3><span class="badge">B</span>Le projet est sur GitHub, pas cloné ici</h3>
+    <p class="when">Le cas le plus simple : il n’y a rien à cloner à la main.</p>
+    <div class="codeblock"><div class="cap"><span>dans le repo factory</span><button class="copy" type="button">Copier</button></div><pre>factory/bin/target add notewall monuser/notewall</pre></div>
+    <p><code>target add</code> exécute <code>gh repo clone</code> vers <code>targets/notewall/repo</code> (gitignoré), crée les trois labels sur GitHub, génère <code>checks.sh</code> et <code>notes.md</code> à compléter et enregistre le projet dans <code>config.json</code>. Vous n’avez besoin d’aucun clone personnel pour que la factory fonctionne ; clonez le projet de votre côté seulement si vous voulez en voir ou en tester le résultat.</p>
+  </div>
+
+  <div class="case">
+    <h3><span class="badge">C</span>Le projet est déjà cloné dans un dossier local</h3>
+    <p class="when">Par exemple <code>~/dev/notewall</code>. Vous n’avez <b>rien à brancher</b> : ne dites pas à la factory où il se trouve.</p>
+    <div class="codeblock"><div class="cap"><span>dans le repo factory — exactement comme au cas B</span><button class="copy" type="button">Copier</button></div><pre>factory/bin/target add notewall monuser/notewall</pre></div>
+    <ul>
+      <li>La factory crée <b>sa propre copie</b> dans <code>targets/notewall/repo</code>. Votre dossier <code>~/dev/notewall</code> n’est ni lu, ni modifié, ni verrouillé : vous continuez d’y travailler pendant qu’un job tourne.</li>
+      <li><b>Poussez d’abord</b> ce que la factory doit connaître : la branche de base est lue sur GitHub. Vérifiez avec <code>git status</code> et <code>git log origin/main..main</code> dans votre dossier ; si une commande affiche quelque chose, faites <code>git push</code>.</li>
+      <li>Après chaque merge de la factory, mettez votre clone à jour : <code>git pull</code> dans <code>~/dev/notewall</code>.</li>
+      <li>Si votre clone est en retard ou en avance sur <code>origin/main</code>, la factory n’en tient pas compte : elle construit sur la version GitHub.</li>
+    </ul>
+    <div class="callout info"><div class="t">Pourquoi ne pas réutiliser mon clone ?</div><p>Les jobs ajoutent des worktrees, font des <code>fetch</code> et suppriment des branches. Le faire dans le dossier où vous travaillez risquerait d’interférer avec vos changements en cours. Un clone dédié à la factory est plus sûr, au prix de quelques Mo de disque.</p></div>
+  </div>
+
+  <div class="case">
+    <h3><span class="badge">D</span>Le projet n’existe pas encore</h3>
+    <p class="when">Un repo vide (sans commit) est refusé par <code>target add</code> : aucune branche de base n’existe encore. Il faut au moins un premier commit.</p>
+    <div class="codeblock"><div class="cap"><span>terminal</span><button class="copy" type="button">Copier</button></div><pre>gh repo create monuser/nouveau --private --add-readme   <span class="c"># crée le repo avec un premier commit</span>
+cd ~/ai-factory                                         <span class="c"># puis, depuis la factory :</span>
+factory/bin/target add nouveau monuser/nouveau</pre></div>
+    <p>Un <code>AGENTS.md</code> minimal (setup, commandes de test) aide beaucoup les premiers jobs ; la factory peut même construire le premier squelette si l’issue le décrit bien, mais commencez par une petite base testable.</p>
+  </div>
+
+  <h3>Les quatre étapes en détail (tous cas)</h3>
   <ol class="steps">
     <li><strong>Déclarer le projet</strong>
       Clone local, labels GitHub, fichiers à compléter et entrée dans <code>config.json</code>, en une commande :
@@ -569,7 +638,7 @@ utiliser et attend votre choix (needs-human). Reco : écriture manuscrite.</span
 <section id="depannage">
   <h2><span class="num">11</span>Dépannage</h2>
   <details><summary><code>/factory run</code> ne trouve rien (« queue » vide)</summary>
-    <p>Aucune issue ouverte n’a le label <code>factory</code>. Vérifiez : <code>gh issue list --label factory</code>. Si le label n’existe pas, créez-le (voir §3).</p></details>
+    <p>Aucune issue ouverte n’a le label <code>factory</code>. Vérifiez : <code>gh issue list --label factory</code>. Si le label n’existe pas, <code>factory/bin/target add</code> le crée (ou relancez-le via <code>target check</code> pour voir ce qui manque).</p></details>
   <details><summary><code>job create</code> refuse l’issue</summary>
     <p>Elle n’est pas étiquetée, ou plus ouverte, ou aucune place de concurrence n’est libre (<code>hold</code>). Le message du script dit pourquoi : corrigez la cause, ne contournez pas.</p></details>
   <details><summary>Le gate échoue en boucle dès le premier tour</summary>
@@ -584,6 +653,16 @@ utiliser et attend votre choix (needs-human). Reco : écriture manuscrite.</span
     <p><code>job merge</code> resynchronise avec la base et relance le gate ; en cas de conflit ou d’échec, le job passe en <code>needs-human</code> avec la raison. Vérifiez que <code>merge_method</code> est autorisée par le repo et que la protection de branche n’exige pas une revue humaine.</p></details>
   <details><summary><code>job queue</code> affiche une ligne <code>error</code></summary>
     <p>Les appels GitHub de ce projet ont échoué (droits, réseau, repo renommé). Les autres projets continuent. Relancez <code>factory/bin/target check &lt;projet&gt;</code>. Rappel : <code>/factory run 4</code> est refusé comme ambigu avec plusieurs projets ; écrivez <code>&lt;projet&gt;#4</code>.</p></details>
+  <details><summary><code>/factory</code> n’existe pas dans ma session Claude Code</summary>
+    <p>Vous avez lancé <code>claude</code> depuis le projet cible (ou un autre dossier). Quittez, puis <code>cd</code> dans le repo factory et relancez <code>claude</code> : le skill et les agents sont dans son dossier <code>.claude/</code>.</p></details>
+  <details><summary><code>target add</code> échoue au clone ou sur les droits</summary>
+    <p>Vérifiez <code>gh auth status</code> et que vous avez le droit d’écriture sur le repo (<code>gh repo view owner/repo --json viewerPermission</code>). Un repo privé d’une organisation peut exiger une autorisation SSO pour votre token. Le message de <code>target add</code> cite la commande qui a échoué.</p></details>
+  <details><summary><code>target add</code> dit que le repo n’a pas de commit, ou <code>target check</code> que la branche de base n’existe pas</summary>
+    <p>Le repo a une autre branche par défaut que celle déclarée. Faites un premier commit et poussez-le, ou déclarez la bonne branche : <code>target add … --base develop</code>.</p></details>
+  <details><summary>La factory ne voit pas mes dernières modifications</summary>
+    <p>Elle part de <code>origin/&lt;base&gt;</code> sur GitHub. Poussez vos commits (<code>git push</code>) ; le travail non commité ou resté en local n’est jamais pris en compte.</p></details>
+  <details><summary>J’ai déjà un clone local : faut-il le déclarer ?</summary>
+    <p>Non. Voir le cas C du §4 : la factory garde son propre clone dans <code>targets/&lt;nom&gt;/repo</code> et n’utilise jamais votre dossier.</p></details>
   <details><summary>Le dashboard n’affiche rien</summary>
     <p>Lancez le serveur <em>depuis le dossier <code>factory/</code></em> (<code>cd factory &amp;&amp; python3 -m http.server</code>). Sans job dans <code>factory/jobs/</code>, il est vide.</p></details>
 </section>
@@ -592,6 +671,7 @@ utiliser et attend votre choix (needs-human). Reco : écriture manuscrite.</span
 <section id="aide-memoire">
   <h2><span class="num">12</span>Aide-mémoire</h2>
   <div class="grid">
+    <div class="card"><h4>Où lancer ?</h4><p>Toujours depuis le repo <b>factory</b> (<code>claude</code>, <code>/factory</code>, <code>target</code>). Jamais depuis le projet.</p></div>
     <div class="card"><h4>Ajouter un projet</h4><p><code>factory/bin/target add &lt;nom&gt; owner/repo</code> → <code>checks.sh</code> + <code>notes.md</code> → <code>target check &lt;nom&gt;</code></p></div>
     <div class="card"><h4>Lancer</h4><p><code>gh issue edit N --repo owner/repo --add-label factory</code> puis <code>/factory run &lt;nom&gt;</code></p></div>
     <div class="card"><h4>Une seule issue</h4><p><code>/factory run &lt;nom&gt;#N</code></p></div>
