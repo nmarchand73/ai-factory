@@ -100,7 +100,9 @@ class BrowseHelper(unittest.TestCase):
         self.assertNotEqual(self.run_browse("http://x/", "--viewport", "big").returncode, 0)
 
     def test_no_chrome_exits_2(self):
-        res = self.run_browse("http://127.0.0.1:1/", env={"BROWSE_CHROME": "/nonexistent/chrome", "PATH": "/usr/bin:/bin"})
+        empty = Path(tempfile.mkdtemp())       # a PATH with no browser, whatever the machine has installed in /usr/bin
+        self.addCleanup(shutil.rmtree, empty, True)
+        res = self.run_browse("http://127.0.0.1:1/", env={"BROWSE_CHROME": "/nonexistent/chrome", "PATH": str(empty)})
         if self.chrome and "/Applications" in self.chrome:
             self.skipTest("Chrome found in /Applications regardless of PATH")
         self.assertEqual(res.returncode, 2)
