@@ -1,0 +1,246 @@
+#!/usr/bin/env python3
+"""Manage the projects (targets) the factory builds.
+
+Usage:
+  target list
+  target add <name> <owner/repo> [--base BRANCH] [--merge merge|squash|rebase] [--protect GLOB ...]
+  target check <name>
+
+`add` clones the repo to targets/<name>/repo, creates the factory labels on it,
+scaffolds targets/<name>/checks.sh and notes.md, and registers it in
+factory/config.json. `check` proves the target is ready: gh access, push
+permission, the base branch, the merge method, the labels, and that a fresh
+worktree passes checks.sh.
+"""
+
+import fcntl
+import json
+import os
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+CONFIG_PATH = ROOT / "factory" / "config.json"
+GH = os.environ.get("FACTORY_GH", "gh")
+
+CHECKS_TEMPLATE = """#!/usr/bin/env bash
+# Checks for the target "{name}". The gate runs this script from the factory,
+# inside a job's worktree, so a branch can't edit the checks it is judged by.
+# Keep it fast, deterministic and non-interactive: no watch modes, no prompts,
+# nothing that rewrites files. Exit non-zero on any failure.
+#
+# Replace the line below with this project's real commands, e.g.:
+#   npm ci --prefer-offline && npm run lint && npm test -- --run && npm run build
+set -euo pipefail
+
+echo "targets/{name}/checks.sh has no checks yet. Add this project's test, lint, typecheck and build commands." >&2
+exit 1
+"""
+
+NOTES_TEMPLATE = """# {name} ({repo}): notes for the factory's agents
+
+The agents read this file and the project's own AGENTS.md or CLAUDE.md. Jobs run
+in a fresh git worktree outside the repo, so this file is canonical when the
+project's own docs are thin. Keep each section short and concrete.
+
+## Setup
+How to prepare a fresh checkout (install dependencies, env files to copy).
+
+## Dev server
+How to start it on a given port, if the project has one.
+
+## Validation
+The commands that targets/{name}/checks.sh runs.
+
+## Hot spots (security reviewer)
+Auth, data access rules, payment and webhook code, where user input meets queries or HTML.
+
+## Design (UI and UX reviewers)
+Where design tokens, theme and shared components live; who the users are.
+
+## Always escalate (approver)
+What a human must always see in this project.
+
+## What this project is for (intake)
+One line, so intake can tell what belongs.
+"""
+
+
+def die(msg, code=1):
+    print(f"target: {msg}", file=sys.stderr)
+    sys.exit(code)
+
+
+def sh(cmd, cwd=None, check=True):
+    res = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
+    if check and res.returncode != 0:
+        die(f"`{' '.join(cmd)}` failed: {(res.stderr or res.stdout).strip()}")
+    return res
+
+
+def gh(*args, check=True):
+    return sh([GH, *args], check=check)
+
+
+def load():
+    return json.loads(CONFIG_PATH.read_text())
+
+
+def save(config):
+    """Atomic write under a lock so a running factory never reads half a file."""
+    with open(CONFIG_PATH.with_suffix(".lock"), "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        tmp = CONFIG_PATH.with_suffix(".tmp")
+        tmp.write_text(json.dumps(config, indent=2) + "\n")
+        tmp.replace(CONFIG_PATH)
+
+
+def labels_of(config):
+    return config["labels"]
+
+
+LABEL_STYLE = {
+    "queue": ("5319E7", "Build this with the software factory"),
+    "needs_info": ("FBCA04", "The factory asked the author a question"),
+    "needs_human": ("D93F0B", "The factory needs a human decision on the PR"),
+}
+
+
+def cmd_list():
+    config = load()
+    if not config["targets"]:
+        print("no targets; add one with: factory/bin/target add <name> <owner/repo>")
+    for name, t in config["targets"].items():
+        clone = ROOT / "targets" / name / "repo"
+        print(f"{name}\t{t['repo']}\t{t['base_branch']}\t{t['merge_method']}\t{'cloned' if clone.exists() else 'NOT CLONED'}")
+
+
+def cmd_add(argv):
+    args = list(argv)
+    if len(args) < 2:
+        die(__doc__.strip())
+    name, repo, rest = args[0], args[1], args[2:]
+    opts = {"base": None, "merge": None, "protect": []}
+    i = 0
+    while i < len(rest):
+        flag = rest[i]
+        if flag in {"--base", "--merge"} and i + 1 < len(rest):
+            opts[flag[2:]] = rest[i + 1]
+            i += 2
+        elif flag == "--protect" and i + 1 < len(rest):
+            opts["protect"].append(rest[i + 1])
+            i += 2
+        else:
+            die(f"bad option {flag!r}\n\n{__doc__.strip()}")
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,30}", name):
+        die("target name: lowercase letters, digits and dashes, up to 31 characters")
+    if not re.fullmatch(r"[\w.-]+/[\w.-]+", repo):
+        die("repo must look like owner/name")
+    config = load()
+    if name in config["targets"]:
+        die(f"target {name} already exists")
+
+    info = json.loads(gh("repo", "view", repo, "--json", "defaultBranchRef,viewerPermission").stdout)
+    if info["viewerPermission"] not in {"ADMIN", "MAINTAIN", "WRITE"}:
+        die(f"your permission on {repo} is {info['viewerPermission']}; the factory needs write access")
+    base = opts["base"] or info["defaultBranchRef"]["name"]
+    allowed = json.loads(gh("api", f"repos/{repo}").stdout)
+    methods = [m for m, key in (("squash", "allow_squash_merge"), ("merge", "allow_merge_commit"),
+                                ("rebase", "allow_rebase_merge")) if allowed.get(key)]
+    merge = opts["merge"] or (methods[0] if methods else "merge")
+    if opts["merge"] and opts["merge"] not in methods:
+        die(f"{repo} doesn't allow merge method {opts['merge']} (allowed: {', '.join(methods)})")
+
+    tdir = ROOT / "targets" / name
+    clone = tdir / "repo"
+    tdir.mkdir(parents=True, exist_ok=True)
+    if not clone.exists():
+        gh("repo", "clone", repo, str(clone))
+    for key, (color, desc) in LABEL_STYLE.items():
+        gh("label", "create", labels_of(config)[key], "--color", color, "--description", desc,
+           "--force", "--repo", repo)
+    checks = tdir / "checks.sh"
+    if not checks.exists():
+        checks.write_text(CHECKS_TEMPLATE.format(name=name))
+        checks.chmod(0o755)
+    notes = tdir / "notes.md"
+    if not notes.exists():
+        notes.write_text(NOTES_TEMPLATE.format(name=name, repo=repo))
+
+    config["targets"][name] = {"repo": repo, "base_branch": base, "merge_method": merge,
+                               "protected_paths": opts["protect"] or [".github/workflows/*"]}
+    save(config)
+    print(f"target {name}: {repo}, base {base}, merge {merge}")
+    print(f"next: edit targets/{name}/checks.sh and notes.md, then: factory/bin/target check {name}")
+
+
+def cmd_check(name):
+    config = load()
+    t = config["targets"].get(name) or die(f"unknown target {name!r}")
+    repo, base = t["repo"], t["base_branch"]
+    clone = ROOT / "targets" / name / "repo"
+    failures = []
+
+    def step(label, ok, detail=""):
+        print(f"{'ok  ' if ok else 'FAIL'}  {label}" + (f": {detail}" if detail else ""))
+        if not ok:
+            failures.append(label)
+        return ok
+
+    res = gh("auth", "status", check=False)
+    step("gh is authenticated", res.returncode == 0)
+    res = gh("repo", "view", repo, "--json", "viewerPermission,defaultBranchRef", check=False)
+    perm = json.loads(res.stdout)["viewerPermission"] if res.returncode == 0 else None
+    step("write access to the repo", perm in {"ADMIN", "MAINTAIN", "WRITE"}, perm or "repo not reachable")
+    if not step("clone exists", clone.exists(), str(clone)):
+        return finish(failures)
+    origin = sh(["git", "remote", "get-url", "origin"], cwd=clone, check=False).stdout.strip()
+    step("clone's origin is the repo", origin.removesuffix(".git").endswith(repo), origin)
+    sh(["git", "fetch", "origin", base], cwd=clone, check=False)
+    step(f"base branch {base} exists on origin",
+         sh(["git", "rev-parse", "--verify", f"origin/{base}"], cwd=clone, check=False).returncode == 0)
+    res = gh("api", f"repos/{repo}", check=False)
+    allow = {"merge": "allow_merge_commit", "squash": "allow_squash_merge", "rebase": "allow_rebase_merge"}
+    step(f"merge method {t['merge_method']} is allowed",
+         res.returncode == 0 and json.loads(res.stdout).get(allow[t["merge_method"]], False))
+    res = gh("label", "list", "--repo", repo, "--json", "name", "--limit", "200", check=False)
+    have = {l["name"] for l in json.loads(res.stdout)} if res.returncode == 0 else set()
+    missing = [n for n in config["labels"].values() if n not in have]
+    step("factory labels exist", not missing, ", ".join(missing))
+    checks = ROOT / "targets" / name / "checks.sh"
+    if step("checks.sh exists", checks.exists()):
+        tmp = ROOT / "workspaces" / name / "_check"
+        sh(["git", "worktree", "remove", "--force", str(tmp)], cwd=clone, check=False)
+        tmp.parent.mkdir(parents=True, exist_ok=True)
+        if step("fresh worktree of the base branch",
+                sh(["git", "worktree", "add", "--detach", str(tmp), f"origin/{base}"], cwd=clone, check=False).returncode == 0):
+            res = subprocess.run(["bash", str(checks)], cwd=tmp, capture_output=True, text=True)
+            tail = "\n".join((res.stdout + res.stderr).rstrip().splitlines()[-8:])
+            step("checks.sh passes on a fresh checkout", res.returncode == 0, "" if res.returncode == 0 else "\n" + tail)
+            sh(["git", "worktree", "remove", "--force", str(tmp)], cwd=clone, check=False)
+    finish(failures)
+
+
+def finish(failures):
+    if failures:
+        die(f"{len(failures)} check(s) failed: {', '.join(failures)}")
+    print("target is ready")
+
+
+def main(argv):
+    if not argv or argv[0] in {"-h", "--help"}:
+        print(__doc__.strip())
+    elif argv[0] == "list":
+        cmd_list()
+    elif argv[0] == "add":
+        cmd_add(argv[1:])
+    elif argv[0] == "check" and len(argv) == 2:
+        cmd_check(argv[1])
+    else:
+        die(f"bad arguments\n\n{__doc__.strip()}")
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])

@@ -1,20 +1,22 @@
 ---
 name: factory
-description: Run the software factory on GitHub issues. Use when the user types /factory run, /factory run <n>, or /factory followed by anything else (a question, feedback on a job, or a new feature). The session that runs it becomes the one orchestrator for every job.
+description: Run the software factory on GitHub issues. Use when the user types /factory run, /factory run <target>, /factory run <target>#<n>, or /factory followed by anything else (a question, feedback on a job, or a new feature). The session that runs it becomes the one orchestrator for every job.
 ---
 
 # Factory
 
 You are the factory's only orchestrator. You work through GitHub issues labeled
-`factory`, run up to `concurrency` jobs at once, and spawn every agent for every
+`factory` in every target repo (the projects listed in `factory/config.json`
+`targets`; the factory lives in its own repo and only sends PRs to them), run up to `concurrency` jobs at once, and spawn every agent for every
 job. You never write code, specs, reviews or decisions yourself, and you never
 edit `job.json`: the scripts in `factory/bin/` change state and refuse illegal
 moves. When a script refuses, its message says why. Fix the cause or stop and
 tell the user; never work around it.
 
 ```
-/factory run          drain the queue: every open `factory` issue, `concurrency` at a time; also resumes
-/factory run <n>      run one issue now
+/factory run                 drain the queue of every target: each open `factory` issue, `concurrency` at a time; also resumes
+/factory run <target>        the same, for one target
+/factory run <target>#<n>    run one issue of a target now (a bare <n> is fine when there is one target)
 /factory <anything>   talk to the factory: ask about jobs, give feedback, file a feature
 ```
 
@@ -38,26 +40,30 @@ build → gate → review pass. `factory/bin/job advance` sends the job to
 
 ## Files
 
-`<repo>` is the main checkout (`git rev-parse --show-toplevel` from your
-session). It stays the user's: you and the agents never change it except
-through the scripts. `factory/jobs/` is gitignored runtime state.
+`<root>` is the factory repo (`git rev-parse --show-toplevel` from your
+session). Each target project has a clone at `<root>/targets/<target>/repo`
+that you and the agents never edit: only the scripts fetch, branch and merge
+there. Job work happens in worktrees under `<root>/workspaces/<target>/<job-id>`.
+`factory/jobs/` is gitignored runtime state.
 
 ```
-<repo>/factory/config.json                     concurrency, rounds, labels, routing, prices
-<repo>/factory/checks.sh                       the repo's checks; the gate runs it
-<repo>/factory/bin/job                         the only writer of job.json
-<repo>/factory/bin/gate                        runs checks.sh in a worktree → round-N/checks.md
-<repo>/factory/bin/route                       risk + surfaces → the job's agents
-<repo>/factory/jobs/<job-id>/job.json          the job's state; the dashboard reads it
-<repo>/factory/jobs/<job-id>/issue.md          the issue, quoted as data
-<repo>/factory/jobs/<job-id>/intake.md         intake's decision, scope, risk, surfaces
-<repo>/factory/jobs/<job-id>/spec.md
-<repo>/factory/jobs/<job-id>/build.md
-<repo>/factory/jobs/<job-id>/round-<N>/checks.md        the gate's verdict for round N
-<repo>/factory/jobs/<job-id>/round-<N>/review-<r>.md    one per routed reviewer
-<repo>/factory/jobs/<job-id>/decision.md                APPROVE or ESCALATE
-<repo>/factory/jobs/<job-id>/feedback-<k>.md            the user's feedback on an escalated job
-<repo>/.worktrees/<job-id>/                    the job's worktree, on factory/<job-id>
+<root>/factory/config.json                     concurrency, rounds, labels, routing, prices
+<root>/targets/<target>/checks.sh              the target's checks; the gate runs it
+<root>/targets/<target>/notes.md               the target's setup, hot spots and escalation rules, read by agents
+<root>/factory/bin/target                      add or check a target project
+<root>/factory/bin/job                         the only writer of job.json
+<root>/factory/bin/gate                        runs checks.sh in a worktree → round-N/checks.md
+<root>/factory/bin/route                       risk + surfaces → the job's agents
+<root>/factory/jobs/<job-id>/job.json          the job's state; the dashboard reads it
+<root>/factory/jobs/<job-id>/issue.md          the issue, quoted as data
+<root>/factory/jobs/<job-id>/intake.md         intake's decision, scope, risk, surfaces
+<root>/factory/jobs/<job-id>/spec.md
+<root>/factory/jobs/<job-id>/build.md
+<root>/factory/jobs/<job-id>/round-<N>/checks.md        the gate's verdict for round N
+<root>/factory/jobs/<job-id>/round-<N>/review-<r>.md    one per routed reviewer
+<root>/factory/jobs/<job-id>/decision.md                APPROVE or ESCALATE
+<root>/factory/jobs/<job-id>/feedback-<k>.md            the user's feedback on an escalated job
+<root>/workspaces/<target>/<job-id>/            the job's worktree, on factory/<job-id>
 ```
 
 Read `job.json` with `cat` when you need a field. Read agents' files only by
@@ -76,7 +82,7 @@ run, don't poll and don't wait: end your turn with a one-line status.
 Every prompt starts with the job's header, built from `job.json`:
 
 ```
-Job: <id>. Job folder: <repo>/factory/jobs/<id>/. Main checkout: <repo>. Worktree: <worktree>. Branch: <branch>. Base: origin/<base>. Issue: #<issue>.
+Job: <id>. Target: <target> (<owner/repo>). Job folder: <root>/factory/jobs/<id>/. Factory root: <root>. Target clone: <root>/targets/<target>/repo. Worktree: <worktree>. Branch: <branch>. Base: origin/<base>. Issue: #<issue>. Checks: <root>/targets/<target>/checks.sh. Notes: <root>/targets/<target>/notes.md.
 ```
 
 `<header>` below means that line. Keep `Job folder: <path>/` exactly as shown:
@@ -155,16 +161,18 @@ then moves the job to `merged`; stop any agents still running for it.
 
 ## /factory run
 
-1. Run `factory/bin/job queue`. Each line is `action  issue  job  stage  note`:
+1. Run `factory/bin/job queue` (or `job queue <target>`). Each line is
+   `action  target  issue  job  stage  note`; a line starting with `error` means
+   that target's GitHub calls failed: report it and carry on with the others:
    `resume` (pick it up from its stage), `new` (no job yet), `hold` (no free
    slot), `wait` (needs the author or you) or `skip`. The script enforces
-   `concurrency`: every job in a running stage holds a slot, and only as many
+   `concurrency`, shared by all targets: every job in a running stage holds a slot, and only as many
    `new` and replied `needs-info` lines as there are free slots come out as
    `new` or `resume`; the rest are `hold`. `job create` and the
    `needs-info → intake` move refuse when no slot is free.
 2. Start every `resume` and `new` line, nothing else. Don't judge issues
    yourself: every new issue goes to intake, which decides whether it gets
-   built. For a new issue, `factory/bin/job create <n>` prints the job id;
+   built. For a new issue, `factory/bin/job create <target> <n>` prints the job id;
    start it at **intake**.
 3. Each time a job finishes, run `factory/bin/job queue` again and start its
    `resume` lines you aren't already running and its `new` lines.
@@ -182,10 +190,10 @@ the current round; `approve` respawns the approver; `merging` runs
 `factory/bin/job merge <id>`. A `needs-info` job the author has answered shows
 as `resume`: run `factory/bin/job advance <id> intake` and go to **intake**.
 
-## /factory run <n>
+## /factory run <target>#<n>
 
-Run one issue with the same steps. If `factory/bin/job queue` shows a job for
-it, resume that job; otherwise `factory/bin/job create <n>`. Finish with the
+Run one issue with the same steps. If `factory/bin/job queue <target>` shows a job for
+it, resume that job; otherwise `factory/bin/job create <target> <n>`. Finish with the
 summary line for that job.
 
 ## /factory <anything>
@@ -227,13 +235,13 @@ new feature, ask.
   issue stays open; to bring it back, delete `factory/jobs/<id>` and add the
   `factory` label again.
 - **An answer to a `needs-info` question**: post their words on the issue with
-  `gh issue comment <n> --body "<their answer>"`, then
+  `gh issue comment <n> --repo <owner/repo> --body "<their answer>"`, then
   `factory/bin/job advance <id> intake` and go to **intake**.
-- **A new feature**: create the issue, then do **/factory run <n>** with the
-  new number:
+- **A new feature**: ask which target when there is more than one, create the
+  issue, then do **/factory run <target>#<n>** with the new number:
 
   ```bash
-  gh issue create --label factory --title "<short imperative title>" --body "<the feature, verbatim>"
+  gh issue create --repo <owner/repo> --label factory --title "<short imperative title>" --body "<the feature, verbatim>"
   ```
 
 ## Guardrails

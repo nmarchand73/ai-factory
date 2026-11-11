@@ -230,7 +230,41 @@
     display: flex; gap: 20px; flex-wrap: wrap;
   }
 
+  /* Swimlanes: one band per project, columns named once in a sticky row */
+  .filters { display: flex; flex-wrap: wrap; gap: 8px; padding: 6px 32px 0; }
+  .fchip {
+    background: var(--panel); border: 1px solid var(--line); color: var(--muted);
+    border-radius: 99px; padding: 3px 12px; font-size: 12px; cursor: pointer;
+  }
+  .fchip[aria-pressed="true"] { color: var(--text); border-color: var(--active); }
+  .fchip .n { font-family: var(--mono); margin-left: 6px; color: var(--faint); }
+  .fchip.alert .n { color: var(--human); }
+  .colhead {
+    position: sticky; top: 0; z-index: 5; background: var(--bg);
+    display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 12px;
+    padding: 14px 32px 0; border-bottom: 1px solid var(--line); margin-top: 12px;
+  }
+  .colhead .col-head { margin-bottom: 0; border-bottom: 0; padding-bottom: 10px; }
+  .lane { margin: 18px 0 0; border-top: 1px solid var(--line); }
+  .lane-head {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 12px 32px 0; width: 100%; background: none; border: 0; text-align: left; cursor: pointer;
+  }
+  .lane-head .caret { color: var(--faint); transition: transform .15s; display: inline-block; }
+  .lane.closed .caret { transform: rotate(-90deg); }
+  .lane-head .name { font-size: 15px; font-weight: 650; }
+  .lane-head .repo { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+  .lane-head .stats { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--muted); display: flex; gap: 14px; }
+  .lane-head .stats .alert { color: var(--human); font-weight: 600; }
+  .lane.closed .board { display: none; }
+  .lane .board { padding-top: 14px; padding-bottom: 22px; }
+  .lane .col-head { display: none; }
+  .lane-empty { color: var(--faint); font-size: 12px; padding: 14px 32px 20px; }
+  .lane.unknown .name { color: var(--human); }
+
   @media (max-width: 1100px) {
+    .colhead { display: none; }
+    .lane .col-head { display: flex; }
     .board { grid-template-columns: repeat(4, minmax(0, 1fr)); row-gap: 28px; }
     .col-head::after { display: none; }
   }
@@ -238,6 +272,7 @@
     header { padding: 20px 16px 4px; }
     .banner { margin: 12px 16px 0; }
     .board { grid-template-columns: 1fr; padding: 16px 16px 32px; }
+    .filters, .lane-head, .lane-empty { padding-left: 16px; padding-right: 16px; }
     footer { padding: 0 16px 24px; }
     .d-head { padding: 16px; }
     .d-body { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
@@ -258,10 +293,13 @@
   <div class="status" id="status">connecting…</div>
 </header>
 <div id="banner"></div>
-<main class="board" id="board"></main>
+<div class="filters" id="filters"></div>
+<div class="colhead" id="colhead"></div>
+<main id="lanes"></main>
 <footer>
   <span>/factory run</span>
-  <span>/factory run &lt;n&gt;</span>
+  <span>/factory run &lt;target&gt;</span>
+  <span>/factory run &lt;target&gt;#&lt;n&gt;</span>
   <span>/factory &lt;anything&gt;</span>
   <span id="totals"></span>
 </footer>
@@ -302,7 +340,14 @@ const esc = (s) => String(s).replace(/[&<>"']/g, (c) =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
 
 let jobs = []
+let targets = {} // name -> { repo, ... } from config.json
 let lastRender = ''
+const store = {
+  get(k, d) { try { return JSON.parse(localStorage.getItem('factory.' + k)) ?? d } catch { return d } },
+  set(k, v) { try { localStorage.setItem('factory.' + k, JSON.stringify(v)) } catch {} },
+}
+let closedLanes = new Set(store.get('closed', []))
+let onlyLane = store.get('only', null)
 const roundCache = new Map() // "<job>/<n>" -> verdicts of a finished round
 let openJobId = null
 let openPath = null
@@ -404,39 +449,98 @@ function card(job, rounds) {
     </article>`
 }
 
+function columnHead(c) {
+  return `<div class="col-head ${c.cls || ''}"><h2>${c.label}</h2><span class="who">${c.who}</span></div>`
+}
+
+function laneHtml(name, laneJobs, byJob, unknown) {
+  const closed = closedLanes.has(name)
+  const repo = targets[name]?.repo
+  const count = (f) => laneJobs.filter(f).length
+  const needsHuman = count((j) => j.stage === 'needs-human')
+  const running = count((j) => LIVE.has(j.stage))
+  const merged = count((j) => j.stage === 'merged')
+  const cost = laneJobs.reduce((sum, j) => sum + Number(j.cost_usd), 0)
+  const cols = COLUMNS.map((c) => {
+    const cards = laneJobs.filter((j) => c.stages.includes(j.stage)).map((j) => byJob.get(j.id)).reverse()
+    return `<section class="col ${c.cls || ''}">${columnHead(c)}${cards.join('') || '<div class="empty">—</div>'}</section>`
+  }).join('')
+  const empty = `<div class="lane-empty">No jobs yet. Label an issue of this project <code>factory</code> and run /factory run ${esc(name)}.</div>`
+  return `
+    <section class="lane ${closed ? 'closed' : ''} ${unknown ? 'unknown' : ''}" data-lane="${esc(name)}">
+      <button class="lane-head" type="button" aria-expanded="${!closed}" data-toggle="${esc(name)}">
+        <span class="caret">▾</span>
+        <span class="name">${esc(unknown ? name + ' (unknown target)' : name)}</span>
+        ${repo ? `<span class="repo">${esc(repo)}</span>` : ''}
+        <span class="stats">
+          <span>${running} running</span>
+          <span class="${needsHuman ? 'alert' : ''}">${needsHuman} needs human</span>
+          <span>${merged} merged</span>
+          <span>$${cost.toFixed(2)}</span>
+        </span>
+      </button>
+      ${laneJobs.length ? `<div class="board">${cols}</div>` : empty}
+    </section>`
+}
+
 async function render() {
   const problems = []
-  const cards = new Map(COLUMNS.map((c) => [c, []]))
+  const byJob = new Map()
   for (const job of jobs) {
     if (!STAGES.has(job.stage)) { problems.push(`Job ${job.id} has unknown stage "${job.stage}"`); continue }
     const rounds = []
     for (let n = 1; n <= job.round; n++) rounds.push(roundRow(job, n, await roundVerdicts(job, n)))
-    cards.get(COLUMNS.find((c) => c.stages.includes(job.stage))).push(card(job, rounds))
+    byJob.set(job.id, card(job, rounds))
   }
-  // Newest first within a column.
-  const html = COLUMNS.map((c) => `
-    <section class="col ${c.cls || ''}">
-      <div class="col-head">
-        <h2>${c.label}</h2><span class="who">${c.who}</span>
-        <span class="count">${cards.get(c).length || ''}</span>
-      </div>
-      ${cards.get(c).reverse().join('') || '<div class="empty">—</div>'}
-    </section>`).join('')
+  const valid = jobs.filter((j) => byJob.has(j.id))
+  const laneOf = (j) => j.target || '?'
+  const known = Object.keys(targets)
+  const unknown = [...new Set(valid.map(laneOf))].filter((t) => !known.includes(t))
+  for (const t of unknown) problems.push(`Jobs reference target "${t}", which isn't in config.json targets`)
+  const names = [...known, ...unknown]
+  if (onlyLane && !names.includes(onlyLane)) onlyLane = null
+  const shown = names.filter((n) => !onlyLane || n === onlyLane)
+
+  const chips = [`<button class="fchip" type="button" data-only="" aria-pressed="${!onlyLane}">All</button>`]
+    .concat(names.map((n) => {
+      const mine = valid.filter((j) => laneOf(j) === n)
+      const h = mine.filter((j) => j.stage === 'needs-human').length
+      return `<button class="fchip ${h ? 'alert' : ''}" type="button" data-only="${esc(n)}" aria-pressed="${onlyLane === n}">${esc(n)}<span class="n">${h ? h + ' ⚑' : mine.length}</span></button>`
+    })).join('')
+  const lanes = shown.map((n) =>
+    laneHtml(n, valid.filter((j) => laneOf(j) === n), byJob, unknown.includes(n))).join('')
+    || '<div class="lane-empty">No targets yet. Add one: factory/bin/target add &lt;name&gt; &lt;owner/repo&gt;</div>'
   const banner = problems.map((p) => `<div class="banner">${esc(p)}</div>`).join('')
-  if (html + banner !== lastRender) {
-    lastRender = html + banner
-    $('board').innerHTML = html
+  const html = chips + lanes + banner
+  if (html !== lastRender) {
+    lastRender = html
+    $('filters').innerHTML = chips
+    $('lanes').innerHTML = lanes
+    $('colhead').innerHTML = COLUMNS.map(columnHead).join('')
     $('banner').innerHTML = banner
   }
-  const running = jobs.filter((j) => LIVE.has(j.stage)).length
-  const cost = jobs.reduce((sum, j) => sum + Number(j.cost_usd), 0)
+  const running = valid.filter((j) => LIVE.has(j.stage)).length
+  const cost = valid.reduce((sum, j) => sum + Number(j.cost_usd), 0)
   $('totals').textContent = `${running} running · $${cost.toFixed(2)} API-equivalent`
 }
+
+document.addEventListener('click', (e) => {
+  const toggle = e.target.closest('[data-toggle]')
+  if (toggle) {
+    const n = toggle.dataset.toggle
+    closedLanes.has(n) ? closedLanes.delete(n) : closedLanes.add(n)
+    store.set('closed', [...closedLanes]); lastRender = ''; render()
+    return
+  }
+  const only = e.target.closest('[data-only]')
+  if (only) { onlyLane = only.dataset.only || null; store.set('only', onlyLane); lastRender = ''; render() }
+})
 
 async function poll() {
   const status = $('status')
   try {
     jobs = await loadJobs()
+    try { targets = JSON.parse(await fetchText('config.json')).targets || {} } catch { /* lanes then come from the jobs alone */ }
     await render()
     if (openJobId) await refreshDrawer()
     status.className = 'status'
@@ -503,7 +607,7 @@ const firstLines = new Map()
 async function refreshDrawer() {
   const job = jobs.find((j) => j.id === openJobId)
   if (!job) return
-  $('d-num').textContent = `${job.id} · ${job.stage}${job.round ? ` · round ${job.round}` : ''} · $${Number(job.cost_usd).toFixed(2)} · ${elapsed(job)}`
+  $('d-num').textContent = `${job.target ? job.target + ' · ' : ''}${job.id} · ${job.stage}${job.round ? ` · round ${job.round}` : ''} · $${Number(job.cost_usd).toFixed(2)} · ${elapsed(job)}`
   $('d-title').textContent = job.title
   $('d-links').innerHTML = links(job)
 
