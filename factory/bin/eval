@@ -17,6 +17,7 @@ exist) and eval cases (evals/<agent>/<case>/, replayed on demand with /factory e
 
 Usage:
   eval report [--json]                 score every agent, write factory/evals/scores.json
+  eval report --cycle ID --json        the same over the live jobs of one factory cycle only (writes nothing)
   eval score <agent>                   one agent in detail, metric by metric
   eval cases [<agent>]                 list the eval cases
   eval prepare <agent> <case> [--run ID]
@@ -1039,7 +1040,8 @@ def live_samples():
             cost = sum(tr["cost"] for tr in trs)
             costs[agent].append(cost)
             samples.append({"source": "live", "agent": agent, "job": j["id"], "ts": j["started"] or "", "model": trs[0]["model"],
-                            "cost": cost, "process": merged["process"], "output": merged["output"]})
+                            "cost": cost, "process": merged["process"], "output": merged["output"],
+                            "cycle": raw.get("cycle"), "versions": raw.get("skill_versions") or {}})
     for s in samples:
         if "efficiency" in s["process"]:
             s["process"]["efficiency"] = efficiency_score(s["cost"], costs[s["agent"]])
@@ -1116,9 +1118,10 @@ def _blend(ps, os_, s):
     return round((len(ps) * raw + s["prior_strength"] * s["prior"]) / (len(ps) + s["prior_strength"]), 1)
 
 
-def compute_scores():
+def compute_scores(cycle=None):
+    """Scores over the sliding window; with a cycle, over the live samples of that cycle only (no eval cases)."""
     s = settings()
-    samples = live_samples() + eval_samples()
+    samples = [x for x in live_samples() if x.get("cycle") == cycle] if cycle else live_samples() + eval_samples()
     agents = {a: aggregate(a, [x for x in samples if x["agent"] == a], s) for a in AGENTS}
     sources = criteria_doc().get("sources", {})
     return {"updated": now(), "settings": {k: s[k] for k in ("weights", "eval_case_weight", "thresholds", "min_samples", "prior", "prior_strength")},
@@ -1421,10 +1424,11 @@ def fmt(v):
     return "  -" if v is None else f"{v:5.1f}"
 
 
-def cmd_report(as_json):
-    scores = compute_scores()
+def cmd_report(as_json, cycle=None):
+    scores = compute_scores(cycle)
     STATE.mkdir(parents=True, exist_ok=True)
-    (STATE / "scores.json").write_text(json.dumps(scores, indent=2) + "\n")
+    if not cycle:   # the dashboard shows the sliding window; a cycle's own scores go to its snapshot
+        (STATE / "scores.json").write_text(json.dumps(scores, indent=2) + "\n")
     if as_json:
         print(json.dumps(scores, indent=2))
         return
@@ -1460,7 +1464,7 @@ def main(argv):
     if not argv or argv[0] in {"-h", "--help"}:
         print(__doc__.strip())
     elif argv[0] == "report":
-        cmd_report("--json" in argv)
+        cmd_report("--json" in argv, argv[argv.index("--cycle") + 1] if "--cycle" in argv else None)
     elif argv[0] == "score" and len(argv) == 2:
         cmd_score(argv[1])
     elif argv[0] == "cases":
