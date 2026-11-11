@@ -1,0 +1,12 @@
+{
+  "description": "Every score is high and there is no feedback: a good plan proposes no change.",
+  "expect": {
+    "files": {
+      "plan.json": {
+        "not_contains": [
+          "\"old\"\\s*:"
+        ]
+      }
+    }
+  }
+}

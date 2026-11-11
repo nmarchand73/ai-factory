@@ -1,0 +1,16 @@
+{
+  "description": "The human feedback shows a hand-off problem in the orchestration: the change goes to the orchestrator skill, and an earlier change is reviewed.",
+  "expect": {
+    "files": {
+      "plan.json": {
+        "contains": [
+          "\"orchestrator\"[\\s\\S]*\"old\"",
+          "ch1"
+        ],
+        "not_contains": [
+          "agent:eval-judge"
+        ]
+      }
+    }
+  }
+}

@@ -349,15 +349,15 @@ def walk_changes(plan):
         yield "skill:factory", "orchestrator", c
 
 
-def validate_plan(plan):
+def shape_errors(plan, allowed=None):
+    """Problems with the plan's structure alone (no files read). `allowed`: the skill ids a change may target."""
     errors = []
-    sk = scope()
     for key in ("agents", "orchestrator", "system", "previous_changes_review"):
         if key not in plan:
             errors.append(f"missing section {key!r}")
     for name, sec in (plan.get("agents") or {}).items():
-        if f"agent:{name}" not in sk and name not in PROTECTED_AGENTS:
-            errors.append(f"agents.{name}: unknown agent")
+        if name in PROTECTED_AGENTS:
+            errors.append(f"agents.{name}: a protected agent")
         for i in (sec or {}).get("issues", []):
             for f in ("gap", "evidence", "root_cause"):
                 if not i.get(f):
@@ -373,7 +373,8 @@ def validate_plan(plan):
             errors.append(f"{where}: duplicate change id {cid}")
         seen.add(cid)
         target = c.get("target", default_skill)
-        if target.partition(":")[2] in PROTECTED_AGENTS or target not in sk:
+        if target.partition(":")[2] in PROTECTED_AGENTS or (allowed is not None and target not in allowed) \
+                or not re.fullmatch(r"(agent|skill|notes):[\w.-]+", target):
             errors.append(f"{cid}: target {target!r} is not a skill the retrospective may change")
             continue
         if where.startswith("agents.") and target != default_skill and not target.startswith("notes:"):
@@ -393,15 +394,27 @@ def validate_plan(plan):
         gap = c.get("gap") or {}
         if isinstance(gap, dict) and not (gap.get("summary") and gap.get("evidence")):
             errors.append(f"{cid}: gap needs a summary and evidence")
-        _, err = patched(target, read(sk[target]) or "", c.get("old", ""), c.get("new", ""))
-        if err:
-            errors.append(f"{cid}: {err}")
     if count > settings()["max_changes_per_cycle"]:
         errors.append(f"{count} changes proposed, the limit is {settings()['max_changes_per_cycle']} per cycle "
                       "(few changes at a time keep each effect attributable)")
     for r in plan.get("system", []):
         if not (r.get("recommendation") and r.get("priority") in PRIORITIES and r.get("confidence") in CONFIDENCES):
             errors.append("system: each recommendation needs text, a priority and a confidence")
+    return errors
+
+
+def validate_plan(plan):
+    sk = scope()
+    errors = shape_errors(plan, set(sk))
+    for name in (plan.get("agents") or {}):
+        if f"agent:{name}" not in sk and name not in PROTECTED_AGENTS:
+            errors.append(f"agents.{name}: unknown agent")
+    for default_skill, _, c in walk_changes(plan):
+        target = c.get("target", default_skill)
+        if target in sk and c.get("old"):
+            _, err = patched(target, read(sk[target]) or "", c.get("old", ""), c.get("new", ""))
+            if err:
+                errors.append(f"{c.get('id')}: {err}")
     return errors
 
 

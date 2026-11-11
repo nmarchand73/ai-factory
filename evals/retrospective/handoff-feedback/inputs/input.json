@@ -1,0 +1,129 @@
+{
+  "cycle": "c-eval",
+  "closed": "2026-01-01T00:00:00Z",
+  "overall": 87.0,
+  "metrics": {
+    "jobs": 4,
+    "merged": 4,
+    "escalation_rate": 0.5,
+    "avg_rounds": 2.8,
+    "cost_per_job_usd": 0.8
+  },
+  "scores": {
+    "builder": {
+      "confidence": 88,
+      "label": "trusted",
+      "process": 88,
+      "output": 88,
+      "n": 4,
+      "criteria": {
+        "format": {
+          "score": 95,
+          "n": 4,
+          "side": "process",
+          "label": "x",
+          "weight": 0.1
+        },
+        "grounding": {
+          "score": 92,
+          "n": 4,
+          "side": "process",
+          "label": "x",
+          "weight": 0.1
+        },
+        "tests_not_weakened": {
+          "score": 100,
+          "n": 4,
+          "side": "process",
+          "label": "x",
+          "weight": 0.1
+        },
+        "convergence": {
+          "score": 90,
+          "n": 4,
+          "side": "output",
+          "label": "x",
+          "weight": 0.1
+        },
+        "checks_pass": {
+          "score": 95,
+          "n": 4,
+          "side": "output",
+          "label": "x",
+          "weight": 0.1
+        }
+      }
+    },
+    "approver": {
+      "confidence": 86,
+      "label": "trusted",
+      "process": 86,
+      "output": 86,
+      "n": 4,
+      "criteria": {
+        "format": {
+          "score": 95,
+          "n": 4,
+          "side": "process",
+          "label": "x",
+          "weight": 0.1
+        }
+      }
+    }
+  },
+  "feedback": [
+    {
+      "job": "004-y",
+      "file": "jobs/004-y/feedback-1.md",
+      "text": "The reviewers started before the gate finished and reviewed stale code: two rounds were wasted."
+    },
+    {
+      "job": "005-z",
+      "file": "jobs/005-z/feedback-1.md",
+      "text": "Same again: reviewers ran on a branch the gate had not checked yet."
+    }
+  ],
+  "changes_to_review": [
+    {
+      "key": "c-prev/ch1",
+      "skill": "agent:builder",
+      "expected_impact": {
+        "criterion": "runs_checks",
+        "direction": "up",
+        "delta": 20
+      },
+      "gap": {
+        "summary": "builder skips checks",
+        "evidence": "runs_checks 40"
+      },
+      "version": "1.1",
+      "verdict": "delivered"
+    }
+  ],
+  "skills": {
+    "agent:builder": {
+      "path": "{{JOB}}/skills/agent__builder.md",
+      "version": "1.0"
+    },
+    "skill:factory": {
+      "path": "{{JOB}}/skills/skill__factory.md",
+      "version": "1.0"
+    }
+  },
+  "limits": {
+    "max_changes": 3,
+    "protected": [
+      "eval-judge",
+      "retrospective",
+      "factory/bin/*",
+      "evals/criteria.json",
+      "factory/config.json"
+    ]
+  },
+  "history": [
+    {
+      "cycle": "c-eval",
+      "overall": 80
+    }
+  ]
+}

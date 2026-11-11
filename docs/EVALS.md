@@ -274,6 +274,37 @@ After every review passed, decides APPROVE (auto-merge) or ESCALATE to a human, 
 | **Verified, not trusted**: It verified the acceptance criteria itself. | 16% | judge | Judge, 0 to 5. | source: [anthropic-evals](#sources) |
 | **Sound escalation reasoning**: APPROVE or ESCALATE is right given money, access, deploy, data and product-decision rules. | 16% | judge | Judge, 0 to 5. | source: [dora-approval](#sources), [itil](#sources) |
 
+## retrospective
+
+At the end of a cycle, finds where scores fell short and why, traces each gap to an agent, a skill or the orchestration, and proposes small, measurable changes that a human approves one by one.
+
+### Process: how it works
+
+| Criterion | Weight | Kind | How it is measured | Basis |
+|---|---|---|---|---|
+| **Output format**: plan.json is a JSON object with every section (previous_changes_review, agents, orchestrator, system) and every change complete: id, gap with evidence, old, new, expected impact, priority, confidence. | 10% | rule | Run the same shape check that `evolve plan check` applies. | inference |
+| **Stays in its lane**: It writes only plan.json and never edits a skill, a script or a job file. | 10% | rule | Every Write or Edit path against the allowed paths. | inference |
+| **Few failing tool calls**: Tool calls that fail (wrong paths, errors) are rare. | 5% | rule | Share of tool calls that returned an error. | source: [anthropic-evals](#sources) |
+| **Reasonable cost**: Cost stays near the typical run of the same agent; a trend, not a gate. | 5% | rule | Cost against the median of the same agent: full marks up to 1.5 times, zero at 4 times. | source: [anthropic-evals](#sources) |
+| **Final reply**: Its reply is one line: RETRO: <n> changes, with n the number of changes in plan.json. | 5% | rule | Compare the reply to the plan. | inference |
+| **Reads the cycle first**: It reads input.json before it writes anything. | 15% | rule | Reads before the first Write. | source: [anthropic-evals](#sources) |
+| **Reads the skill it changes**: For each skill it proposes to change it has read that skill's file before writing the plan, so the edit fits the text that is there. | 30% | rule | The skill files named in the changes against the reads before the first Write. | source: [anthropic-evals](#sources) |
+| **Reviews earlier changes**: Every earlier change that is still to be reviewed gets a verdict in previous_changes_review: that is what closes the loop. | 20% | rule | The keys of changes_to_review in input.json against previous_changes_review. | inference |
+
+### Output: how good it is
+
+| Criterion | Weight | Kind | How it is measured | Basis |
+|---|---|---|---|---|
+| **Gaps traced to a cause**: Every issue names a criterion of that agent (or a feedback file) and a root cause: prompt, skill, orchestration or input. | 15% | rule | Each issue's gap against the agent's criteria in input.json, and its root_cause against the four causes. | source: [anthropic-evals](#sources) |
+| **Evidence, not opinion**: Every issue and every change cites numbers and a criterion id or a feedback file from this cycle. | 15% | rule | A digit plus a criterion id or a feedback file in each evidence text. | source: [anthropic-evals](#sources) |
+| **Exact, minimal changes**: Each change replaces a passage that exists exactly once in the skill file, changes something, and stays small (at most 600 characters added). | 15% | rule | Look the old text up in the skill file named in input.json. | inference |
+| **Measurable expected impact**: The expected impact names a criterion (or metric) that exists for that agent, a direction and a numeric delta, so the next cycle can check it. | 10% | rule | The criterion against input.json; direction and delta present. | inference |
+| **No invented work**: A change addresses a criterion that is really below the ok threshold, or a pattern in the feedback; a healthy cycle with no feedback gets no change. | 15% | rule | Each change's criterion score against the threshold; a plan with no change against whether there were gaps. | source: [metr](#sources) |
+| **Graders untouched**: No change targets the eval-judge, the retrospective itself, the scripts, the criteria or the config. | 5% | rule | Targets against the protected list. | source: [metr](#sources), [openai-swe](#sources) |
+| **Prioritised and calibrated**: Every change and recommendation has a priority (P1 to P3) and a confidence (low, medium, high), and they are ranked, not all equal. | 5% | rule | Valid values on every item; more than one priority level when there are three or more items. | inference |
+| **Attacks the cause**: The proposed edits address the cause the evidence shows, not the symptom or the metric itself, and would plausibly lift the expected criterion without hurting another. | 10% | judge | Judge rubric (0 to 5) against the input and the skill files. | source: [llm-judge](#sources), [metr](#sources) |
+| **A human can decide**: A person can approve or reject each change from the plan alone: the gap, the edit, the expected effect and the risk are clear. | 10% | judge | Judge rubric (0 to 5). | source: [llm-judge](#sources) |
+
 ## Sources
 
 | Id | Source | Checked |

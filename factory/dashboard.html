@@ -546,7 +546,7 @@ function card(job, rounds) {
 }
 
 // ---- Agent confidence --------------------------------------------------------
-const AGENT_ORDER = ['intake', 'spec-writer', 'builder', 'reviewer-code', 'reviewer-ux', 'reviewer-ui', 'reviewer-security', 'approver']
+const AGENT_ORDER = ['intake', 'spec-writer', 'builder', 'reviewer-code', 'reviewer-ux', 'reviewer-ui', 'reviewer-security', 'approver', 'retrospective']
 const nice = (k) => k.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase())
 const labelTone = (l) => l === 'trusted' ? 'pass' : l === 'ok' ? 'active' : l === 'watch' ? 'changes' : ''
 const barTone = (v) => v >= 85 ? 'pass' : v >= 70 ? '' : v >= 50 ? 'changes' : 'bad'
