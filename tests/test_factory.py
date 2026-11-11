@@ -248,6 +248,41 @@ class Factory(unittest.TestCase):
         self.assertRegex(out, r"Build\s+\$[\d.]+\s+builder")
         self.assertRegex(out, r"Review\s+\$[\d.]+\s+(code|ux)")
 
+    def test_orchestrator_cost_is_shared_between_running_jobs(self):
+        import re as _re
+        from datetime import datetime, timedelta, timezone
+        self.add_issue("me/alpha", 11, "One")
+        self.add_issue("me/beta", 12, "Two")
+        a = self.bin("job", "create", "alpha", "11").stdout.strip()
+        b = self.bin("job", "create", "beta", "12").stdout.strip()
+        start = datetime.now(timezone.utc)
+        iso = lambda dt: dt.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        slug = _re.sub(r"[^A-Za-z0-9]", "-", str(self.root))
+        proj = self.tmp / "claude" / "projects" / slug
+        proj.mkdir(parents=True)
+
+        def asst(mid, when):
+            return {"type": "assistant", "timestamp": iso(when),
+                    "message": {"id": mid, "model": "claude-opus-5-5", "usage": {"input_tokens": 1000000, "output_tokens": 0}}}
+        skill = {"type": "assistant", "timestamp": iso(start - timedelta(hours=2)),
+                 "message": {"id": "s0", "model": "claude-opus-5-5", "usage": {"input_tokens": 0, "output_tokens": 0},
+                             "content": [{"type": "tool_use", "name": "Skill", "input": {"skill": "factory"}}]}}
+        lines = [asst("before", start - timedelta(hours=3)),   # before /factory: not the factory's
+                 skill,
+                 asst("idle", start - timedelta(hours=1)),    # after /factory, no job running: overhead
+                 asst("busy", start + timedelta(seconds=30))]  # two jobs running: shared
+        (proj / "session1.jsonl").write_text("\n".join(json.dumps(x) for x in lines) + "\n")
+        self.bin("job", "sync", a)
+        self.bin("job", "sync", b)
+        price = json.loads((self.root / "factory" / "config.json").read_text())["prices_usd_per_mtok"]["claude-opus-5-5"]["input"]
+        for jid in (a, b):
+            self.assertAlmostEqual(self.job_json(jid)["cost_by_agent"]["orchestrator"], price / 2, places=3)
+        over = json.loads((self.root / "factory" / "jobs" / "_orchestration.json").read_text())
+        self.assertAlmostEqual(over["outside_jobs_usd"], price, places=3)
+        out = self.bin("job", "summary").stdout
+        self.assertIn("orchestration while no job was running", out)
+        self.assertRegex(out, r"Orchestr\.\s+\$")
+
     def test_unknown_target_is_refused(self):
         res = self.bin("job", "create", "nope", "1", ok=False)
         self.assertNotEqual(res.returncode, 0)

@@ -350,6 +350,7 @@ const esc = (s) => String(s).replace(/[&<>"']/g, (c) =>
 
 let jobs = []
 let targets = {} // name -> { repo, ... } from config.json
+let overhead = 0 // dollars of orchestration while no job was running (jobs/_orchestration.json)
 let lastRender = ''
 const store = {
   get(k, d) { try { return JSON.parse(localStorage.getItem('factory.' + k)) ?? d } catch { return d } },
@@ -465,9 +466,10 @@ function columnHead(c) {
 // ---- Cost spread: step and agent -------------------------------------------
 const STEPS = [
   ['intake', 'Intake', '#8be9fd'], ['spec', 'Spec', '#bd93f9'], ['build', 'Build', '#50fa7b'],
-  ['review', 'Review', '#ffb86c'], ['approve', 'Approve', '#ff79c6'], ['other', 'Other', '#6272a4'],
+  ['review', 'Review', '#ffb86c'], ['approve', 'Approve', '#ff79c6'],
+  ['orchestration', 'Orchestration', '#f1fa8c'], ['other', 'Other', '#6272a4'],
 ]
-const STEP_OF = { intake: 'intake', 'spec-writer': 'spec', builder: 'build', approver: 'approve' }
+const STEP_OF = { intake: 'intake', 'spec-writer': 'spec', builder: 'build', approver: 'approve', orchestrator: 'orchestration' }
 const stepOf = (agent) => agent.startsWith('reviewer-') ? 'review' : (STEP_OF[agent] || 'other')
 const agentLabel = (agent) => agent.replace(/^reviewer-/, '')
 const money = (c) => (c > 0 && c < 0.01) ? `$${c.toFixed(3)}` : `$${c.toFixed(2)}`
@@ -579,7 +581,8 @@ async function render() {
   }
   const running = valid.filter((j) => LIVE.has(j.stage)).length
   const cost = valid.reduce((sum, j) => sum + Number(j.cost_usd), 0)
-  $('totals').textContent = `${running} running · ${money(cost)} API-equivalent`
+  $('totals').textContent = `${running} running · ${money(cost)} API-equivalent` +
+    (overhead > 0 ? ` · + ${money(overhead)} orchestration outside any job` : '')
 }
 
 document.addEventListener('click', (e) => {
@@ -599,6 +602,7 @@ async function poll() {
   try {
     jobs = await loadJobs()
     try { targets = JSON.parse(await fetchText('config.json')).targets || {} } catch { /* lanes then come from the jobs alone */ }
+    try { overhead = Number(JSON.parse(await fetchText('jobs/_orchestration.json')).outside_jobs_usd) || 0 } catch { overhead = 0 }
     await render()
     if (openJobId) await refreshDrawer()
     status.className = 'status'
