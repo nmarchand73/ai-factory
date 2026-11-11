@@ -1,11 +1,23 @@
 # AI Factory
 
-A GitHub issue labeled `factory` becomes a pull request, built and reviewed by Claude Code agents. The factory lives
-here and works on any number of projects; the projects only receive PRs.
+**Label a GitHub issue. Get back a reviewed, tested pull request.** Claude Code agents read the issue, write a spec,
+build the change, run your project's checks, review it from several angles, and either merge it or hand it to you with a
+clear reason. You stay in charge of what matters: what gets built, and anything the factory is not sure about.
+
+Why this one:
+
+- **It works on your projects, not inside them.** One factory runs any number of repos; they only receive PRs.
+- **It tells you how good it is.** Every agent has a confidence score and every run has a cost, lead time and
+  first-pass yield, instead of a feeling that "it seems to work".
+- **It gets better, on your terms.** After each run it proposes precise changes to its own agents; nothing changes until
+  you approve that change, and each one is measured afterwards and can be rolled back.
+- **It leaves the project better documented.** C4 diagrams and ADRs are kept up to date as part of the change.
+- **It is cheap enough to try.** Two real jobs on a static site cost $1.84 (9 min) and $3.09 (16 min, two review rounds), in
+  API-equivalent terms.
 
 It is a fork of ZazenCodes' [software factory v2](https://github.com/zazencodes/zazencodes-season-3/tree/main/src/software-factory-claude-code-v2)
-(GPLv3, see [origin](docs/ORIGIN.md)). The original gives the pipeline and the agents; this fork turns it into a factory
-you can run on several projects, measure, and improve on purpose.
+(GPLv3, see [origin](docs/ORIGIN.md)). The original gives the pipeline and the agents; this fork makes it run on several
+projects, measures it, and lets it improve on purpose.
 
 ![The pipeline: intake, spec, build, gate, parallel reviewers, approver](docs/img/pipeline.png)
 
@@ -110,6 +122,22 @@ secrets, payments), or when `route --diff` finds a sensitive path or risky line 
 (`prices_usd_per_mtok`), plus the orchestrator session's own, shared between the jobs running at the time.
 `factory/bin/job summary` splits them per project, step and agent. Run `/factory run` in a fresh session: the orchestrator
 was about 40% of a job's cost, mostly re-reading its context.
+
+## What to expect, honestly
+
+This is early software with a short track record: a handful of real jobs on small projects, a lot of tests (about 120)
+and 27 eval cases, but not months of production use.
+
+- **Scores are provisional.** With few jobs behind them, confidence scores lean on eval cases and shift as evidence arrives. Some graders
+  have been wrong (we fixed several after the first retrospective); treat a score as a signal to look, not a verdict.
+- **The security reviewer has not yet run on a real job.** It is routed and tested, but the jobs so far were cosmetic.
+- **It is not a replacement for review.** The approver merges only when everything passes and nothing sensitive is touched;
+  changes to protected paths or anything it doubts go to you.
+- **Costs are API-equivalent estimates** from Claude Code's transcripts, not an invoice, and the orchestrator session can
+  be about 40% of a job's cost unless you run it in a fresh session.
+- **It needs a GitHub repo, the `gh` CLI, Claude Code, and a `checks.sh` per project** that actually catches mistakes. The
+  factory is only as safe as those checks.
+- **It builds and opens PRs; it never deploys.**
 
 ## Commands
 
