@@ -1,0 +1,1002 @@
+{
+  "cycle": "c001",
+  "closed": "2026-11-11T19:54:38Z",
+  "overall": 66.5,
+  "metrics": {
+    "jobs": 1,
+    "merged": 1,
+    "escalation_rate": 0.0,
+    "avg_rounds": 1.0,
+    "cost_per_job_usd": 1.8
+  },
+  "scores": {
+    "intake": {
+      "confidence": 67.9,
+      "label": "watch",
+      "process": 98.2,
+      "output": 100.0,
+      "n": 1,
+      "criteria": {
+        "format": {
+          "score": 100.0,
+          "n": 1,
+          "side": "process",
+          "label": "Output format",
+          "weight": 0.15
+        },
+        "grounding": {
+          "score": 100.0,
+          "n": 1,
+          "side": "process",
+          "label": "Reads the issue",
+          "weight": 0.1
+        },
+        "discipline": {
+          "score": 100.0,
+          "n": 1,
+          "side": "process",
+          "label": "Stays in its lane",
+          "weight": 0.1
+        },
+        "reliability": {
+          "score": 100.0,
+          "n": 1,
+          "side": "process",
+          "label": "Few failing tool calls",
+          "weight": 0.05
+        },
+        "efficiency": {
+          "score": null,
+          "n": 0,
+          "side": "process",
+          "label": "Reasonable cost",
+          "weight": 0.05
+        },
+        "reply": {
+          "score": 70.0,
+          "n": 1,
+          "side": "process",
+          "label": "One-line reply",
+          "weight": 0.05
+        },
+        "reads_code": {
+          "score": 100.0,
+          "n": 1,
+          "side": "process",
+          "label": "Looks at the code first",
+          "weight": 0.25
+        },
+        "evidence_cited": {
+          "score": 100.0,
+          "n": 1,
+          "side": "process",
+          "label": "Cites real files",
+          "weight": 0.15
+        },
+        "injection_safe": {
+          "score": null,
+          "n": 0,
+          "side": "process",
+          "label": "Treats the issue as data",
+          "weight": 0.15
+        },
+        "questions_minimal": {
+          "score": null,
+          "n": 0,
+          "side": "process",
+          "label": "Asks little",
+          "weight": 0.1
+        },
+        "decision_correct": {
+          "score": 100.0,
+          "n": 1,
+          "side": "output",
+          "label": "Right decision",
+          "weight": 0.35
+        },
+        "risk_calibration": {
+          "score": 100.0,
+          "n": 1,
+          "side": "output",
+          "label": "Risk matches reality",
+          "weight": 0.2
+        },
+        "surfaces_accuracy": {
+          "score": 100.0,
+          "n": 1,
+          "side": "output",
+          "label": "Surfaces match the change",
+          "weight": 0.1
+        },
+        "scope_bounded": {
+          "score": 100.0,
+          "n": 1,
+          "side": "output",
+          "label": "Scope is bounded",
+          "weight": 0.1
+        },
+        "question_quality": {
+          "score": null,
+          "n": 0,
+          "side": "output",
+          "label": "Good questions",
+          "weight": 0.1
+        },
+        "scope_slicing": {
+          "score": null,
+          "n": 0,
+          "side": "output",
+          "label": "Good slice",
+          "weight": 0.1
+        }
+      }
+    },
+    "spec-writer": {
+      "confidence": 61.7,
+      "label": "watch",
+      "process": 71.8,
+      "output": 66.3,
+      "n": 1,
+      "criteria": {
+        "format": {
+          "score": 100.0,
+          "n": 1,
+          "side": "process",
+          "label": "Output format",
+          "weight": 0.15
+        },
+        "grounding": {
+          "score": 66.7,
+          "n": 1,
+          "side": "process",
+          "label": "Reads its inputs",
+          "weight": 0.2
+        },
+        "discipline": {
+          "score": 100.0,
+          "n": 1,
+          "side": "process",
+          "label": "Stays in its lane",
+          "weight": 0.1
+        },
+        "reliability": {
+          "score": 80.0,
+          "n": 1,
+          "side": "process",
+          "label": "Few failing tool calls",
+          "weight": 0.05
+        },
+        "efficiency": {
+          "score": null,
+          "n": 0,
+          "side": "process",
+          "label": "Reasonable cost",
+          "weight": 0.05
+        },
+        "reply": {
+          "score": 70.0,
+          "n": 1,
+          "side": "process",
+          "label": "One-line reply",
+          "weight": 0.05
+        },
+        "paths_verified": {
+          "score": 40.0,
+          "n": 1,
+          "side": "process",
+          "label": "Verifies the paths it cites",
+          "weight": 0.2
+        },
+        "no_vague_words": {
+          "score": 60.0,
+          "n": 1,
+          "side": "output",
+          "label": "No vague words",
+          "weight": 0.12
+        },
+        "atomic_requirements": {
+          "score": 12.5,
+          "n": 1,
+          "side": "output",
+          "label": "Atomic requirements",
+          "weight": 0.1
+        },
+        "requirements_traced": {
+          "score": 100.0,
+          "n": 1,
+          "side": "output",
+          "label": "Every requirement is verified",
+          "weight": 0.12
+        },
+        "behavioural_criteria": {
+          "score": 22.2,
+          "n": 1,
+          "side": "output",
+          "label": "Criteria are observable",
+          "weight": 0.12
+        },
+        "out_of_scope_kept": {
+          "score": 100.0,
+          "n": 1,
+          "side": "output",
+          "label": "What intake left out stays out",
+          "weight": 0.12
+        },
+        "builder_unblocked": {
+          "score": 100.0,
+          "n": 1,
+          "side": "output",
+          "label": "The builder can build from it",
+          "weight": 0.1
+        },
+        "testable_criteria": {
+          "score": null,
+          "n": 0,
+          "side": "output",
+          "label": "Testable criteria",
+          "weight": 0.1
+        },
+        "repo_grounding": {
+          "score": null,
+          "n": 0,
+          "side": "output",
+          "label": "Grounded in the repo",
+          "weight": 0.07
+        },
+        "minimal_scope": {
+          "score": null,
+          "n": 0,
+          "side": "output",
+          "label": "No gold plating",
+          "weight": 0.07
+        },
+        "docs_in_spec": {
+          "score": null,
+          "n": 0,
+          "side": "output",
+          "label": "Documentation required in the spec",
+          "weight": 0.08
+        }
+      }
+    },
+    "builder": {
+      "confidence": 67.0,
+      "label": "watch",
+      "process": 96.8,
+      "output": 93.8,
+      "n": 1,
+      "criteria": {
+        "format": {
+          "score": 100.0,
+          "n": 1,
+          "side": "process",
+          "label": "Output format",
+          "weight": 0.1
+        },
+        "grounding": {
+          "score": 100.0,
+          "n": 1,
+          "side": "process",
+          "label": "Reads the spec first",
+          "weight": 0.1
+        },
+        "discipline": {
+          "score": 87.5,
+          "n": 1,
+          "side": "process",
+          "label": "Stays in its lane",
+          "weight": 0.1
+        },
+        "reliability": {
+          "score": 96.6,
+          "n": 1,
+          "side": "process",
+          "label": "Few failing tool calls",
+          "weight": 0.05
+        },
+        "efficiency": {
+          "score": null,
+          "n": 0,
+          "side": "process",
+          "label": "Reasonable cost",
+          "weight": 0.05
+        },
+        "reply": {
+          "score": 70.0,
+          "n": 1,
+          "side": "process",
+          "label": "One-line reply",
+          "weight": 0.05
+        },
+        "runs_checks": {
+          "score": 100.0,
+          "n": 1,
+          "side": "process",
+          "label": "Runs the checks itself",
+          "weight": 0.2
+        },
+        "tests_not_weakened": {
+          "score": 100.0,
+          "n": 1,
+          "side": "process",
+          "label": "Never weakens a test",
+          "weight": 0.25
+        },
+        "commits_in_small_steps": {
+          "score": 100.0,
+          "n": 1,
+          "side": "process",
+          "label": "Commits its work",
+          "weight": 0.05
+        },
+        "docs_read_first": {
+          "score": null,
+          "n": 0,
+          "side": "process",
+          "label": "Reads the architecture docs first",
+          "weight": 0.1
+        },
+        "checks_pass": {
+          "score": 100.0,
+          "n": 1,
+          "side": "output",
+          "label": "Checks pass",
+          "weight": 0.25
+        },
+        "tests_discriminate": {
+          "score": null,
+          "n": 0,
+          "side": "output",
+          "label": "Tests would catch a regression",
+          "weight": 0.1
+        },
+        "evidence_per_criterion": {
+          "score": 66.7,
+          "n": 1,
+          "side": "output",
+          "label": "Evidence for each criterion",
+          "weight": 0.12
+        },
+        "report_faithful": {
+          "score": null,
+          "n": 0,
+          "side": "output",
+          "label": "The report matches the diff",
+          "weight": 0.08
+        },
+        "diff_minimal": {
+          "score": 100.0,
+          "n": 1,
+          "side": "output",
+          "label": "Small, scoped diff",
+          "weight": 0.1
+        },
+        "status_honest": {
+          "score": null,
+          "n": 0,
+          "side": "output",
+          "label": "Honest status",
+          "weight": 0.1
+        },
+        "convergence": {
+          "score": 100.0,
+          "n": 1,
+          "side": "output",
+          "label": "Converges quickly",
+          "weight": 0.06
+        },
+        "first_gate": {
+          "score": 100.0,
+          "n": 1,
+          "side": "output",
+          "label": "Green at the first gate",
+          "weight": 0.04
+        },
+        "protected_clean": {
+          "score": 100.0,
+          "n": 1,
+          "side": "output",
+          "label": "No protected file touched",
+          "weight": 0.04
+        },
+        "spec_conformance": {
+          "score": null,
+          "n": 0,
+          "side": "output",
+          "label": "Does what the spec asks",
+          "weight": 0.1
+        },
+        "code_quality": {
+          "score": null,
+          "n": 0,
+          "side": "output",
+          "label": "Good code",
+          "weight": 0.06
+        },
+        "docs_declared": {
+          "score": 100.0,
+          "n": 1,
+          "side": "output",
+          "label": "Documentation reported",
+          "weight": 0.04
+        },
+        "c4_complete": {
+          "score": null,
+          "n": 0,
+          "side": "output",
+          "label": "C4 diagrams complete",
+          "weight": 0.08
+        },
+        "c4_in_sync": {
+          "score": null,
+          "n": 0,
+          "side": "output",
+          "label": "Diagram matches the code",
+          "weight": 0.08
+        },
+        "docs_follow_change": {
+          "score": null,
+          "n": 0,
+          "side": "output",
+          "label": "Docs follow the change",
+          "weight": 0.1
+        },
+        "adr_for_decisions": {
+          "score": null,
+          "n": 0,
+          "side": "output",
+          "label": "ADR for real decisions",
+          "weight": 0.08
+        },
+        "adr_well_formed": {
+          "score": null,
+          "n": 0,
+          "side": "output",
+          "label": "ADR well formed",
+          "weight": 0.05
+        },
+        "docs_accuracy": {
+          "score": null,
+          "n": 0,
+          "side": "output",
+          "label": "Diagrams tell the truth",
+          "weight": 0.08
+        },
+        "adr_quality": {
+          "score": null,
+          "n": 0,
+          "side": "output",
+          "label": "ADR worth reading",
+          "weight": 0.05
+        }
+      }
+    },
+    "reviewer-code": {
+      "confidence": 67.8,
+      "label": "watch",
+      "process": 97.7,
+      "output": 100.0,
+      "n": 1,
+      "criteria": {
+        "format": {
+          "score": 100.0,
+          "n": 1,
+          "side": "process",
+          "label": "Output format",
+          "weight": 0.1
+        },
+        "grounding": {
+          "score": 100.0,
+          "n": 1,
+          "side": "process",
+          "label": "Reads the spec and the build report",
+          "weight": 0.1
+        },
+        "discipline": {
+          "score": 100.0,
+          "n": 1,
+          "side": "process",
+          "label": "Stays in its lane",
+          "weight": 0.1
+        },
+        "reliability": {
+          "score": 100.0,
+          "n": 1,
+          "side": "process",
+          "label": "Few failing tool calls",
+          "weight": 0.05
+        },
+        "efficiency": {
+          "score": null,
+          "n": 0,
+          "side": "process",
+          "label": "Reasonable cost",
+          "weight": 0.05
+        },
+        "reply": {
+          "score": 70.0,
+          "n": 1,
+          "side": "process",
+          "label": "One-line reply",
+          "weight": 0.05
+        },
+        "context_coverage": {
+          "score": 100.0,
+          "n": 1,
+          "side": "process",
+          "label": "Reads the whole file",
+          "weight": 0.25
+        },
+        "verifies_findings": {
+          "score": null,
+          "n": 0,
+          "side": "process",
+          "label": "Checks before it blocks",
+          "weight": 0.1
+        },
+        "docs_checked": {
+          "score": null,
+          "n": 0,
+          "side": "process",
+          "label": "Checks the architecture docs",
+          "weight": 0.12
+        },
+        "verdict_consistent": {
+          "score": 100.0,
+          "n": 1,
+          "side": "output",
+          "label": "Verdict matches the findings",
+          "weight": 0.1
+        },
+        "findings_actionable": {
+          "score": null,
+          "n": 0,
+          "side": "output",
+          "label": "Actionable findings",
+          "weight": 0.2
+        },
+        "nit_discipline": {
+          "score": null,
+          "n": 0,
+          "side": "output",
+          "label": "Blocks only on substance",
+          "weight": 0.12
+        },
+        "seeded_defect_caught": {
+          "score": null,
+          "n": 0,
+          "side": "output",
+          "label": "Catches the planted defect",
+          "weight": 0.22
+        },
+        "verdict_validity": {
+          "score": 100.0,
+          "n": 1,
+          "side": "output",
+          "label": "The verdict held up",
+          "weight": 0.1
+        },
+        "finding_precision": {
+          "score": null,
+          "n": 0,
+          "side": "output",
+          "label": "Real findings only",
+          "weight": 0.08
+        },
+        "nothing_missed": {
+          "score": null,
+          "n": 0,
+          "side": "output",
+          "label": "Nothing missed",
+          "weight": 0.08
+        },
+        "docs_gap_caught": {
+          "score": null,
+          "n": 0,
+          "side": "output",
+          "label": "Missing docs sent back",
+          "weight": 0.12
+        }
+      }
+    },
+    "reviewer-ux": {
+      "confidence": 66.0,
+      "label": "watch",
+      "process": 75.2,
+      "output": 100.0,
+      "n": 1,
+      "criteria": {
+        "format": {
+          "score": 100.0,
+          "n": 1,
+          "side": "process",
+          "label": "Output format",
+          "weight": 0.1
+        },
+        "grounding": {
+          "score": 33.3,
+          "n": 1,
+          "side": "process",
+          "label": "Reads the spec and the build report",
+          "weight": 0.1
+        },
+        "discipline": {
+          "score": 100.0,
+          "n": 1,
+          "side": "process",
+          "label": "Stays in its lane",
+          "weight": 0.1
+        },
+        "reliability": {
+          "score": 50.0,
+          "n": 1,
+          "side": "process",
+          "label": "Few failing tool calls",
+          "weight": 0.05
+        },
+        "efficiency": {
+          "score": null,
+          "n": 0,
+          "side": "process",
+          "label": "Reasonable cost",
+          "weight": 0.05
+        },
+        "reply": {
+          "score": 30.0,
+          "n": 1,
+          "side": "process",
+          "label": "One-line reply",
+          "weight": 0.05
+        },
+        "uses_the_page": {
+          "score": 100.0,
+          "n": 1,
+          "side": "process",
+          "label": "Uses the page",
+          "weight": 0.22
+        },
+        "checklist_covered": {
+          "score": 60.0,
+          "n": 1,
+          "side": "process",
+          "label": "Covers the checklist",
+          "weight": 0.18
+        },
+        "verdict_consistent": {
+          "score": 100.0,
+          "n": 1,
+          "side": "output",
+          "label": "Verdict matches the findings",
+          "weight": 0.1
+        },
+        "findings_cite_criterion": {
+          "score": null,
+          "n": 0,
+          "side": "output",
+          "label": "Findings cite a criterion",
+          "weight": 0.16
+        },
+        "severity_rated": {
+          "score": null,
+          "n": 0,
+          "side": "output",
+          "label": "Severity rated",
+          "weight": 0.08
+        },
+        "findings_reproducible": {
+          "score": null,
+          "n": 0,
+          "side": "output",
+          "label": "Reproducible findings",
+          "weight": 0.08
+        },
+        "seeded_defect_caught": {
+          "score": null,
+          "n": 0,
+          "side": "output",
+          "label": "Catches the planted defect",
+          "weight": 0.22
+        },
+        "verdict_validity": {
+          "score": 100.0,
+          "n": 1,
+          "side": "output",
+          "label": "The verdict held up",
+          "weight": 0.1
+        },
+        "finding_precision": {
+          "score": null,
+          "n": 0,
+          "side": "output",
+          "label": "Real problems only",
+          "weight": 0.08
+        },
+        "nothing_missed": {
+          "score": null,
+          "n": 0,
+          "side": "output",
+          "label": "Nothing missed",
+          "weight": 0.08
+        }
+      }
+    },
+    "reviewer-ui": {
+      "confidence": 67.8,
+      "label": "watch",
+      "process": 97.2,
+      "output": 100.0,
+      "n": 1,
+      "criteria": {
+        "format": {
+          "score": 100.0,
+          "n": 1,
+          "side": "process",
+          "label": "Output format",
+          "weight": 0.1
+        },
+        "grounding": {
+          "score": 100.0,
+          "n": 1,
+          "side": "process",
+          "label": "Reads the spec and the build report",
+          "weight": 0.1
+        },
+        "discipline": {
+          "score": 100.0,
+          "n": 1,
+          "side": "process",
+          "label": "Stays in its lane",
+          "weight": 0.1
+        },
+        "reliability": {
+          "score": 85.7,
+          "n": 1,
+          "side": "process",
+          "label": "Few failing tool calls",
+          "weight": 0.05
+        },
+        "efficiency": {
+          "score": null,
+          "n": 0,
+          "side": "process",
+          "label": "Reasonable cost",
+          "weight": 0.05
+        },
+        "reply": {
+          "score": 70.0,
+          "n": 1,
+          "side": "process",
+          "label": "One-line reply",
+          "weight": 0.05
+        },
+        "finds_design_source": {
+          "score": 100.0,
+          "n": 1,
+          "side": "process",
+          "label": "Finds the design system first",
+          "weight": 0.22
+        },
+        "hunts_hardcoded": {
+          "score": 100.0,
+          "n": 1,
+          "side": "process",
+          "label": "Hunts hard-coded values",
+          "weight": 0.18
+        },
+        "verdict_consistent": {
+          "score": 100.0,
+          "n": 1,
+          "side": "output",
+          "label": "Verdict matches the findings",
+          "weight": 0.1
+        },
+        "findings_name_token": {
+          "score": null,
+          "n": 0,
+          "side": "output",
+          "label": "Names the token to use",
+          "weight": 0.18
+        },
+        "findings_cite_value": {
+          "score": null,
+          "n": 0,
+          "side": "output",
+          "label": "Cites the offending value",
+          "weight": 0.12
+        },
+        "seeded_drift_caught": {
+          "score": null,
+          "n": 0,
+          "side": "output",
+          "label": "Catches the planted drift",
+          "weight": 0.22
+        },
+        "verdict_validity": {
+          "score": 100.0,
+          "n": 1,
+          "side": "output",
+          "label": "The verdict held up",
+          "weight": 0.1
+        },
+        "finding_precision": {
+          "score": null,
+          "n": 0,
+          "side": "output",
+          "label": "Real drift only",
+          "weight": 0.08
+        },
+        "nothing_missed": {
+          "score": null,
+          "n": 0,
+          "side": "output",
+          "label": "Nothing missed",
+          "weight": 0.08
+        }
+      }
+    },
+    "approver": {
+      "confidence": 67.6,
+      "label": "watch",
+      "process": 95.6,
+      "output": 100.0,
+      "n": 1,
+      "criteria": {
+        "format": {
+          "score": 100.0,
+          "n": 1,
+          "side": "process",
+          "label": "Output format",
+          "weight": 0.1
+        },
+        "discipline": {
+          "score": 100.0,
+          "n": 1,
+          "side": "process",
+          "label": "Stays in its lane",
+          "weight": 0.1
+        },
+        "reliability": {
+          "score": 80.0,
+          "n": 1,
+          "side": "process",
+          "label": "Few failing tool calls",
+          "weight": 0.05
+        },
+        "efficiency": {
+          "score": null,
+          "n": 0,
+          "side": "process",
+          "label": "Reasonable cost",
+          "weight": 0.05
+        },
+        "reply": {
+          "score": 70.0,
+          "n": 1,
+          "side": "process",
+          "label": "One-line reply",
+          "weight": 0.05
+        },
+        "grounding": {
+          "score": 66.7,
+          "n": 1,
+          "side": "process",
+          "label": "Reads the spec and the build report",
+          "weight": 0.05
+        },
+        "evidence_reread": {
+          "score": 100.0,
+          "n": 1,
+          "side": "process",
+          "label": "Re-reads the evidence",
+          "weight": 0.22
+        },
+        "triggers_checked": {
+          "score": 100.0,
+          "n": 1,
+          "side": "process",
+          "label": "Checks the escalation triggers",
+          "weight": 0.2
+        },
+        "criteria_mapped": {
+          "score": 100.0,
+          "n": 1,
+          "side": "process",
+          "label": "Maps each criterion to evidence",
+          "weight": 0.18
+        },
+        "decision_correct": {
+          "score": 100.0,
+          "n": 1,
+          "side": "output",
+          "label": "Right decision",
+          "weight": 0.35
+        },
+        "escalation_specific": {
+          "score": null,
+          "n": 0,
+          "side": "output",
+          "label": "A specific ask",
+          "weight": 0.15
+        },
+        "criteria_verification": {
+          "score": null,
+          "n": 0,
+          "side": "output",
+          "label": "Verified, not trusted",
+          "weight": 0.12
+        },
+        "escalation_reasoning": {
+          "score": null,
+          "n": 0,
+          "side": "output",
+          "label": "Sound escalation reasoning",
+          "weight": 0.12
+        }
+      }
+    }
+  },
+  "feedback": [],
+  "changes_to_review": [],
+  "skills": {
+    "agent:approver": {
+      "path": ".claude/agents/approver.md",
+      "version": "1.0"
+    },
+    "agent:builder": {
+      "path": ".claude/agents/builder.md",
+      "version": "1.0"
+    },
+    "agent:intake": {
+      "path": ".claude/agents/intake.md",
+      "version": "1.0"
+    },
+    "agent:reviewer-code": {
+      "path": ".claude/agents/reviewer-code.md",
+      "version": "1.0"
+    },
+    "agent:reviewer-security": {
+      "path": ".claude/agents/reviewer-security.md",
+      "version": "1.0"
+    },
+    "agent:reviewer-ui": {
+      "path": ".claude/agents/reviewer-ui.md",
+      "version": "1.0"
+    },
+    "agent:reviewer-ux": {
+      "path": ".claude/agents/reviewer-ux.md",
+      "version": "1.0"
+    },
+    "agent:spec-writer": {
+      "path": ".claude/agents/spec-writer.md",
+      "version": "1.0"
+    },
+    "skill:factory": {
+      "path": ".claude/skills/factory/SKILL.md",
+      "version": "1.0"
+    },
+    "notes:djset": {
+      "path": "targets/djset/notes.md",
+      "version": "1.0"
+    },
+    "notes:sandbox": {
+      "path": "targets/sandbox/notes.md",
+      "version": "1.0"
+    }
+  },
+  "limits": {
+    "max_changes": 3,
+    "protected": [
+      "eval-judge",
+      "retrospective",
+      "factory/bin/*",
+      "evals/criteria.json",
+      "factory/config.json"
+    ]
+  },
+  "history": [
+    {
+      "cycle": "c001",
+      "overall": 66.5
+    }
+  ]
+}

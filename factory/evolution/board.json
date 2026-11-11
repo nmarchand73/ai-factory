@@ -1,0 +1,1163 @@
+{
+  "updated": "2026-11-11T20:40:01Z",
+  "current_cycle": "c003",
+  "cycles": [
+    {
+      "cycle": "c001",
+      "ts": "2026-11-11T19:54:38Z",
+      "overall": 66.5,
+      "jobs": 1,
+      "merged": 1,
+      "escalation_rate": 0.0,
+      "avg_rounds": 1.0,
+      "cost_per_job_usd": 1.8,
+      "agents": {
+        "intake": {
+          "confidence": 67.9,
+          "process": 98.2,
+          "output": 100.0,
+          "n": 1
+        },
+        "spec-writer": {
+          "confidence": 61.7,
+          "process": 71.8,
+          "output": 66.3,
+          "n": 1
+        },
+        "builder": {
+          "confidence": 67.0,
+          "process": 96.8,
+          "output": 93.8,
+          "n": 1
+        },
+        "reviewer-code": {
+          "confidence": 67.8,
+          "process": 97.7,
+          "output": 100.0,
+          "n": 1
+        },
+        "reviewer-ux": {
+          "confidence": 66.0,
+          "process": 75.2,
+          "output": 100.0,
+          "n": 1
+        },
+        "reviewer-ui": {
+          "confidence": 67.8,
+          "process": 97.2,
+          "output": 100.0,
+          "n": 1
+        },
+        "approver": {
+          "confidence": 67.6,
+          "process": 95.6,
+          "output": 100.0,
+          "n": 1
+        }
+      },
+      "criteria": {
+        "intake": {
+          "format": 100.0,
+          "grounding": 100.0,
+          "discipline": 100.0,
+          "reliability": 100.0,
+          "efficiency": null,
+          "reply": 70.0,
+          "reads_code": 100.0,
+          "evidence_cited": 100.0,
+          "injection_safe": null,
+          "questions_minimal": null,
+          "decision_correct": 100.0,
+          "risk_calibration": 100.0,
+          "surfaces_accuracy": 100.0,
+          "scope_bounded": 100.0,
+          "question_quality": null,
+          "scope_slicing": null
+        },
+        "spec-writer": {
+          "format": 100.0,
+          "grounding": 66.7,
+          "discipline": 100.0,
+          "reliability": 80.0,
+          "efficiency": null,
+          "reply": 70.0,
+          "paths_verified": 40.0,
+          "no_vague_words": 60.0,
+          "atomic_requirements": 12.5,
+          "requirements_traced": 100.0,
+          "behavioural_criteria": 22.2,
+          "out_of_scope_kept": 100.0,
+          "builder_unblocked": 100.0,
+          "testable_criteria": null,
+          "repo_grounding": null,
+          "minimal_scope": null,
+          "docs_in_spec": null
+        },
+        "builder": {
+          "format": 100.0,
+          "grounding": 100.0,
+          "discipline": 87.5,
+          "reliability": 96.6,
+          "efficiency": null,
+          "reply": 70.0,
+          "runs_checks": 100.0,
+          "tests_not_weakened": 100.0,
+          "commits_in_small_steps": 100.0,
+          "docs_read_first": null,
+          "checks_pass": 100.0,
+          "tests_discriminate": null,
+          "evidence_per_criterion": 66.7,
+          "report_faithful": null,
+          "diff_minimal": 100.0,
+          "status_honest": null,
+          "convergence": 100.0,
+          "first_gate": 100.0,
+          "protected_clean": 100.0,
+          "spec_conformance": null,
+          "code_quality": null,
+          "docs_declared": 100.0,
+          "c4_complete": null,
+          "c4_in_sync": null,
+          "docs_follow_change": null,
+          "adr_for_decisions": null,
+          "adr_well_formed": null,
+          "docs_accuracy": null,
+          "adr_quality": null
+        },
+        "reviewer-code": {
+          "format": 100.0,
+          "grounding": 100.0,
+          "discipline": 100.0,
+          "reliability": 100.0,
+          "efficiency": null,
+          "reply": 70.0,
+          "context_coverage": 100.0,
+          "verifies_findings": null,
+          "docs_checked": null,
+          "verdict_consistent": 100.0,
+          "findings_actionable": null,
+          "nit_discipline": null,
+          "seeded_defect_caught": null,
+          "verdict_validity": 100.0,
+          "finding_precision": null,
+          "nothing_missed": null,
+          "docs_gap_caught": null
+        },
+        "reviewer-ux": {
+          "format": 100.0,
+          "grounding": 33.3,
+          "discipline": 100.0,
+          "reliability": 50.0,
+          "efficiency": null,
+          "reply": 30.0,
+          "uses_the_page": 100.0,
+          "checklist_covered": 60.0,
+          "verdict_consistent": 100.0,
+          "findings_cite_criterion": null,
+          "severity_rated": null,
+          "findings_reproducible": null,
+          "seeded_defect_caught": null,
+          "verdict_validity": 100.0,
+          "finding_precision": null,
+          "nothing_missed": null
+        },
+        "reviewer-ui": {
+          "format": 100.0,
+          "grounding": 100.0,
+          "discipline": 100.0,
+          "reliability": 85.7,
+          "efficiency": null,
+          "reply": 70.0,
+          "finds_design_source": 100.0,
+          "hunts_hardcoded": 100.0,
+          "verdict_consistent": 100.0,
+          "findings_name_token": null,
+          "findings_cite_value": null,
+          "seeded_drift_caught": null,
+          "verdict_validity": 100.0,
+          "finding_precision": null,
+          "nothing_missed": null
+        },
+        "approver": {
+          "format": 100.0,
+          "discipline": 100.0,
+          "reliability": 80.0,
+          "efficiency": null,
+          "reply": 70.0,
+          "grounding": 66.7,
+          "evidence_reread": 100.0,
+          "triggers_checked": 100.0,
+          "criteria_mapped": 100.0,
+          "decision_correct": 100.0,
+          "escalation_specific": null,
+          "criteria_verification": null,
+          "escalation_reasoning": null
+        }
+      }
+    },
+    {
+      "cycle": "c003",
+      "ts": "2026-11-11T20:29:10Z",
+      "overall": null,
+      "jobs": 0,
+      "merged": 0,
+      "escalation_rate": null,
+      "avg_rounds": null,
+      "cost_per_job_usd": null,
+      "agents": {},
+      "criteria": {}
+    },
+    {
+      "cycle": "c002",
+      "ts": "2026-11-11T20:35:14Z",
+      "overall": 65.9,
+      "jobs": 1,
+      "merged": 1,
+      "escalation_rate": 0.0,
+      "avg_rounds": 2.0,
+      "cost_per_job_usd": 3.2,
+      "agents": {
+        "intake": {
+          "confidence": 66.0,
+          "process": 94.5,
+          "output": 86.7,
+          "n": 1
+        },
+        "spec-writer": {
+          "confidence": 62.4,
+          "process": 89.6,
+          "output": 60.3,
+          "n": 1
+        },
+        "builder": {
+          "confidence": 66.7,
+          "process": 98.2,
+          "output": 90.4,
+          "n": 1
+        },
+        "reviewer-code": {
+          "confidence": 66.2,
+          "process": 77.3,
+          "output": 100.0,
+          "n": 1
+        },
+        "reviewer-ux": {
+          "confidence": 66.6,
+          "process": 82.6,
+          "output": 100.0,
+          "n": 1
+        },
+        "reviewer-ui": {
+          "confidence": 67.0,
+          "process": 86.9,
+          "output": 100.0,
+          "n": 1
+        },
+        "approver": {
+          "confidence": 66.4,
+          "process": 79.9,
+          "output": 100.0,
+          "n": 1
+        }
+      },
+      "criteria": {
+        "intake": {
+          "format": 100.0,
+          "grounding": 100.0,
+          "discipline": 100.0,
+          "reliability": 100.0,
+          "efficiency": 66.3,
+          "reply": 35.0,
+          "reads_code": 100.0,
+          "evidence_cited": 100.0,
+          "injection_safe": null,
+          "questions_minimal": null,
+          "decision_correct": 100.0,
+          "risk_calibration": 50.0,
+          "surfaces_accuracy": 100.0,
+          "scope_bounded": 100.0,
+          "question_quality": null,
+          "scope_slicing": null
+        },
+        "spec-writer": {
+          "format": 100.0,
+          "grounding": 100.0,
+          "discipline": 100.0,
+          "reliability": 83.3,
+          "efficiency": 100.0,
+          "reply": 70.0,
+          "paths_verified": 70.0,
+          "no_vague_words": 20.0,
+          "atomic_requirements": 42.9,
+          "requirements_traced": 92.9,
+          "behavioural_criteria": 42.9,
+          "out_of_scope_kept": 66.7,
+          "builder_unblocked": 100.0,
+          "testable_criteria": null,
+          "repo_grounding": null,
+          "minimal_scope": null,
+          "docs_in_spec": null
+        },
+        "builder": {
+          "format": 100.0,
+          "grounding": 100.0,
+          "discipline": 100.0,
+          "reliability": 96.2,
+          "efficiency": 100.0,
+          "reply": 70.0,
+          "runs_checks": 100.0,
+          "tests_not_weakened": 100.0,
+          "commits_in_small_steps": 100.0,
+          "docs_read_first": null,
+          "checks_pass": 100.0,
+          "tests_discriminate": null,
+          "evidence_per_criterion": 64.3,
+          "report_faithful": null,
+          "diff_minimal": 100.0,
+          "status_honest": null,
+          "convergence": 67.0,
+          "first_gate": 100.0,
+          "protected_clean": 100.0,
+          "spec_conformance": null,
+          "code_quality": null,
+          "docs_declared": 100.0,
+          "c4_complete": null,
+          "c4_in_sync": null,
+          "docs_follow_change": null,
+          "adr_for_decisions": null,
+          "adr_well_formed": null,
+          "docs_accuracy": null,
+          "adr_quality": null
+        },
+        "reviewer-code": {
+          "format": 100.0,
+          "grounding": 100.0,
+          "discipline": 100.0,
+          "reliability": 95.0,
+          "efficiency": 87.5,
+          "reply": 50.0,
+          "context_coverage": 50.0,
+          "verifies_findings": null,
+          "docs_checked": null,
+          "verdict_consistent": 100.0,
+          "findings_actionable": null,
+          "nit_discipline": null,
+          "seeded_defect_caught": null,
+          "verdict_validity": 100.0,
+          "finding_precision": null,
+          "nothing_missed": null,
+          "docs_gap_caught": null
+        },
+        "reviewer-ux": {
+          "format": 100.0,
+          "grounding": 66.7,
+          "discipline": 100.0,
+          "reliability": 90.0,
+          "efficiency": null,
+          "reply": 30.0,
+          "uses_the_page": 70.0,
+          "checklist_covered": 100.0,
+          "verdict_consistent": 100.0,
+          "findings_cite_criterion": null,
+          "severity_rated": null,
+          "findings_reproducible": null,
+          "seeded_defect_caught": null,
+          "verdict_validity": 100.0,
+          "finding_precision": null,
+          "nothing_missed": null
+        },
+        "reviewer-ui": {
+          "format": 100.0,
+          "grounding": 100.0,
+          "discipline": 100.0,
+          "reliability": 100.0,
+          "efficiency": null,
+          "reply": 70.0,
+          "finds_design_source": 100.0,
+          "hunts_hardcoded": 50.0,
+          "verdict_consistent": 100.0,
+          "findings_name_token": null,
+          "findings_cite_value": null,
+          "seeded_drift_caught": null,
+          "verdict_validity": 100.0,
+          "finding_precision": null,
+          "nothing_missed": null
+        },
+        "approver": {
+          "format": 100.0,
+          "discipline": 100.0,
+          "reliability": 100.0,
+          "efficiency": 100.0,
+          "reply": 70.0,
+          "grounding": 33.3,
+          "evidence_reread": 33.3,
+          "triggers_checked": 100.0,
+          "criteria_mapped": 96.4,
+          "decision_correct": 100.0,
+          "escalation_specific": null,
+          "criteria_verification": null,
+          "escalation_reasoning": null
+        }
+      }
+    }
+  ],
+  "skills": {
+    "agent:approver": {
+      "path": ".claude/agents/approver.md",
+      "current": "1.0",
+      "versions": [
+        {
+          "version": "1.0",
+          "date": "2026-11-11T19:44:54Z",
+          "cycle": null,
+          "kind": "baseline",
+          "change": null,
+          "gap": null,
+          "approved_by": null,
+          "expected_effect": null,
+          "rolled_back_to": null,
+          "reason": null,
+          "diff": ""
+        }
+      ]
+    },
+    "agent:builder": {
+      "path": ".claude/agents/builder.md",
+      "current": "1.1",
+      "versions": [
+        {
+          "version": "1.0",
+          "date": "2026-11-11T19:44:54Z",
+          "cycle": null,
+          "kind": "baseline",
+          "change": null,
+          "gap": null,
+          "approved_by": null,
+          "expected_effect": null,
+          "rolled_back_to": null,
+          "reason": null,
+          "diff": ""
+        },
+        {
+          "version": "1.1",
+          "date": "2026-11-11T20:40:01Z",
+          "cycle": "c002",
+          "kind": "change",
+          "change": "ch1",
+          "gap": {
+            "summary": "in a repo with no diagrams, the builder creates baseline C4 docs even for a styling change the spec puts out of scope, so the code review sends it back for a round",
+            "evidence": "convergence 67 (n=1), jobs/004-polish-the-background/round-1/review-code.md Finding 1, build.md Log Round 1-2, spec.md Out of scope"
+          },
+          "approved_by": "nicolasmarchand",
+          "expected_effect": {
+            "criterion": "convergence",
+            "direction": "up",
+            "delta": 15
+          },
+          "rolled_back_to": null,
+          "reason": null,
+          "diff": "--- agent:builder v1.0\n+++ agent:builder v1.1\n@@ -104,7 +104,9 @@\n phrase. Names in the diagrams are the names in the code. Document what exists on this branch, never\n what is planned or guessed.\n \n-- No diagrams yet: create all three for the whole application, from the code as it is on the base\n+- No diagrams yet, and the change touches at least one level (next point): create them. A change that\n+  touches no level, or a spec whose Out of scope excludes the docs, creates none; say so in build.md.\n+  To create them: all three for the whole application, from the code as it is on the base\n   branch, then add this change. Keep level 3 to the main components.\n - After you implement, ask of each level whether the change adds, removes, renames or rewires\n   something at it: a user or external system (1), a container or datastore (2), a component, its\n"
+        }
+      ]
+    },
+    "agent:intake": {
+      "path": ".claude/agents/intake.md",
+      "current": "1.0",
+      "versions": [
+        {
+          "version": "1.0",
+          "date": "2026-11-11T19:44:54Z",
+          "cycle": null,
+          "kind": "baseline",
+          "change": null,
+          "gap": null,
+          "approved_by": null,
+          "expected_effect": null,
+          "rolled_back_to": null,
+          "reason": null,
+          "diff": ""
+        }
+      ]
+    },
+    "agent:reviewer-code": {
+      "path": ".claude/agents/reviewer-code.md",
+      "current": "1.0",
+      "versions": [
+        {
+          "version": "1.0",
+          "date": "2026-11-11T19:44:54Z",
+          "cycle": null,
+          "kind": "baseline",
+          "change": null,
+          "gap": null,
+          "approved_by": null,
+          "expected_effect": null,
+          "rolled_back_to": null,
+          "reason": null,
+          "diff": ""
+        }
+      ]
+    },
+    "agent:reviewer-security": {
+      "path": ".claude/agents/reviewer-security.md",
+      "current": "1.0",
+      "versions": [
+        {
+          "version": "1.0",
+          "date": "2026-11-11T19:44:54Z",
+          "cycle": null,
+          "kind": "baseline",
+          "change": null,
+          "gap": null,
+          "approved_by": null,
+          "expected_effect": null,
+          "rolled_back_to": null,
+          "reason": null,
+          "diff": ""
+        }
+      ]
+    },
+    "agent:reviewer-ui": {
+      "path": ".claude/agents/reviewer-ui.md",
+      "current": "1.1",
+      "versions": [
+        {
+          "version": "1.0",
+          "date": "2026-11-11T19:44:54Z",
+          "cycle": null,
+          "kind": "baseline",
+          "change": null,
+          "gap": null,
+          "approved_by": null,
+          "expected_effect": null,
+          "rolled_back_to": null,
+          "reason": null,
+          "diff": ""
+        },
+        {
+          "version": "1.1",
+          "date": "2026-11-11T20:40:01Z",
+          "cycle": "c002",
+          "kind": "change",
+          "change": "ch3",
+          "gap": {
+            "summary": "the UI reviewer looks at screenshots but doesn't search the added lines for raw colours and sizes",
+            "evidence": "hunts_hardcoded 50 (n=1), jobs/004-polish-the-background/round-1/review-ui.md, round-1/review-code.md Notes ('#000' in the mask)"
+          },
+          "approved_by": "nicolasmarchand",
+          "expected_effect": {
+            "criterion": "hunts_hardcoded",
+            "direction": "up",
+            "delta": 30
+          },
+          "rolled_back_to": null,
+          "reason": null,
+          "diff": "--- agent:reviewer-ui v1.0\n+++ agent:reviewer-ui v1.1\n@@ -51,7 +51,9 @@\n - It looks like it belongs in the app: the same colours, type scale, spacing,\n   radii and backgrounds as the components around it.\n - It uses the existing styling system and classes. Flag new one-off CSS or\n-  hard-coded colours where a theme value exists.\n+  hard-coded colours where a theme value exists. Search the added lines for raw values\n+  (`git diff <base>...HEAD | grep -nE '^\\+.*(#[0-9a-fA-F]{3,8}\\b|rgba?\\(|hsla?\\(|[0-9.]+px)'`) and check\n+  each match against the theme: name the token to use, or say in Notes why the raw value is fine.\n - Alignment, spacing rhythm and hierarchy hold up, and nothing overflows at\n   phone width.\n - Text contrast is readable.\n"
+        }
+      ]
+    },
+    "agent:reviewer-ux": {
+      "path": ".claude/agents/reviewer-ux.md",
+      "current": "1.2",
+      "versions": [
+        {
+          "version": "1.0",
+          "date": "2026-11-11T19:44:54Z",
+          "cycle": null,
+          "kind": "baseline",
+          "change": null,
+          "gap": null,
+          "approved_by": null,
+          "expected_effect": null,
+          "rolled_back_to": null,
+          "reason": null,
+          "diff": ""
+        },
+        {
+          "version": "1.1",
+          "date": "2026-11-11T19:58:46Z",
+          "cycle": "c001",
+          "kind": "change",
+          "change": "ch1",
+          "gap": {
+            "summary": "when agent-browser is missing, the UX reviewer drops to reading code and passes without checking the page, even though a headless Chrome works on this machine",
+            "evidence": "reliability 50, grounding 33.3 (n=1), jobs/003-add-3dlogo-on-top/round-1/review-ux.md Notes 'Not verified visually', jobs/003-add-3dlogo-on-top/build.md Acceptance criteria (the builder used headless Chrome over CDP)"
+          },
+          "approved_by": "nicolasmarchand",
+          "expected_effect": {
+            "criterion": "reliability",
+            "direction": "up",
+            "delta": 25
+          },
+          "rolled_back_to": null,
+          "reason": null,
+          "diff": "--- agent:reviewer-ux v1.0\n+++ agent:reviewer-ux v1.1\n@@ -35,7 +35,7 @@\n If the change shows up on a page, use it like a visitor would. Start the dev\n server from AGENTS.md in the worktree, in the background, on your port.\n \n-Then use the `agent-browser` CLI (run `agent-browser skills get core` first).\n+Then use the `agent-browser` CLI (run `agent-browser skills get core` first). Check that it exists with `command -v agent-browser` before you call it. If it is missing, don't fall back to reading the code: drive a headless Chrome yourself (build.md's Acceptance criteria section says how the builder checked the page). If no browser works at all, list in the Summary each acceptance criterion you could not check on the page.\n Pass `--session <job-id>-ux` on every `agent-browser` call, so other jobs'\n reviewers never drive your browser. Don't sign in or submit forms: the dev\n server may talk to real services. When you're done, run\n"
+        },
+        {
+          "version": "1.2",
+          "date": "2026-11-11T19:58:47Z",
+          "cycle": "c001",
+          "kind": "change",
+          "change": "ch3",
+          "gap": {
+            "summary": "the UX review skips half of its checklist (states, copy, roles) without saying why",
+            "evidence": "checklist_covered 60 (n=1), jobs/003-add-3dlogo-on-top/round-1/review-ux.md"
+          },
+          "approved_by": "nicolasmarchand",
+          "expected_effect": {
+            "criterion": "checklist_covered",
+            "direction": "up",
+            "delta": 25
+          },
+          "rolled_back_to": null,
+          "reason": null,
+          "diff": "--- agent:reviewer-ux v1.1\n+++ agent:reviewer-ux v1.2\n@@ -55,6 +55,8 @@\n   alt text.\n - Mobile: it works at phone width.\n \n+Answer every topic above in the review (Summary or Notes). When one does not apply, write N/A with a one-line reason, e.g. \"no loading or error state: a static decoration\".\n+\n If the branch has no user-facing change, write PASS and say so.\n \n ## Write review-ux.md\n"
+        }
+      ]
+    },
+    "agent:spec-writer": {
+      "path": ".claude/agents/spec-writer.md",
+      "current": "1.2",
+      "versions": [
+        {
+          "version": "1.0",
+          "date": "2026-11-11T19:44:54Z",
+          "cycle": null,
+          "kind": "baseline",
+          "change": null,
+          "gap": null,
+          "approved_by": null,
+          "expected_effect": null,
+          "rolled_back_to": null,
+          "reason": null,
+          "diff": ""
+        },
+        {
+          "version": "1.1",
+          "date": "2026-11-11T19:58:46Z",
+          "cycle": "c001",
+          "kind": "change",
+          "change": "ch2",
+          "gap": {
+            "summary": "requirements bundle several conditions under one number, so they are hard to trace one by one to a criterion",
+            "evidence": "atomic_requirements 12.5 (n=1), jobs/003-add-3dlogo-on-top/spec.md Requirements 6 and 7"
+          },
+          "approved_by": "nicolasmarchand",
+          "expected_effect": {
+            "criterion": "atomic_requirements",
+            "direction": "up",
+            "delta": 30
+          },
+          "rolled_back_to": null,
+          "reason": null,
+          "diff": "--- agent:spec-writer v1.0\n+++ agent:spec-writer v1.1\n@@ -47,7 +47,7 @@\n how they work today. Cite paths.\n \n ## Requirements\n-Numbered list of what must be true when the work is done.\n+Numbered list of what must be true when the work is done. One condition per number: when a requirement joins two conditions (\"X and Y\"), split it into two numbers, so each one maps to an acceptance criterion.\n \n ## Acceptance criteria\n Numbered list. Each criterion is one observable behaviour plus how to verify it:\n"
+        },
+        {
+          "version": "1.2",
+          "date": "2026-11-11T20:40:01Z",
+          "cycle": "c002",
+          "kind": "change",
+          "change": "ch2",
+          "gap": {
+            "summary": "requirements and criteria leave choices open with 'and/or', so done is not one checkable thing",
+            "evidence": "no_vague_words 20 (n=1), jobs/004-polish-the-background/spec.md Requirements 3 and 5, Acceptance criteria 4 and 7"
+          },
+          "approved_by": "nicolasmarchand",
+          "expected_effect": {
+            "criterion": "no_vague_words",
+            "direction": "up",
+            "delta": 30
+          },
+          "rolled_back_to": null,
+          "reason": null,
+          "diff": "--- agent:spec-writer v1.1\n+++ agent:spec-writer v1.2\n@@ -73,6 +73,8 @@\n   Assumptions.\n - Prefer the smallest change that fully meets the scope. Don't add options,\n   fallbacks or \"nice to have\" extras.\n+- Each requirement and criterion has one reading. Don't write \"and/or\", \"etc.\", \"should\" or \"as\n+  needed\": name what you require, or write \"at least one of A or B\" when the builder may choose.\n - Reuse what exists. If the repo already has a pattern for this (a component, a\n   helper, a doc convention), name it in Context and require it.\n - Include the doc updates the change needs (AGENTS.md and any docs it lists) as\n"
+        }
+      ]
+    },
+    "skill:factory": {
+      "path": ".claude/skills/factory/SKILL.md",
+      "current": "1.0",
+      "versions": [
+        {
+          "version": "1.0",
+          "date": "2026-11-11T19:44:54Z",
+          "cycle": null,
+          "kind": "baseline",
+          "change": null,
+          "gap": null,
+          "approved_by": null,
+          "expected_effect": null,
+          "rolled_back_to": null,
+          "reason": null,
+          "diff": ""
+        }
+      ]
+    },
+    "notes:djset": {
+      "path": "targets/djset/notes.md",
+      "current": "1.0",
+      "versions": [
+        {
+          "version": "1.0",
+          "date": "2026-11-11T19:44:54Z",
+          "cycle": null,
+          "kind": "baseline",
+          "change": null,
+          "gap": null,
+          "approved_by": null,
+          "expected_effect": null,
+          "rolled_back_to": null,
+          "reason": null,
+          "diff": ""
+        }
+      ]
+    },
+    "notes:sandbox": {
+      "path": "targets/sandbox/notes.md",
+      "current": "1.0",
+      "versions": [
+        {
+          "version": "1.0",
+          "date": "2026-11-11T19:44:54Z",
+          "cycle": null,
+          "kind": "baseline",
+          "change": null,
+          "gap": null,
+          "approved_by": null,
+          "expected_effect": null,
+          "rolled_back_to": null,
+          "reason": null,
+          "diff": ""
+        }
+      ]
+    }
+  },
+  "audit": [
+    {
+      "key": "c001/ch1",
+      "cycle": "c001",
+      "change": "ch1",
+      "skill": "agent:reviewer-ux",
+      "summary": "when agent-browser is missing, the UX reviewer drops to reading code and passes without checking the page, even though a headless Chrome works on this machine",
+      "priority": "P1",
+      "confidence": "medium",
+      "expected_impact": {
+        "criterion": "reliability",
+        "direction": "up",
+        "delta": 25
+      },
+      "status": "measured",
+      "version": "1.1",
+      "verdict": "inconclusive",
+      "measure": {
+        "before": 50.0,
+        "after": 90.0,
+        "delta": 40.0,
+        "n_after": 1,
+        "measured_in": "c002"
+      },
+      "stages": [
+        {
+          "ts": "2026-11-11T19:57:28Z",
+          "event": "proposed",
+          "skill": "agent:reviewer-ux",
+          "gap": {
+            "summary": "when agent-browser is missing, the UX reviewer drops to reading code and passes without checking the page, even though a headless Chrome works on this machine",
+            "evidence": "reliability 50, grounding 33.3 (n=1), jobs/003-add-3dlogo-on-top/round-1/review-ux.md Notes 'Not verified visually', jobs/003-add-3dlogo-on-top/build.md Acceptance criteria (the builder used headless Chrome over CDP)"
+          },
+          "priority": "P1",
+          "confidence": "medium",
+          "expected_impact": {
+            "criterion": "reliability",
+            "direction": "up",
+            "delta": 25
+          },
+          "summary": "when agent-browser is missing, the UX reviewer drops to reading code and passes without checking the page, even though a headless Chrome works on this machine"
+        },
+        {
+          "ts": "2026-11-11T19:58:46Z",
+          "event": "approved",
+          "skill": "agent:reviewer-ux",
+          "by": "nicolasmarchand",
+          "reason": null
+        },
+        {
+          "ts": "2026-11-11T19:58:46Z",
+          "event": "deployed",
+          "skill": "agent:reviewer-ux",
+          "version": "1.1"
+        },
+        {
+          "ts": "2026-11-11T20:13:10Z",
+          "event": "measured",
+          "skill": "agent:reviewer-ux",
+          "version": "1.1",
+          "verdict": "inconclusive",
+          "before": 50.0,
+          "after": null,
+          "delta": null,
+          "n_after": 0,
+          "measured_in": "c002"
+        },
+        {
+          "ts": "2026-11-11T20:29:10Z",
+          "event": "measured",
+          "skill": "agent:reviewer-ux",
+          "version": "1.1",
+          "verdict": "inconclusive",
+          "before": 50.0,
+          "after": null,
+          "delta": null,
+          "n_after": 0,
+          "measured_in": "c003"
+        },
+        {
+          "ts": "2026-11-11T20:35:14Z",
+          "event": "measured",
+          "skill": "agent:reviewer-ux",
+          "version": "1.1",
+          "verdict": "inconclusive",
+          "before": 50.0,
+          "after": 90.0,
+          "delta": 40.0,
+          "n_after": 1,
+          "measured_in": "c002"
+        }
+      ]
+    },
+    {
+      "key": "c001/ch2",
+      "cycle": "c001",
+      "change": "ch2",
+      "skill": "agent:spec-writer",
+      "summary": "requirements bundle several conditions under one number, so they are hard to trace one by one to a criterion",
+      "priority": "P2",
+      "confidence": "medium",
+      "expected_impact": {
+        "criterion": "atomic_requirements",
+        "direction": "up",
+        "delta": 30
+      },
+      "status": "measured",
+      "version": "1.1",
+      "verdict": "inconclusive",
+      "measure": {
+        "before": 12.5,
+        "after": 42.9,
+        "delta": 30.4,
+        "n_after": 1,
+        "measured_in": "c002"
+      },
+      "stages": [
+        {
+          "ts": "2026-11-11T19:57:28Z",
+          "event": "proposed",
+          "skill": "agent:spec-writer",
+          "gap": {
+            "summary": "requirements bundle several conditions under one number, so they are hard to trace one by one to a criterion",
+            "evidence": "atomic_requirements 12.5 (n=1), jobs/003-add-3dlogo-on-top/spec.md Requirements 6 and 7"
+          },
+          "priority": "P2",
+          "confidence": "medium",
+          "expected_impact": {
+            "criterion": "atomic_requirements",
+            "direction": "up",
+            "delta": 30
+          },
+          "summary": "requirements bundle several conditions under one number, so they are hard to trace one by one to a criterion"
+        },
+        {
+          "ts": "2026-11-11T19:58:46Z",
+          "event": "approved",
+          "skill": "agent:spec-writer",
+          "by": "nicolasmarchand",
+          "reason": null
+        },
+        {
+          "ts": "2026-11-11T19:58:46Z",
+          "event": "deployed",
+          "skill": "agent:spec-writer",
+          "version": "1.1"
+        },
+        {
+          "ts": "2026-11-11T20:13:10Z",
+          "event": "measured",
+          "skill": "agent:spec-writer",
+          "version": "1.1",
+          "verdict": "inconclusive",
+          "before": 12.5,
+          "after": null,
+          "delta": null,
+          "n_after": 0,
+          "measured_in": "c002"
+        },
+        {
+          "ts": "2026-11-11T20:29:10Z",
+          "event": "measured",
+          "skill": "agent:spec-writer",
+          "version": "1.1",
+          "verdict": "inconclusive",
+          "before": 12.5,
+          "after": null,
+          "delta": null,
+          "n_after": 0,
+          "measured_in": "c003"
+        },
+        {
+          "ts": "2026-11-11T20:35:14Z",
+          "event": "measured",
+          "skill": "agent:spec-writer",
+          "version": "1.1",
+          "verdict": "inconclusive",
+          "before": 12.5,
+          "after": 42.9,
+          "delta": 30.4,
+          "n_after": 1,
+          "measured_in": "c002"
+        }
+      ]
+    },
+    {
+      "key": "c001/ch3",
+      "cycle": "c001",
+      "change": "ch3",
+      "skill": "agent:reviewer-ux",
+      "summary": "the UX review skips half of its checklist (states, copy, roles) without saying why",
+      "priority": "P3",
+      "confidence": "medium",
+      "expected_impact": {
+        "criterion": "checklist_covered",
+        "direction": "up",
+        "delta": 25
+      },
+      "status": "measured",
+      "version": "1.2",
+      "verdict": "inconclusive",
+      "measure": {
+        "before": 60.0,
+        "after": 100.0,
+        "delta": 40.0,
+        "n_after": 1,
+        "measured_in": "c002"
+      },
+      "stages": [
+        {
+          "ts": "2026-11-11T19:57:28Z",
+          "event": "proposed",
+          "skill": "agent:reviewer-ux",
+          "gap": {
+            "summary": "the UX review skips half of its checklist (states, copy, roles) without saying why",
+            "evidence": "checklist_covered 60 (n=1), jobs/003-add-3dlogo-on-top/round-1/review-ux.md"
+          },
+          "priority": "P3",
+          "confidence": "medium",
+          "expected_impact": {
+            "criterion": "checklist_covered",
+            "direction": "up",
+            "delta": 25
+          },
+          "summary": "the UX review skips half of its checklist (states, copy, roles) without saying why"
+        },
+        {
+          "ts": "2026-11-11T19:58:47Z",
+          "event": "approved",
+          "skill": "agent:reviewer-ux",
+          "by": "nicolasmarchand",
+          "reason": null
+        },
+        {
+          "ts": "2026-11-11T19:58:47Z",
+          "event": "deployed",
+          "skill": "agent:reviewer-ux",
+          "version": "1.2"
+        },
+        {
+          "ts": "2026-11-11T20:13:10Z",
+          "event": "measured",
+          "skill": "agent:reviewer-ux",
+          "version": "1.2",
+          "verdict": "inconclusive",
+          "before": 60.0,
+          "after": null,
+          "delta": null,
+          "n_after": 0,
+          "measured_in": "c002"
+        },
+        {
+          "ts": "2026-11-11T20:29:10Z",
+          "event": "measured",
+          "skill": "agent:reviewer-ux",
+          "version": "1.2",
+          "verdict": "inconclusive",
+          "before": 60.0,
+          "after": null,
+          "delta": null,
+          "n_after": 0,
+          "measured_in": "c003"
+        },
+        {
+          "ts": "2026-11-11T20:35:14Z",
+          "event": "measured",
+          "skill": "agent:reviewer-ux",
+          "version": "1.2",
+          "verdict": "inconclusive",
+          "before": 60.0,
+          "after": 100.0,
+          "delta": 40.0,
+          "n_after": 1,
+          "measured_in": "c002"
+        }
+      ]
+    },
+    {
+      "key": "c002/ch1",
+      "cycle": "c002",
+      "change": "ch1",
+      "skill": "agent:builder",
+      "summary": "in a repo with no diagrams, the builder creates baseline C4 docs even for a styling change the spec puts out of scope, so the code review sends it back for a round",
+      "priority": "P1",
+      "confidence": "medium",
+      "expected_impact": {
+        "criterion": "convergence",
+        "direction": "up",
+        "delta": 15
+      },
+      "status": "deployed",
+      "version": "1.1",
+      "verdict": null,
+      "measure": null,
+      "stages": [
+        {
+          "ts": "2026-11-11T20:38:10Z",
+          "event": "proposed",
+          "skill": "agent:builder",
+          "gap": {
+            "summary": "in a repo with no diagrams, the builder creates baseline C4 docs even for a styling change the spec puts out of scope, so the code review sends it back for a round",
+            "evidence": "convergence 67 (n=1), jobs/004-polish-the-background/round-1/review-code.md Finding 1, build.md Log Round 1-2, spec.md Out of scope"
+          },
+          "priority": "P1",
+          "confidence": "medium",
+          "expected_impact": {
+            "criterion": "convergence",
+            "direction": "up",
+            "delta": 15
+          },
+          "summary": "in a repo with no diagrams, the builder creates baseline C4 docs even for a styling change the spec puts out of scope, so the code review sends it back for a round"
+        },
+        {
+          "ts": "2026-11-11T20:40:00Z",
+          "event": "approved",
+          "skill": "agent:builder",
+          "by": "nicolasmarchand",
+          "reason": null
+        },
+        {
+          "ts": "2026-11-11T20:40:01Z",
+          "event": "deployed",
+          "skill": "agent:builder",
+          "version": "1.1"
+        }
+      ]
+    },
+    {
+      "key": "c002/ch2",
+      "cycle": "c002",
+      "change": "ch2",
+      "skill": "agent:spec-writer",
+      "summary": "requirements and criteria leave choices open with 'and/or', so done is not one checkable thing",
+      "priority": "P2",
+      "confidence": "medium",
+      "expected_impact": {
+        "criterion": "no_vague_words",
+        "direction": "up",
+        "delta": 30
+      },
+      "status": "deployed",
+      "version": "1.2",
+      "verdict": null,
+      "measure": null,
+      "stages": [
+        {
+          "ts": "2026-11-11T20:38:10Z",
+          "event": "proposed",
+          "skill": "agent:spec-writer",
+          "gap": {
+            "summary": "requirements and criteria leave choices open with 'and/or', so done is not one checkable thing",
+            "evidence": "no_vague_words 20 (n=1), jobs/004-polish-the-background/spec.md Requirements 3 and 5, Acceptance criteria 4 and 7"
+          },
+          "priority": "P2",
+          "confidence": "medium",
+          "expected_impact": {
+            "criterion": "no_vague_words",
+            "direction": "up",
+            "delta": 30
+          },
+          "summary": "requirements and criteria leave choices open with 'and/or', so done is not one checkable thing"
+        },
+        {
+          "ts": "2026-11-11T20:40:01Z",
+          "event": "approved",
+          "skill": "agent:spec-writer",
+          "by": "nicolasmarchand",
+          "reason": null
+        },
+        {
+          "ts": "2026-11-11T20:40:01Z",
+          "event": "deployed",
+          "skill": "agent:spec-writer",
+          "version": "1.2"
+        }
+      ]
+    },
+    {
+      "key": "c002/ch3",
+      "cycle": "c002",
+      "change": "ch3",
+      "skill": "agent:reviewer-ui",
+      "summary": "the UI reviewer looks at screenshots but doesn't search the added lines for raw colours and sizes",
+      "priority": "P3",
+      "confidence": "low",
+      "expected_impact": {
+        "criterion": "hunts_hardcoded",
+        "direction": "up",
+        "delta": 30
+      },
+      "status": "deployed",
+      "version": "1.1",
+      "verdict": null,
+      "measure": null,
+      "stages": [
+        {
+          "ts": "2026-11-11T20:38:10Z",
+          "event": "proposed",
+          "skill": "agent:reviewer-ui",
+          "gap": {
+            "summary": "the UI reviewer looks at screenshots but doesn't search the added lines for raw colours and sizes",
+            "evidence": "hunts_hardcoded 50 (n=1), jobs/004-polish-the-background/round-1/review-ui.md, round-1/review-code.md Notes ('#000' in the mask)"
+          },
+          "priority": "P3",
+          "confidence": "low",
+          "expected_impact": {
+            "criterion": "hunts_hardcoded",
+            "direction": "up",
+            "delta": 30
+          },
+          "summary": "the UI reviewer looks at screenshots but doesn't search the added lines for raw colours and sizes"
+        },
+        {
+          "ts": "2026-11-11T20:40:01Z",
+          "event": "approved",
+          "skill": "agent:reviewer-ui",
+          "by": "nicolasmarchand",
+          "reason": null
+        },
+        {
+          "ts": "2026-11-11T20:40:01Z",
+          "event": "deployed",
+          "skill": "agent:reviewer-ui",
+          "version": "1.1"
+        }
+      ]
+    }
+  ]
+}

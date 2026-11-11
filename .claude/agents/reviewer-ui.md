@@ -51,7 +51,9 @@ never kill by process name.
 - It looks like it belongs in the app: the same colours, type scale, spacing,
   radii and backgrounds as the components around it.
 - It uses the existing styling system and classes. Flag new one-off CSS or
-  hard-coded colours where a theme value exists.
+  hard-coded colours where a theme value exists. Search the added lines for raw values
+  (`git diff <base>...HEAD | grep -nE '^\+.*(#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(|[0-9.]+px)'`) and check
+  each match against the theme: name the token to use, or say in Notes why the raw value is fine.
 - Alignment, spacing rhythm and hierarchy hold up, and nothing overflows at
   phone width.
 - Text contrast is readable.

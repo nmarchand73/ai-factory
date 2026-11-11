@@ -1,0 +1,131 @@
+{
+  "cycle": "c003",
+  "closed": "2026-11-11T20:29:10Z",
+  "overall": null,
+  "metrics": {
+    "jobs": 0,
+    "merged": 0,
+    "escalation_rate": null,
+    "avg_rounds": null,
+    "cost_per_job_usd": null
+  },
+  "scores": {},
+  "feedback": [],
+  "changes_to_review": [
+    {
+      "key": "c001/ch1",
+      "skill": "agent:reviewer-ux",
+      "expected_impact": {
+        "criterion": "reliability",
+        "direction": "up",
+        "delta": 25
+      },
+      "gap": {
+        "summary": "when agent-browser is missing, the UX reviewer drops to reading code and passes without checking the page, even though a headless Chrome works on this machine",
+        "evidence": "reliability 50, grounding 33.3 (n=1), jobs/003-add-3dlogo-on-top/round-1/review-ux.md Notes 'Not verified visually', jobs/003-add-3dlogo-on-top/build.md Acceptance criteria (the builder used headless Chrome over CDP)"
+      },
+      "version": "1.1",
+      "verdict": "inconclusive"
+    },
+    {
+      "key": "c001/ch3",
+      "skill": "agent:reviewer-ux",
+      "expected_impact": {
+        "criterion": "checklist_covered",
+        "direction": "up",
+        "delta": 25
+      },
+      "gap": {
+        "summary": "the UX review skips half of its checklist (states, copy, roles) without saying why",
+        "evidence": "checklist_covered 60 (n=1), jobs/003-add-3dlogo-on-top/round-1/review-ux.md"
+      },
+      "version": "1.2",
+      "verdict": "inconclusive"
+    },
+    {
+      "key": "c001/ch2",
+      "skill": "agent:spec-writer",
+      "expected_impact": {
+        "criterion": "atomic_requirements",
+        "direction": "up",
+        "delta": 30
+      },
+      "gap": {
+        "summary": "requirements bundle several conditions under one number, so they are hard to trace one by one to a criterion",
+        "evidence": "atomic_requirements 12.5 (n=1), jobs/003-add-3dlogo-on-top/spec.md Requirements 6 and 7"
+      },
+      "version": "1.1",
+      "verdict": "inconclusive"
+    }
+  ],
+  "skills": {
+    "agent:approver": {
+      "path": ".claude/agents/approver.md",
+      "version": "1.0"
+    },
+    "agent:builder": {
+      "path": ".claude/agents/builder.md",
+      "version": "1.0"
+    },
+    "agent:intake": {
+      "path": ".claude/agents/intake.md",
+      "version": "1.0"
+    },
+    "agent:reviewer-code": {
+      "path": ".claude/agents/reviewer-code.md",
+      "version": "1.0"
+    },
+    "agent:reviewer-security": {
+      "path": ".claude/agents/reviewer-security.md",
+      "version": "1.0"
+    },
+    "agent:reviewer-ui": {
+      "path": ".claude/agents/reviewer-ui.md",
+      "version": "1.0"
+    },
+    "agent:reviewer-ux": {
+      "path": ".claude/agents/reviewer-ux.md",
+      "version": "1.2"
+    },
+    "agent:spec-writer": {
+      "path": ".claude/agents/spec-writer.md",
+      "version": "1.1"
+    },
+    "skill:factory": {
+      "path": ".claude/skills/factory/SKILL.md",
+      "version": "1.0"
+    },
+    "notes:djset": {
+      "path": "targets/djset/notes.md",
+      "version": "1.0"
+    },
+    "notes:sandbox": {
+      "path": "targets/sandbox/notes.md",
+      "version": "1.0"
+    }
+  },
+  "limits": {
+    "max_changes": 3,
+    "protected": [
+      "eval-judge",
+      "retrospective",
+      "factory/bin/*",
+      "evals/criteria.json",
+      "factory/config.json"
+    ]
+  },
+  "history": [
+    {
+      "cycle": "c001",
+      "overall": 66.5
+    },
+    {
+      "cycle": "c002",
+      "overall": 67.7
+    },
+    {
+      "cycle": "c003",
+      "overall": null
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "id": "c003",
+  "status": "closed",
+  "started": "2026-11-11T20:15:51Z",
+  "closed": "2026-11-11T20:29:10Z",
+  "skill_versions": {
+    "agent:approver": "1.0",
+    "agent:builder": "1.0",
+    "agent:intake": "1.0",
+    "agent:reviewer-code": "1.0",
+    "agent:reviewer-security": "1.0",
+    "agent:reviewer-ui": "1.0",
+    "agent:reviewer-ux": "1.2",
+    "agent:spec-writer": "1.1",
+    "skill:factory": "1.0",
+    "notes:djset": "1.0",
+    "notes:sandbox": "1.0"
+  }
+}

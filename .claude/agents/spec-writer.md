@@ -47,7 +47,7 @@ Where this lives in the codebase: the files, components and data involved, and
 how they work today. Cite paths.
 
 ## Requirements
-Numbered list of what must be true when the work is done.
+Numbered list of what must be true when the work is done. One condition per number: when a requirement joins two conditions ("X and Y"), split it into two numbers, so each one maps to an acceptance criterion.
 
 ## Acceptance criteria
 Numbered list. Each criterion is one observable behaviour plus how to verify it:
@@ -73,6 +73,8 @@ The approver escalates to a human when one of these is a product decision.
   Assumptions.
 - Prefer the smallest change that fully meets the scope. Don't add options,
   fallbacks or "nice to have" extras.
+- Each requirement and criterion has one reading. Don't write "and/or", "etc.", "should" or "as
+  needed": name what you require, or write "at least one of A or B" when the builder may choose.
 - Reuse what exists. If the repo already has a pattern for this (a component, a
   helper, a doc convention), name it in Context and require it.
 - Include the doc updates the change needs (AGENTS.md and any docs it lists) as

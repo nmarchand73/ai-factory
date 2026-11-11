@@ -104,7 +104,9 @@ has a name and a one-line description (a technology too, at levels 2 and 3), eve
 phrase. Names in the diagrams are the names in the code. Document what exists on this branch, never
 what is planned or guessed.
 
-- No diagrams yet: create all three for the whole application, from the code as it is on the base
+- No diagrams yet, and the change touches at least one level (next point): create them. A change that
+  touches no level, or a spec whose Out of scope excludes the docs, creates none; say so in build.md.
+  To create them: all three for the whole application, from the code as it is on the base
   branch, then add this change. Keep level 3 to the main components.
 - After you implement, ask of each level whether the change adds, removes, renames or rewires
   something at it: a user or external system (1), a container or datastore (2), a component, its

@@ -1,0 +1,305 @@
+{
+  "skills": {
+    "agent:approver": {
+      "path": ".claude/agents/approver.md",
+      "current": "1.0",
+      "versions": [
+        {
+          "version": "1.0",
+          "date": "2026-11-11T19:44:54Z",
+          "cycle": null,
+          "kind": "baseline",
+          "sha256": "1dfcfa809088ef70df6a444236724102d92515cd3384e1de093ee8fcab920bf0",
+          "gap": null,
+          "diff": "",
+          "approved_by": null,
+          "expected_effect": null
+        }
+      ]
+    },
+    "agent:builder": {
+      "path": ".claude/agents/builder.md",
+      "current": "1.1",
+      "versions": [
+        {
+          "version": "1.0",
+          "date": "2026-11-11T19:44:54Z",
+          "cycle": null,
+          "kind": "baseline",
+          "sha256": "c890347c0eb98a943a11ab338a6df6045c7b0905c67a7c5b407e644a62b6cfb7",
+          "gap": null,
+          "diff": "",
+          "approved_by": null,
+          "expected_effect": null
+        },
+        {
+          "version": "1.1",
+          "date": "2026-11-11T20:40:01Z",
+          "cycle": "c002",
+          "kind": "change",
+          "change": "ch1",
+          "sha256": "c2bc4ed5efe41e9a9dbfda53d3bd8ddfedbd4d2d4ab57070ecd6fed43df83cbc",
+          "gap": {
+            "summary": "in a repo with no diagrams, the builder creates baseline C4 docs even for a styling change the spec puts out of scope, so the code review sends it back for a round",
+            "evidence": "convergence 67 (n=1), jobs/004-polish-the-background/round-1/review-code.md Finding 1, build.md Log Round 1-2, spec.md Out of scope"
+          },
+          "diff": "--- agent:builder v1.0\n+++ agent:builder v1.1\n@@ -104,7 +104,9 @@\n phrase. Names in the diagrams are the names in the code. Document what exists on this branch, never\n what is planned or guessed.\n \n-- No diagrams yet: create all three for the whole application, from the code as it is on the base\n+- No diagrams yet, and the change touches at least one level (next point): create them. A change that\n+  touches no level, or a spec whose Out of scope excludes the docs, creates none; say so in build.md.\n+  To create them: all three for the whole application, from the code as it is on the base\n   branch, then add this change. Keep level 3 to the main components.\n - After you implement, ask of each level whether the change adds, removes, renames or rewires\n   something at it: a user or external system (1), a container or datastore (2), a component, its\n",
+          "approved_by": "nicolasmarchand",
+          "expected_effect": {
+            "criterion": "convergence",
+            "direction": "up",
+            "delta": 15
+          }
+        }
+      ]
+    },
+    "agent:intake": {
+      "path": ".claude/agents/intake.md",
+      "current": "1.0",
+      "versions": [
+        {
+          "version": "1.0",
+          "date": "2026-11-11T19:44:54Z",
+          "cycle": null,
+          "kind": "baseline",
+          "sha256": "5b9850a58e98357d88ecbae469452f5d4275f5f8a38ce21e46f502509d91876d",
+          "gap": null,
+          "diff": "",
+          "approved_by": null,
+          "expected_effect": null
+        }
+      ]
+    },
+    "agent:reviewer-code": {
+      "path": ".claude/agents/reviewer-code.md",
+      "current": "1.0",
+      "versions": [
+        {
+          "version": "1.0",
+          "date": "2026-11-11T19:44:54Z",
+          "cycle": null,
+          "kind": "baseline",
+          "sha256": "58d4b8cbf19799116bb9fa8aa5d8a35816842cb71f717f8f1a6ea82b5d79a279",
+          "gap": null,
+          "diff": "",
+          "approved_by": null,
+          "expected_effect": null
+        }
+      ]
+    },
+    "agent:reviewer-security": {
+      "path": ".claude/agents/reviewer-security.md",
+      "current": "1.0",
+      "versions": [
+        {
+          "version": "1.0",
+          "date": "2026-11-11T19:44:54Z",
+          "cycle": null,
+          "kind": "baseline",
+          "sha256": "d884aef216b71f989e70098eae39ad6c166dd5265ba79a29cc838bb493d3fa23",
+          "gap": null,
+          "diff": "",
+          "approved_by": null,
+          "expected_effect": null
+        }
+      ]
+    },
+    "agent:reviewer-ui": {
+      "path": ".claude/agents/reviewer-ui.md",
+      "current": "1.1",
+      "versions": [
+        {
+          "version": "1.0",
+          "date": "2026-11-11T19:44:54Z",
+          "cycle": null,
+          "kind": "baseline",
+          "sha256": "11e1d265495d92215f64e6d685d79de20f76e370424a57c5e12028a880870cfe",
+          "gap": null,
+          "diff": "",
+          "approved_by": null,
+          "expected_effect": null
+        },
+        {
+          "version": "1.1",
+          "date": "2026-11-11T20:40:01Z",
+          "cycle": "c002",
+          "kind": "change",
+          "change": "ch3",
+          "sha256": "9b53b2504daa05dade1e9f138a30f687b78774883be83713f1826b3dae563cc8",
+          "gap": {
+            "summary": "the UI reviewer looks at screenshots but doesn't search the added lines for raw colours and sizes",
+            "evidence": "hunts_hardcoded 50 (n=1), jobs/004-polish-the-background/round-1/review-ui.md, round-1/review-code.md Notes ('#000' in the mask)"
+          },
+          "diff": "--- agent:reviewer-ui v1.0\n+++ agent:reviewer-ui v1.1\n@@ -51,7 +51,9 @@\n - It looks like it belongs in the app: the same colours, type scale, spacing,\n   radii and backgrounds as the components around it.\n - It uses the existing styling system and classes. Flag new one-off CSS or\n-  hard-coded colours where a theme value exists.\n+  hard-coded colours where a theme value exists. Search the added lines for raw values\n+  (`git diff <base>...HEAD | grep -nE '^\\+.*(#[0-9a-fA-F]{3,8}\\b|rgba?\\(|hsla?\\(|[0-9.]+px)'`) and check\n+  each match against the theme: name the token to use, or say in Notes why the raw value is fine.\n - Alignment, spacing rhythm and hierarchy hold up, and nothing overflows at\n   phone width.\n - Text contrast is readable.\n",
+          "approved_by": "nicolasmarchand",
+          "expected_effect": {
+            "criterion": "hunts_hardcoded",
+            "direction": "up",
+            "delta": 30
+          }
+        }
+      ]
+    },
+    "agent:reviewer-ux": {
+      "path": ".claude/agents/reviewer-ux.md",
+      "current": "1.2",
+      "versions": [
+        {
+          "version": "1.0",
+          "date": "2026-11-11T19:44:54Z",
+          "cycle": null,
+          "kind": "baseline",
+          "sha256": "e516b1ae48ac6301499d91a2d4ab84d27d632d3302a45d0f002f80d7551137e7",
+          "gap": null,
+          "diff": "",
+          "approved_by": null,
+          "expected_effect": null
+        },
+        {
+          "version": "1.1",
+          "date": "2026-11-11T19:58:46Z",
+          "cycle": "c001",
+          "kind": "change",
+          "change": "ch1",
+          "sha256": "87bc879ac8c8c9dac5e4d897589af19cf87a97aafee5f49e909c498f980d6a56",
+          "gap": {
+            "summary": "when agent-browser is missing, the UX reviewer drops to reading code and passes without checking the page, even though a headless Chrome works on this machine",
+            "evidence": "reliability 50, grounding 33.3 (n=1), jobs/003-add-3dlogo-on-top/round-1/review-ux.md Notes 'Not verified visually', jobs/003-add-3dlogo-on-top/build.md Acceptance criteria (the builder used headless Chrome over CDP)"
+          },
+          "diff": "--- agent:reviewer-ux v1.0\n+++ agent:reviewer-ux v1.1\n@@ -35,7 +35,7 @@\n If the change shows up on a page, use it like a visitor would. Start the dev\n server from AGENTS.md in the worktree, in the background, on your port.\n \n-Then use the `agent-browser` CLI (run `agent-browser skills get core` first).\n+Then use the `agent-browser` CLI (run `agent-browser skills get core` first). Check that it exists with `command -v agent-browser` before you call it. If it is missing, don't fall back to reading the code: drive a headless Chrome yourself (build.md's Acceptance criteria section says how the builder checked the page). If no browser works at all, list in the Summary each acceptance criterion you could not check on the page.\n Pass `--session <job-id>-ux` on every `agent-browser` call, so other jobs'\n reviewers never drive your browser. Don't sign in or submit forms: the dev\n server may talk to real services. When you're done, run\n",
+          "approved_by": "nicolasmarchand",
+          "expected_effect": {
+            "criterion": "reliability",
+            "direction": "up",
+            "delta": 25
+          }
+        },
+        {
+          "version": "1.2",
+          "date": "2026-11-11T19:58:47Z",
+          "cycle": "c001",
+          "kind": "change",
+          "change": "ch3",
+          "sha256": "48a83970dfad18dba1eb8085faf0eb5befe24a884187260660ecb32e7afe6a08",
+          "gap": {
+            "summary": "the UX review skips half of its checklist (states, copy, roles) without saying why",
+            "evidence": "checklist_covered 60 (n=1), jobs/003-add-3dlogo-on-top/round-1/review-ux.md"
+          },
+          "diff": "--- agent:reviewer-ux v1.1\n+++ agent:reviewer-ux v1.2\n@@ -55,6 +55,8 @@\n   alt text.\n - Mobile: it works at phone width.\n \n+Answer every topic above in the review (Summary or Notes). When one does not apply, write N/A with a one-line reason, e.g. \"no loading or error state: a static decoration\".\n+\n If the branch has no user-facing change, write PASS and say so.\n \n ## Write review-ux.md\n",
+          "approved_by": "nicolasmarchand",
+          "expected_effect": {
+            "criterion": "checklist_covered",
+            "direction": "up",
+            "delta": 25
+          }
+        }
+      ]
+    },
+    "agent:spec-writer": {
+      "path": ".claude/agents/spec-writer.md",
+      "current": "1.2",
+      "versions": [
+        {
+          "version": "1.0",
+          "date": "2026-11-11T19:44:54Z",
+          "cycle": null,
+          "kind": "baseline",
+          "sha256": "78b3a4ad20965407a1b0104b436923f7f4c54b9ba1414f29c411675b4835c562",
+          "gap": null,
+          "diff": "",
+          "approved_by": null,
+          "expected_effect": null
+        },
+        {
+          "version": "1.1",
+          "date": "2026-11-11T19:58:46Z",
+          "cycle": "c001",
+          "kind": "change",
+          "change": "ch2",
+          "sha256": "f73fbd475b1addc07e78d24558466237e544d4cb5f2bad031219a10ae3e2201b",
+          "gap": {
+            "summary": "requirements bundle several conditions under one number, so they are hard to trace one by one to a criterion",
+            "evidence": "atomic_requirements 12.5 (n=1), jobs/003-add-3dlogo-on-top/spec.md Requirements 6 and 7"
+          },
+          "diff": "--- agent:spec-writer v1.0\n+++ agent:spec-writer v1.1\n@@ -47,7 +47,7 @@\n how they work today. Cite paths.\n \n ## Requirements\n-Numbered list of what must be true when the work is done.\n+Numbered list of what must be true when the work is done. One condition per number: when a requirement joins two conditions (\"X and Y\"), split it into two numbers, so each one maps to an acceptance criterion.\n \n ## Acceptance criteria\n Numbered list. Each criterion is one observable behaviour plus how to verify it:\n",
+          "approved_by": "nicolasmarchand",
+          "expected_effect": {
+            "criterion": "atomic_requirements",
+            "direction": "up",
+            "delta": 30
+          }
+        },
+        {
+          "version": "1.2",
+          "date": "2026-11-11T20:40:01Z",
+          "cycle": "c002",
+          "kind": "change",
+          "change": "ch2",
+          "sha256": "281db8608dae88368f3a85f42f9c34f10f984a254051f69e386d08fe98014593",
+          "gap": {
+            "summary": "requirements and criteria leave choices open with 'and/or', so done is not one checkable thing",
+            "evidence": "no_vague_words 20 (n=1), jobs/004-polish-the-background/spec.md Requirements 3 and 5, Acceptance criteria 4 and 7"
+          },
+          "diff": "--- agent:spec-writer v1.1\n+++ agent:spec-writer v1.2\n@@ -73,6 +73,8 @@\n   Assumptions.\n - Prefer the smallest change that fully meets the scope. Don't add options,\n   fallbacks or \"nice to have\" extras.\n+- Each requirement and criterion has one reading. Don't write \"and/or\", \"etc.\", \"should\" or \"as\n+  needed\": name what you require, or write \"at least one of A or B\" when the builder may choose.\n - Reuse what exists. If the repo already has a pattern for this (a component, a\n   helper, a doc convention), name it in Context and require it.\n - Include the doc updates the change needs (AGENTS.md and any docs it lists) as\n",
+          "approved_by": "nicolasmarchand",
+          "expected_effect": {
+            "criterion": "no_vague_words",
+            "direction": "up",
+            "delta": 30
+          }
+        }
+      ]
+    },
+    "skill:factory": {
+      "path": ".claude/skills/factory/SKILL.md",
+      "current": "1.0",
+      "versions": [
+        {
+          "version": "1.0",
+          "date": "2026-11-11T19:44:54Z",
+          "cycle": null,
+          "kind": "baseline",
+          "sha256": "821870d04423bb0c6b7a509df2c62fd0a19331421656a133bbd97e703a0150dc",
+          "gap": null,
+          "diff": "",
+          "approved_by": null,
+          "expected_effect": null
+        }
+      ]
+    },
+    "notes:djset": {
+      "path": "targets/djset/notes.md",
+      "current": "1.0",
+      "versions": [
+        {
+          "version": "1.0",
+          "date": "2026-11-11T19:44:54Z",
+          "cycle": null,
+          "kind": "baseline",
+          "sha256": "b582cd632baeb77df9107d091845bfc1f54d16f130cc217162a1bb9ab047d783",
+          "gap": null,
+          "diff": "",
+          "approved_by": null,
+          "expected_effect": null
+        }
+      ]
+    },
+    "notes:sandbox": {
+      "path": "targets/sandbox/notes.md",
+      "current": "1.0",
+      "versions": [
+        {
+          "version": "1.0",
+          "date": "2026-11-11T19:44:54Z",
+          "cycle": null,
+          "kind": "baseline",
+          "sha256": "bb6bae35aa699f93509192522979d42210da98e6fb4f7dea675c11ee62a5b1c2",
+          "gap": null,
+          "diff": "",
+          "approved_by": null,
+          "expected_effect": null
+        }
+      ]
+    }
+  }
+}

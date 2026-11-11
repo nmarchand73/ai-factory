@@ -35,7 +35,7 @@ and give Read, Grep and Glob absolute paths under the worktree. The job folder i
 If the change shows up on a page, use it like a visitor would. Start the dev
 server from AGENTS.md in the worktree, in the background, on your port.
 
-Then use the `agent-browser` CLI (run `agent-browser skills get core` first).
+Then use the `agent-browser` CLI (run `agent-browser skills get core` first). Check that it exists with `command -v agent-browser` before you call it. If it is missing, don't fall back to reading the code: drive a headless Chrome yourself (build.md's Acceptance criteria section says how the builder checked the page). If no browser works at all, list in the Summary each acceptance criterion you could not check on the page.
 Pass `--session <job-id>-ux` on every `agent-browser` call, so other jobs'
 reviewers never drive your browser. Don't sign in or submit forms: the dev
 server may talk to real services. When you're done, run
@@ -54,6 +54,8 @@ never kill by process name.
 - Accessibility: real buttons and links, labels, focus order, keyboard use, and
   alt text.
 - Mobile: it works at phone width.
+
+Answer every topic above in the review (Summary or Notes). When one does not apply, write N/A with a one-line reason, e.g. "no loading or error state: a static decoration".
 
 If the branch has no user-facing change, write PASS and say so.
 
