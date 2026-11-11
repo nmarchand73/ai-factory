@@ -124,6 +124,23 @@ class Factory(unittest.TestCase):
         self.assertIn("ambiguous", res.stderr)
         self.assertEqual(self.bin("job", "summary", "alpha#3").returncode, 0)
 
+    def test_an_archived_target_is_not_queued_or_built_and_can_come_back(self):
+        self.add_issue("me/alpha", 4, "A")
+        self.add_issue("me/beta", 5, "B")
+        self.assertIn("beta: archived", self.bin("target", "archive", "beta").stdout)
+        cfg = json.loads((self.root / "factory" / "config.json").read_text())
+        self.assertTrue(cfg["targets"]["beta"]["archived"])
+        self.assertIn("archived", self.bin("target", "list").stdout)
+        q = self.bin("job", "queue").stdout
+        self.assertIn("alpha", q)
+        self.assertNotIn("beta", q)
+        self.assertIn("archived", self.bin("job", "queue", "beta", ok=False).stderr)
+        self.assertIn("archived", self.bin("job", "create", "beta", "5", ok=False).stderr)
+        self.assertEqual(self.bin("job", "create", "4").returncode, 0)          # one active target: a bare number is fine again
+        self.bin("target", "unarchive", "beta")
+        self.assertNotIn("archived", json.loads((self.root / "factory" / "config.json").read_text())["targets"]["beta"])
+        self.assertIn("beta", self.bin("job", "queue").stdout)
+
     def test_job_ids_are_global_and_worktrees_live_outside_the_target(self):
         self.add_issue("me/alpha", 1, "First")
         self.add_issue("me/beta", 1, "Second")

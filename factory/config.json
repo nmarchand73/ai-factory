@@ -67,7 +67,8 @@
       "merge_method": "squash",
       "protected_paths": [
         ".github/workflows/*"
-      ]
+      ],
+      "archived": true
     },
     "djset": {
       "repo": "nmarchand73/djset",

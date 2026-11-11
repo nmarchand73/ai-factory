@@ -42,6 +42,7 @@ BIN = FACTORY / "bin"
 CONFIG = json.loads((FACTORY / "config.json").read_text())
 LABELS = CONFIG["labels"]
 TARGETS = CONFIG["targets"]
+ACTIVE_TARGETS = {n: t for n, t in TARGETS.items() if not t.get("archived")}   # an archived target is no longer built
 MARKER = "<!-- factory -->"
 
 TRANSITIONS = {
@@ -180,8 +181,8 @@ def resolve(arg):
             die(f"no job for {arg}")
         job = matches[0]
     elif arg.isdigit():
-        if len(TARGETS) != 1:
-            die(f"issue #{arg} is ambiguous with {len(TARGETS)} targets; use <target>#{arg} ({', '.join(TARGETS)})")
+        if len(ACTIVE_TARGETS) != 1:
+            die(f"issue #{arg} is ambiguous with {len(ACTIVE_TARGETS)} targets; use <target>#{arg} ({', '.join(ACTIVE_TARGETS)})")
         matches = [j for j in all_jobs() if j["issue"] == int(arg)]
         if not matches:
             die(f"no job for issue #{arg}")
@@ -743,6 +744,8 @@ def evolution_stamp():
 
 def cmd_create(target, number):
     use_target(target)
+    if target not in ACTIVE_TARGETS:
+        die(f"target {target!r} is archived (factory/bin/target unarchive {target})")
     existing = [j for j in all_jobs() if j["target"] == target and j["issue"] == int(number)]
     if existing:
         die(f"{target}#{number} already has job {existing[0]['id']} ({existing[0]['stage']})")
@@ -819,9 +822,11 @@ def cmd_queue(only=None):
     """Rows in the order to start them. `resume` and `new` rows fit in the
     concurrency slots (shared by every target); the rest show as `hold` until a
     running job finishes. A target whose GitHub calls fail prints an `error` row."""
-    names = [only] if only else list(TARGETS)
+    names = [only] if only else list(ACTIVE_TARGETS)
     if only and only not in TARGETS:
         die(f"unknown target {only!r} (known: {', '.join(TARGETS)})")
+    if only and only not in ACTIVE_TARGETS:
+        die(f"target {only!r} is archived (factory/bin/target unarchive {only})")
     jobs_all = all_jobs()
     running_rows, replied_rows, new_rows, other_rows, errors = [], [], [], [], []
     for name in names:
@@ -1000,8 +1005,8 @@ def main(argv):
             cmd_queue(args[0] if args else None)
         elif cmd == "create" and len(args) == 2 and args[1].isdigit():
             cmd_create(*args)
-        elif cmd == "create" and len(args) == 1 and args[0].isdigit() and len(TARGETS) == 1:
-            cmd_create(next(iter(TARGETS)), args[0])
+        elif cmd == "create" and len(args) == 1 and args[0].isdigit() and len(ACTIVE_TARGETS) == 1:
+            cmd_create(next(iter(ACTIVE_TARGETS)), args[0])
         elif cmd == "advance" and len(args) == 2:
             job = advance(sync(resolve(args[0])), args[1])
             save(sync(job))

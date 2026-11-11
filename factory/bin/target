@@ -5,6 +5,8 @@ Usage:
   target list
   target add <name> <owner/repo> [--base BRANCH] [--merge merge|squash|rebase] [--protect GLOB ...]
   target check <name>
+  target archive <name>      stop building it and hide it on the dashboard; its jobs and history stay
+  target unarchive <name>
 
 `add` clones the repo to targets/<name>/repo, creates the factory labels on it,
 scaffolds targets/<name>/checks.sh and notes.md, and registers it in
@@ -117,7 +119,20 @@ def cmd_list():
         print("no targets; add one with: factory/bin/target add <name> <owner/repo>")
     for name, t in config["targets"].items():
         clone = ROOT / "targets" / name / "repo"
-        print(f"{name}\t{t['repo']}\t{t['base_branch']}\t{t['merge_method']}\t{'cloned' if clone.exists() else 'NOT CLONED'}")
+        state = "archived" if t.get("archived") else ("cloned" if clone.exists() else "NOT CLONED")
+        print(f"{name}\t{t['repo']}\t{t['base_branch']}\t{t['merge_method']}\t{state}")
+
+
+def cmd_archive(name, archived):
+    config = load()
+    if name not in config["targets"]:
+        die(f"unknown target {name!r} (known: {', '.join(config['targets']) or 'none'})")
+    if archived:
+        config["targets"][name]["archived"] = True
+    else:
+        config["targets"][name].pop("archived", None)
+    save(config)
+    print(f"{name}: {'archived' if archived else 'active'}")
 
 
 def cmd_add(argv):
@@ -255,6 +270,8 @@ def main(argv):
         cmd_add(argv[1:])
     elif argv[0] == "check" and len(argv) == 2:
         cmd_check(argv[1])
+    elif argv[0] in {"archive", "unarchive"} and len(argv) == 2:
+        cmd_archive(argv[1], argv[0] == "archive")
     else:
         die(f"bad arguments\n\n{__doc__.strip()}")
 

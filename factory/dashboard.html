@@ -511,6 +511,7 @@ const store = {
 }
 let closedLanes = new Set(store.get('closed', []))
 let onlyLane = store.get('only', null)
+let showArchived = store.get('showArchived', false)
 let showAllDone = new Set(store.get('allDone', []))
 let scores = null // evals/scores.json: the confidence of every agent
 let metrics = null // metrics.json: the factory's health numbers (written by factory/bin/metrics)
@@ -1033,9 +1034,15 @@ async function render() {
   const valid = jobs.filter((j) => byJob.has(j.id))
   const laneOf = (j) => j.target || '?'
   const known = Object.keys(targets)
+  const archived = known.filter((t) => targets[t].archived)   // `factory/bin/target archive <name>`
   const unknown = [...new Set(valid.map(laneOf))].filter((t) => !known.includes(t))
   for (const t of unknown) problems.push(`Jobs reference target "${t}", which isn't in config.json targets`)
-  const names = [...known, ...unknown]
+  // Most recently active project first; projects without a job keep the config order after them.
+  const lastTouch = (n) => Math.max(0, ...valid.filter((j) => laneOf(j) === n).map((j) =>
+    Date.parse((j.history && j.history.length ? j.history[j.history.length - 1].ts : null) || j.ended || j.started) || 0))
+  const order = [...known.filter((t) => !targets[t].archived), ...unknown]
+  const names = order.map((n, i) => [n, i]).sort((a, b) => lastTouch(b[0]) - lastTouch(a[0]) || a[1] - b[1]).map((x) => x[0])
+    .concat(showArchived ? archived : [])
   if (onlyLane && !names.includes(onlyLane)) onlyLane = null
   const shown = names.filter((n) => !onlyLane || n === onlyLane)
 
@@ -1044,7 +1051,7 @@ async function render() {
       const mine = valid.filter((j) => laneOf(j) === n)
       const h = mine.filter((j) => j.stage === 'needs-human').length
       return `<button class="fchip ${h ? 'alert' : ''}" type="button" data-only="${esc(n)}" aria-pressed="${onlyLane === n}">${esc(n)}<span class="n">${h ? h + ' ⚑' : mine.length}</span></button>`
-    })).join('')
+    })).concat(archived.length ? [`<button class="fchip" type="button" data-archived="1" aria-pressed="${showArchived}" title="Projects archived with factory/bin/target archive">Archived<span class="n">${archived.length}</span></button>`] : []).join('')
   const lanes = shown.map((n) =>
     laneHtml(n, valid.filter((j) => laneOf(j) === n), byJob, unknown.includes(n))).join('')
     || '<div class="lane-empty">No targets yet. Add one: factory/bin/target add &lt;name&gt; &lt;owner/repo&gt;</div>'
@@ -1114,6 +1121,7 @@ document.addEventListener('click', (e) => {
     store.set('allDone', [...showAllDone]); lastRender = ''; render()
     return
   }
+  if (e.target.closest('[data-archived]')) { showArchived = !showArchived; store.set('showArchived', showArchived); lastRender = ''; render(); return }
   const only = e.target.closest('[data-only]')
   if (only) { onlyLane = only.dataset.only || null; store.set('only', onlyLane); lastRender = ''; render() }
 })
