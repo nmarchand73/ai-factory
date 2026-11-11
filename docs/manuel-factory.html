@@ -132,8 +132,8 @@ footer{margin-top:70px;padding-top:22px;border-top:1px solid var(--line);color:v
   <ol>
     <li><a href="#comprendre">Comprendre</a></li>
     <li><a href="#prerequis">Prérequis</a></li>
-    <li><a href="#installer">Installer</a></li>
-    <li><a href="#adapter">Adapter à votre projet</a></li>
+    <li><a href="#installer">Installer la factory</a></li>
+    <li><a href="#adapter">Ajouter un projet</a></li>
     <li><a href="#premier-job">Premier job (exemple)</a></li>
     <li><a href="#parallele">Plusieurs issues en parallèle</a></li>
     <li><a href="#humain">Piloter &amp; décider</a></li>
@@ -150,13 +150,13 @@ footer{margin-top:70px;padding-top:22px;border-top:1px solid var(--line);color:v
 <header class="hero">
   <span class="eyebrow">Manuel pas à pas</span>
   <h1>Faire travailler une usine logicielle sur n’importe quel projet GitHub</h1>
-  <p class="lead">Vous étiquetez une issue <code>factory</code>, vous tapez <code>/factory run</code> dans Claude Code, et des agents décident si elle mérite d’être construite, écrivent la spec, codent, testent, relisent et ouvrent une pull request. Ce manuel vous conduit de zéro au premier merge automatique.</p>
+  <p class="lead">Vous étiquetez une issue <code>factory</code>, vous tapez <code>/factory run</code> dans Claude Code, et des agents décident si elle mérite d’être construite, écrivent la spec, codent, testent, relisent et ouvrent une pull request. La factory vit dans <b>son propre repo</b> et travaille sur autant de projets que vous voulez, qui ne reçoivent que des PR. Ce manuel vous conduit de zéro au premier merge automatique.</p>
   <div class="chips">
     <div class="chip"><b>Entrée</b>Issues GitHub</div>
     <div class="chip"><b>Sortie</b>Une PR par issue</div>
     <div class="chip"><b>Moteur</b>Sous-agents Claude Code</div>
     <div class="chip"><b>Colonne vertébrale</b>Scripts déterministes</div>
-    <div class="chip"><b>Source</b>ZazenCodes · factory v2 (GPLv3)</div>
+    <div class="chip"><b>Modèle</b>Factory externe, multi-projets</div><div class="chip"><b>Origine</b>Fork de ZazenCodes v2 (GPLv3)</div>
   </div>
 </header>
 
@@ -240,121 +240,126 @@ footer{margin-top:70px;padding-top:22px;border-top:1px solid var(--line);color:v
 <!-- 2 -->
 <section id="prerequis">
   <h2><span class="num">2</span>Prérequis</h2>
-  <p class="intro">Vérifiez ces points <em>avant</em> d’installer ; l’installeur s’arrête sinon.</p>
+  <p class="intro">Vérifiez ces points <em>avant</em> d’installer. Ils valent pour la machine qui fait tourner la factory et pour chaque projet cible.</p>
   <table>
     <tr><th>Élément</th><th>Exigence</th><th>Vérification</th></tr>
-    <tr><td>Projet</td><td>Dépôt git avec un <code>origin</code> sur GitHub</td><td><code>git remote -v</code></td></tr>
-    <tr><td>GitHub CLI</td><td><code>gh</code> authentifié, droit de push et de gestion des labels</td><td><code>gh auth status</code></td></tr>
-    <tr><td>Branche par défaut</td><td>Existe sur <code>origin</code> (main, master…)</td><td><code>gh repo view --json defaultBranchRef</code></td></tr>
+    <tr><td>Repo factory</td><td>Ce repo cloné sur votre machine (<code>ai-factory</code>)</td><td><code>git -C ai-factory status</code></td></tr>
+    <tr><td>GitHub CLI</td><td><code>gh</code> authentifié</td><td><code>gh auth status</code></td></tr>
+    <tr><td>Projet cible</td><td>Repo GitHub où vous avez le droit d’écriture (labels, branches, PR)</td><td><code>gh repo view owner/repo --json viewerPermission</code></td></tr>
     <tr><td>Claude Code</td><td>2.1.257 ou plus (l’intake tourne sur Fable)</td><td><code>claude --version</code></td></tr>
     <tr><td>Python</td><td>3.10+ (bibliothèque standard seule)</td><td><code>python3 --version</code></td></tr>
     <tr><td>Tests du projet</td><td>Des commandes de test / lint / build non interactives</td><td>voir <code>package.json</code>, <code>Makefile</code>…</td></tr>
   </table>
   <div class="callout warn"><div class="t">Coût</div><p>L’intake utilise Fable, une fois par issue. Selon votre plan, Fable peut être facturé en crédits d’usage plutôt que dans l’inclus du plan. Les builders Opus consomment aussi. Commencez par une ou deux petites issues.</p></div>
-  <div class="callout info"><div class="t">Pas encore de repo GitHub ?</div><p>Créez-le d’abord : <code>gh repo create mon-projet --private --source . --remote origin --push</code>. La factory a besoin des issues et des PR.</p></div>
+  <div class="callout info"><div class="t">Rien à installer dans le projet cible</div><p>Contrairement à la v2 d’origine, aucun fichier de la factory n’est copié dans vos projets : pas de <code>.claude/</code>, pas de <code>factory/</code>, pas de changement de <code>.gitignore</code>. Le projet ne voit que des branches <code>factory/*</code> et des PR.</p></div>
 </section>
 
 <!-- 3 -->
 <section id="installer">
   <h2><span class="num">3</span>Installer la factory</h2>
-  <p class="intro">L’installation est faite par Claude Code lui-même : il lit <code>INSTALL.md</code>, copie les fichiers et adapte ce qui dépend de votre projet.</p>
-
+  <p class="intro">Une seule installation, quel que soit le nombre de projets. La factory est un repo ordinaire : on le clone et on y lance Claude Code.</p>
   <ol class="steps">
-    <li><strong>Ouvrez Claude Code à la racine de votre projet</strong>
-      <div class="codeblock"><div class="cap"><span>terminal</span><button class="copy" type="button">Copier</button></div><pre>cd ~/dev/mon-projet
-claude</pre></div>
-      Travaillez sur la branche par défaut, propre (<code>git status</code> vide) : l’installation sera commitée là.
+    <li><strong>Cloner le repo factory</strong>
+      <div class="codeblock"><div class="cap"><span>terminal</span><button class="copy" type="button">Copier</button></div><pre>gh repo clone nmarchand73/ai-factory
+cd ai-factory</pre></div>
     </li>
-    <li><strong>Collez le prompt d’installation</strong>
-      <div class="codeblock"><div class="cap"><span>prompt Claude Code</span><button class="copy" type="button">Copier</button></div><pre>Install this software factory in this project from the reference repository:
-
-https://github.com/zazencodes/zazencodes-season-3/tree/main/src/software-factory-claude-code-v2</pre></div>
+    <li><strong>Vérifier que tout est en place</strong>
+      <div class="codeblock"><div class="cap"><span>terminal</span><button class="copy" type="button">Copier</button></div><pre>python3 -m unittest tests/test_factory.py   <span class="c"># 10 tests, sans réseau</span>
+factory/bin/target list                       <span class="c"># les projets déjà déclarés</span></pre></div>
     </li>
-    <li><strong>Laissez-le travailler et répondez à ses questions</strong>
-      Il vérifie les prérequis, copie 14 fichiers, remplit <code>factory/checks.sh</code>, tailleure les reviewers à votre stack, crée les labels, puis lance <code>checks.sh</code> pour vérifier qu’il passe. Il vous demandera avant d’écraser un fichier existant et avant de pousser.
-    </li>
-    <li><strong>Relisez le diff, puis poussez sur la branche par défaut</strong>
-      La factory crée chaque job depuis <code>origin/&lt;base&gt;</code> : l’installation doit donc être poussée avant le premier run.
-      <div class="codeblock"><div class="cap"><span>terminal</span><button class="copy" type="button">Copier</button></div><pre>git status
-git log -1 --stat
-git push</pre></div>
+    <li><strong>Lancer Claude Code à la racine de CE repo</strong>
+      C’est la session qui deviendra l’orchestrateur : elle charge le skill <code>/factory</code> et les 8 agents depuis <code>.claude/</code>. Les projets cibles sont travaillés depuis cette session, jamais depuis leur propre dossier.
+      <div class="codeblock"><pre>claude</pre></div>
     </li>
   </ol>
-
-  <h3>Ce qui est ajouté à votre projet</h3>
-  <div class="codeblock"><pre>.claude/
-  skills/factory/SKILL.md     <span class="c"># l'orchestrateur (la commande /factory)</span>
-  agents/                     <span class="c"># intake, spec-writer, builder, reviewer-*, approver</span>
-factory/
-  config.json                 <span class="c"># concurrence, tours max, routage, chemins protégés, prix</span>
-  checks.sh                   <span class="c"># VOS tests/lint/build (le seul script propre au projet)</span>
-  bin/job  bin/gate  bin/route
-  dashboard.html              <span class="c"># le tableau de bord</span>
-  jobs/                       <span class="c"># état d'exécution, gitignoré</span>
-.worktrees/                   <span class="c"># un checkout par job, gitignoré</span>
-AGENTS.md (ou CLAUDE.md)      <span class="c"># + section « Software factory »</span></pre></div>
-
-  <div class="callout ok"><div class="t">Installation manuelle (alternative)</div>
-  <p>Cloner le repo de référence, copier les chemins ci-dessus à l’identique, <code>chmod +x factory/checks.sh factory/bin/*</code>, ajouter <code>/factory/jobs/</code> et <code>/.worktrees/</code> au <code>.gitignore</code>, puis créer les trois labels :</p>
-  <div class="codeblock"><pre>gh label create factory            --color 5319E7 --description "Build this with the software factory"
-gh label create factory:needs-info  --color FBCA04 --description "The factory asked the author a question"
-gh label create factory:needs-human --color D93F0B --description "The factory needs a human decision on the PR"</pre></div></div>
+  <h3>Organisation du repo factory</h3>
+  <div class="codeblock"><pre>.claude/skills/factory/SKILL.md    <span class="c"># /factory : l'orchestrateur</span>
+.claude/agents/                    <span class="c"># intake, spec-writer, builder, reviewer-*, approver (une seule copie)</span>
+factory/config.json                <span class="c"># concurrence, tours max, routage, prix + la liste des cibles</span>
+factory/bin/{job,gate,route,target}
+factory/dashboard.html             <span class="c"># kanban, un swimlane par projet</span>
+factory/jobs/                      <span class="c"># état des jobs (gitignoré)</span>
+targets/&lt;nom&gt;/checks.sh, notes.md <span class="c"># propres à chaque projet (commités)</span>
+targets/&lt;nom&gt;/repo/               <span class="c"># clone local du projet (gitignoré)</span>
+workspaces/&lt;nom&gt;/&lt;job&gt;/         <span class="c"># un worktree git par job (gitignoré)</span></pre></div>
+  <div class="callout ok"><div class="t">Pourquoi hors du projet ?</div>
+  <p>Aucune pollution du repo cible, une seule copie des agents à faire évoluer, la licence GPLv3 reste dans le repo factory, et une PR du projet ne peut pas modifier les agents, la config ni les <code>checks.sh</code> qui la jugent.</p></div>
 </section>
 
 <!-- 4 -->
 <section id="adapter">
-  <h2><span class="num">4</span>Adapter à votre projet</h2>
-  <p class="intro">L’installeur le fait pour vous, mais vérifiez ces quatre points : ils décident de la qualité de ce que la factory produira.</p>
-
-  <h3>1 · <code>factory/checks.sh</code> — le juge impartial</h3>
-  <p>C’est la seule porte déterministe. Elle tourne dans le worktree du job et doit : être non interactive, ne <b>rien réécrire</b> (pas de <code>--fix</code>, pas de <code>--update-snapshots</code>), et sortir non-zéro à la moindre erreur.</p>
-  <div class="codeblock"><div class="cap"><span>exemple — projet Node</span><button class="copy" type="button">Copier</button></div><pre>#!/usr/bin/env bash
+  <h2><span class="num">4</span>Ajouter un projet</h2>
+  <p class="intro">Une commande déclare le projet ; deux fichiers par projet décident de la qualité de ce que la factory produira.</p>
+  <ol class="steps">
+    <li><strong>Déclarer le projet</strong>
+      Clone local, labels GitHub, fichiers à compléter et entrée dans <code>config.json</code>, en une commande :
+      <div class="codeblock"><div class="cap"><span>terminal</span><button class="copy" type="button">Copier</button></div><pre>factory/bin/target add notewall monuser/notewall --merge squash
+<span class="c"># options : --base BRANCHE  --merge merge|squash|rebase  --protect "GLOB" (répétable)</span></pre></div>
+      Le nom (<code>notewall</code>) identifie le projet partout : lanes du dashboard, <code>/factory run notewall</code>, dossiers <code>targets/</code> et <code>workspaces/</code>.
+    </li>
+    <li><strong>Écrire <code>targets/notewall/checks.sh</code> — le juge impartial</strong>
+      Il tourne dans le worktree du job, non interactif, sans rien réécrire (<code>--fix</code>, <code>--update-snapshots</code> interdits), et sort non-zéro à la moindre erreur.
+      <div class="codeblock"><div class="cap"><span>exemple — Node</span><button class="copy" type="button">Copier</button></div><pre>#!/usr/bin/env bash
 set -euo pipefail
 npm ci --prefer-offline
 npm run lint
 npm run typecheck
 npm test -- --run
 npm run build</pre></div>
-  <div class="codeblock"><div class="cap"><span>exemple — projet Python</span><button class="copy" type="button">Copier</button></div><pre>#!/usr/bin/env bash
+      <div class="codeblock"><div class="cap"><span>exemple — Python</span></div><pre>#!/usr/bin/env bash
 set -euo pipefail
 pip install -q -r requirements.txt
-ruff check .
-mypy .
-pytest -q</pre></div>
-  <div class="callout warn"><div class="t">Règle d’or</div><p>Lancez <code>bash factory/checks.sh</code> sur votre branche principale : s’il échoue, <b>aucun job ne pourra jamais passer</b>. Corrigez le script (ou le projet) avant d’aller plus loin.</p></div>
-
-  <h3>2 · <code>factory/config.json</code></h3>
+ruff check . &amp;&amp; mypy . &amp;&amp; pytest -q</pre></div>
+    </li>
+    <li><strong>Compléter <code>targets/notewall/notes.md</code></strong>
+      Les agents travaillent dans un worktree hors du repo : ce fichier fait foi quand les docs du projet sont minces.
+      <table>
+        <tr><th>Section</th><th>Contenu</th></tr>
+        <tr><td>Setup / Dev server / Validation</td><td>Préparer un checkout neuf, lancer le serveur sur un port donné, commandes de validation (celles de <code>checks.sh</code>)</td></tr>
+        <tr><td>Hot spots</td><td>Pour le reviewer sécurité : auth, accès aux données, paiement/webhooks, entrées utilisateur</td></tr>
+        <tr><td>Design</td><td>Pour les reviewers UI/UX : tokens, thème, composants partagés, types d’utilisateurs</td></tr>
+        <tr><td>Always escalate</td><td>Ce qu’un humain doit <em>toujours</em> voir (pour l’approver)</td></tr>
+        <tr><td>What this project is for</td><td>Une ligne, pour que l’intake juge ce qui a sa place</td></tr>
+      </table>
+      Le <code>AGENTS.md</code> du projet reste lu en priorité s’il existe : plus il est précis, moins les builders tâtonnent.
+    </li>
+    <li><strong>Vérifier que le projet est prêt</strong>
+      <div class="term"><div class="bar"><i></i><i></i><i></i>&nbsp;terminal</div><pre><span class="p">$</span> factory/bin/target check notewall
+<span class="ok">ok  </span>  gh is authenticated
+<span class="ok">ok  </span>  write access to the repo: ADMIN
+<span class="ok">ok  </span>  clone's origin is the repo
+<span class="ok">ok  </span>  base branch main exists on origin
+<span class="ok">ok  </span>  merge method squash is allowed
+<span class="ok">ok  </span>  factory labels exist
+<span class="ok">ok  </span>  checks.sh passes on a fresh checkout
+target is ready</pre></div>
+      Le dernier contrôle crée un worktree <em>neuf</em> de la branche de base et y lance <code>checks.sh</code> : s’il échoue, aucun job ne pourra jamais passer. Corrigez le script (ou le setup) avant de continuer.
+    </li>
+  </ol>
+  <h3>Réglages par projet (<code>factory/config.json</code>)</h3>
+  <div class="codeblock"><div class="cap"><span>config.json</span></div><pre>"targets": {
+  "notewall": {
+    "repo": "monuser/notewall",
+    "base_branch": "main",
+    "merge_method": "squash",
+    "protected_paths": [".github/workflows/*"]
+  }
+}</pre></div>
   <ul>
-    <li><code>base_branch</code> : votre branche par défaut.</li>
-    <li><code>merge_method</code> : <code>merge</code>, <code>squash</code> ou <code>rebase</code> — une méthode que le repo autorise (<code>gh api repos/{owner}/{repo} --jq '{allow_merge_commit,allow_squash_merge,allow_rebase_merge}'</code>).</li>
-    <li><code>protected_paths</code> : gardez les deux entrées d’usine. N’y mettez pas vos tests : une feature modifie légitimement des tests, un test protégé bloquerait le job. Le reviewer code détecte les tests affaiblis.</li>
-    <li><code>ports.base</code> : à déplacer si votre projet utilise déjà les ports 5100–5199.</li>
+    <li><code>protected_paths</code> : fichiers du <em>projet</em> qu’un job ne peut ni modifier ni supprimer (motifs fnmatch, <code>*</code> couvre aussi <code>/</code>). Mettez-y la CI, pas vos tests : une feature modifie légitimement des tests ; le reviewer code détecte les tests affaiblis.</li>
+    <li><code>merge_method</code> : une méthode autorisée par le repo (<code>target check</code> le vérifie).</li>
   </ul>
-
-  <h3>3 · Les agents, taillés pour votre stack</h3>
-  <table>
-    <tr><th>Fichier</th><th>Ce qu’on y précise</th></tr>
-    <tr><td><code>reviewer-security.md</code></td><td>Vos points chauds : auth, accès aux données, paiement/webhooks, endroits où l’entrée utilisateur touche une requête ou du HTML</td></tr>
-    <tr><td><code>reviewer-ui.md</code></td><td>Où vivent tokens de design, thème, composants partagés</td></tr>
-    <tr><td><code>reviewer-ux.md</code></td><td>Les types d’utilisateurs de l’app</td></tr>
-    <tr><td><code>approver.md</code></td><td>Ce qu’un humain doit <em>toujours</em> voir (liste ESCALATE)</td></tr>
-    <tr><td><code>intake.md</code></td><td>Une ligne : à quoi sert le projet, pour juger ce qui y a sa place</td></tr>
-  </table>
-  <p>Ne changez ni la structure, ni les noms de fichiers, ni les formats de première ligne (<code>VERDICT: PASS</code>, <code>APPROVE</code>…) : les scripts s’appuient dessus.</p>
-
-  <h3>4 · <code>AGENTS.md</code> (ou <code>CLAUDE.md</code>)</h3>
-  <p>Tous les agents le lisent. Il doit dire comment installer un checkout neuf, comment lancer le serveur de dev sur un port donné, et quelles commandes valident le code (identiques à <code>checks.sh</code>). Plus ce projet de documentation est précis, moins les builders tâtonnent.</p>
 </section>
 
 <!-- 5 -->
 <section id="premier-job">
   <h2><span class="num">5</span>Premier job, pas à pas</h2>
-  <p class="intro">Exemple fil rouge : une petite appli de notes <b>NoteWall</b> (React + Vite) hébergée sur <code>monuser/notewall</code>. On y ajoute un <b>mode sombre</b>. Les sorties ci-dessous sont illustratives ; leur forme est celle de la vraie factory.</p>
+  <p class="intro">Exemple fil rouge : une petite appli de notes <b>NoteWall</b> (React + Vite) hébergée sur <code>monuser/notewall</code> et déclarée comme cible <code>notewall</code> (§4). On y ajoute un <b>mode sombre</b>. Les sorties ci-dessous sont illustratives ; leur forme est celle de la vraie factory.</p>
 
   <ol class="steps">
     <li><strong>Créer l’issue</strong>
       Soyez concret : le comportement attendu, ce qui est hors périmètre. Plus c’est précis, plus l’intake accepte sans question.
-      <div class="codeblock"><div class="cap"><span>terminal</span><button class="copy" type="button">Copier</button></div><pre>gh issue create --title "Ajouter un mode sombre" --body "$(cat &lt;&lt;'EOF'
+      <div class="codeblock"><div class="cap"><span>terminal</span><button class="copy" type="button">Copier</button></div><pre>gh issue create --repo monuser/notewall --title "Ajouter un mode sombre" --body "$(cat &lt;&lt;'EOF'
 L'appli est uniquement en thème clair.
 
 Attendu :
@@ -368,14 +373,14 @@ EOF
     </li>
     <li><strong>Poser le label <code>factory</code> — c’est le feu vert</strong>
       Seule une issue étiquetée est traitée. Seuls ceux qui ont les droits triage/écriture peuvent poser un label : c’est la frontière de confiance.
-      <div class="codeblock"><pre>gh issue edit 1 --add-label factory</pre></div>
+      <div class="codeblock"><pre>gh issue edit 1 --repo monuser/notewall --add-label factory</pre></div>
     </li>
     <li><strong>Démarrer l’orchestrateur</strong>
-      Ouvrez Claude Code <em>à la racine du projet</em> et tapez :
-      <div class="term"><div class="bar"><i></i><i></i><i></i>&nbsp;claude — notewall</div><pre><span class="p">&gt;</span> /factory run
-<span class="c">● factory/bin/job queue</span>
-  new  #1  -  -  Ajouter un mode sombre
-<span class="c">● factory/bin/job create 1</span>
+      Ouvrez Claude Code <em>à la racine du repo factory</em> et tapez :
+      <div class="term"><div class="bar"><i></i><i></i><i></i>&nbsp;claude — ai-factory</div><pre><span class="p">&gt;</span> /factory run notewall#1
+<span class="c">● factory/bin/job queue notewall</span>
+  new  notewall  1  -  -  Ajouter un mode sombre
+<span class="c">● factory/bin/job create notewall 1</span>
   001-ajouter-un-mode-sombre
 <span class="c">● intake lancé (Fable) …</span></pre></div>
       Cette session devient <b>l’orchestrateur</b> : laissez-la ouverte. Vous pouvez continuer à lui parler pendant que les agents travaillent.
@@ -395,7 +400,7 @@ RESCOPED: no
       Le risque et les surfaces servent au <code>route</code> : ici <i>low + ui</i> ⇒ reviewers code (Haiku) + ux (Sonnet) + ui (Haiku), pas de sécurité.
     </li>
     <li><strong>Spec puis build</strong>
-      Le spec-writer produit <code>spec.md</code> (critères d’acceptation numérotés). Le builder crée la branche <code>factory/001-…</code> dans <code>.worktrees/</code>, implémente, commit, pousse et ouvre une <b>PR draft « Closes #1 »</b>. Vous pouvez entrer dans le sous-agent depuis Claude Code pour le voir réfléchir (ce n’est pas nécessaire).
+      Le spec-writer produit <code>spec.md</code> (critères d’acceptation numérotés). Le builder crée la branche <code>factory/001-…</code> dans un worktree <code>workspaces/notewall/001-…/</code> (hors du projet), implémente, commit, pousse et ouvre une <b>PR draft « Closes #1 »</b>. Vous pouvez entrer dans le sous-agent depuis Claude Code pour le voir réfléchir (ce n’est pas nécessaire).
     </li>
     <li><strong>Le gate : checks déterministes</strong>
       <div class="term"><div class="bar"><i></i><i></i><i></i>&nbsp;orchestrateur</div><pre><span class="ok">001-mode-sombre #1: build READY → gate</span>
@@ -421,7 +426,7 @@ code: <span class="ok">PASS</span>   ux: <span class="ok">PASS</span>   ui: <spa
       <p><span class="tag t-ok">APPROVE</span> : <code>job merge</code> resynchronise avec la base, relance le gate, puis <code>gh pr merge</code>. <span class="tag t-warn">ESCALATE</span> : la PR est marquée « ready », la décision est postée en commentaire et l’issue reçoit <code>factory:needs-human</code>.</p>
     </li>
     <li><strong>Récupérer le résultat</strong>
-      <div class="codeblock"><div class="cap"><span>terminal</span><button class="copy" type="button">Copier</button></div><pre>git checkout main
+      <div class="codeblock"><div class="cap"><span>dans votre clone habituel du projet</span><button class="copy" type="button">Copier</button></div><pre>git checkout main
 git pull
 npm run dev</pre></div>
       Ouvrez l’app : le mode sombre est là, et tout l’historique (commits, commentaires, PR) est sur GitHub.
@@ -435,13 +440,15 @@ npm run dev</pre></div>
 <section id="parallele">
   <h2><span class="num">6</span>Plusieurs issues en parallèle</h2>
   <p class="intro">Étiquetez autant d’issues que vous voulez ; la factory en traite <code>concurrency</code> à la fois (3 par défaut) et lance les suivantes dès qu’une place se libère.</p>
-  <div class="codeblock"><div class="cap"><span>terminal</span><button class="copy" type="button">Copier</button></div><pre>gh issue edit 2 3 4 5 --add-label factory   <span class="c"># ou depuis l'interface GitHub</span></pre></div>
-  <div class="term"><div class="bar"><i></i><i></i><i></i>&nbsp;claude — notewall</div><pre><span class="p">&gt;</span> /factory run 4          <span class="c"># une seule issue, maintenant</span>
-<span class="p">&gt;</span> /factory run            <span class="c"># toutes les autres</span></pre></div>
+  <div class="codeblock"><div class="cap"><span>terminal</span><button class="copy" type="button">Copier</button></div><pre>gh issue edit 2 3 4 5 --repo monuser/notewall --add-label factory   <span class="c"># ou depuis l'interface GitHub</span></pre></div>
+  <div class="term"><div class="bar"><i></i><i></i><i></i>&nbsp;claude — notewall</div><pre><span class="p">&gt;</span> /factory run notewall#4   <span class="c"># une seule issue, maintenant</span>
+<span class="p">&gt;</span> /factory run notewall     <span class="c"># toute la file de ce projet</span>
+<span class="p">&gt;</span> /factory run              <span class="c"># la file de tous les projets</span></pre></div>
   <table>
     <tr><th>Commande</th><th>Effet</th></tr>
-    <tr><td><code>/factory run</code></td><td>Vide la file : toutes les issues <code>factory</code> ouvertes, <code>concurrency</code> à la fois. Reprend aussi les jobs interrompus.</td></tr>
-    <tr><td><code>/factory run &lt;n&gt;</code></td><td>Traite uniquement l’issue n (ou reprend son job).</td></tr>
+    <tr><td><code>/factory run</code></td><td>Vide la file de <b>tous</b> les projets : issues <code>factory</code> ouvertes, <code>concurrency</code> à la fois (limite partagée). Reprend aussi les jobs interrompus.</td></tr>
+    <tr><td><code>/factory run &lt;projet&gt;</code></td><td>Idem, pour un seul projet.</td></tr>
+    <tr><td><code>/factory run &lt;projet&gt;#&lt;n&gt;</code></td><td>Traite uniquement l’issue n de ce projet. Le <code>#n</code> seul n’est accepté que s’il n’y a qu’un projet (sinon c’est ambigu).</td></tr>
     <tr><td><code>/factory &lt;texte libre&gt;</code></td><td>Parler à la factory : questions, feedback sur un job, nouvelle fonctionnalité.</td></tr>
   </table>
   <h3>Le routage est dynamique</h3>
@@ -483,12 +490,13 @@ utiliser et attend votre choix (needs-human). Reco : écriture manuscrite.</span
     <div class="card"><h4>2 · Donner du feedback</h4><p>Dites ce que vous voulez : <code>/factory pour l'issue 4, utilise la police Inter</code>. Vos mots deviennent <code>feedback-1.md</code>, le builder repart avec un budget de tours neuf.</p></div>
     <div class="card"><h4>3 · Rejeter</h4><p><code>/factory rejette l'issue 4, c'est hors sujet</code>. La raison est postée sur l’issue, la PR fermée, les labels retirés.</p></div>
   </div>
-  <div class="callout info"><div class="t">Remettre une issue en jeu</div><p>Après un rejet, l’issue reste ouverte. Pour la rejouer : supprimer <code>factory/jobs/&lt;id&gt;</code> et ré-ajouter le label <code>factory</code>.</p></div>
+  <div class="callout info"><div class="t">Remettre une issue en jeu</div><p>Après un rejet, l’issue reste ouverte. Pour la rejouer : supprimer <code>factory/jobs/&lt;id&gt;</code> et ré-ajouter le label <code>factory</code> sur l’issue.</p></div>
 
   <h3>Nouvelle fonctionnalité sans passer par GitHub</h3>
   <div class="term"><div class="bar"><i></i><i></i><i></i>&nbsp;claude</div><pre><span class="p">&gt;</span> /factory ajoute un export Markdown des notes
-<span class="c">● gh issue create --label factory --title "Ajouter un export Markdown" …
-● /factory run 12</span></pre></div>
+<span class="c">  (si plusieurs projets : la factory demande lequel)
+● gh issue create --repo monuser/notewall --label factory --title "Ajouter un export Markdown" …
+● /factory run notewall#12</span></pre></div>
 
   <div class="callout warn"><div class="t">Ne tuez pas l’orchestrateur à la légère</div><p>Ctrl-C sur la session arrête aussi tous les sous-agents <em>et</em> le serveur du dashboard s’il a été lancé par elle. Le travail en cours est perdu, mais rien d’autre : relancez <code>/factory run</code> et tout reprend depuis les fichiers d’état.</p></div>
 </section>
@@ -498,7 +506,7 @@ utiliser et attend votre choix (needs-human). Reco : écriture manuscrite.</span
   <h2><span class="num">8</span>Dashboard, observabilité &amp; coûts</h2>
   <div class="codeblock"><div class="cap"><span>terminal</span><button class="copy" type="button">Copier</button></div><pre>cd factory &amp;&amp; python3 -m http.server
 <span class="c"># puis ouvrir http://localhost:8000/dashboard.html</span></pre></div>
-  <p>Chaque job est une carte : issue et PR, pastilles gate/review par tour, risque, coût, durée. Cliquez pour lire tous les fichiers produits ; chacun commence par un <code>## Summary</code> de 3 à 5 puces.</p>
+  <p>Une <b>bande (swimlane) par projet</b>, les colonnes d’étapes étant nommées une seule fois en en-tête fixe. Chaque bande affiche le repo, le nombre de jobs en cours, ceux qui attendent un humain, les mergés et le coût du projet ; elle se replie d’un clic et des pastilles en haut filtrent par projet. Chaque job est une carte : issue et PR, pastilles gate/review par tour, risque, coût, durée. Cliquez pour lire tous les fichiers produits ; chacun commence par un <code>## Summary</code> de 3 à 5 puces.</p>
   <h3>Où est la trace de tout</h3>
   <div class="codeblock"><pre>factory/jobs/001-ajouter-un-mode-sombre/
   job.json            <span class="c"># état (écrit UNIQUEMENT par factory/bin/job)</span>
@@ -522,12 +530,10 @@ utiliser et attend votre choix (needs-human). Reco : écriture manuscrite.</span
     <tr><th>Clé</th><th>Défaut</th><th>Rôle</th></tr>
     <tr><td><code>concurrency</code></td><td>3</td><td>Jobs actifs simultanément. Mettez <b>1</b> pour démarrer prudemment.</td></tr>
     <tr><td><code>max_rounds</code></td><td>3</td><td>Tours build→gate→review avant d’appeler un humain.</td></tr>
-    <tr><td><code>base_branch</code></td><td>main</td><td>Branche source des jobs et cible des PR.</td></tr>
-    <tr><td><code>merge_method</code></td><td>merge</td><td><code>merge</code> · <code>squash</code> · <code>rebase</code>.</td></tr>
+    <tr><td><code>targets.&lt;nom&gt;</code></td><td>—</td><td>Un projet : <code>repo</code>, <code>base_branch</code>, <code>merge_method</code> (<code>merge</code> · <code>squash</code> · <code>rebase</code>), <code>protected_paths</code>. Géré par <code>factory/bin/target</code>.</td></tr>
     <tr><td><code>labels</code></td><td>factory…</td><td>Noms des labels file / needs-info / needs-human.</td></tr>
     <tr><td><code>routing</code></td><td>haiku/sonnet</td><td>Modèle du reviewer code par niveau de risque.</td></tr>
     <tr><td><code>surface_reviewers</code></td><td>ux, ui, security</td><td>Reviewers ajoutés par surface et leur modèle.</td></tr>
-    <tr><td><code>protected_paths</code></td><td>checks.sh, config.json</td><td>Motifs fnmatch qu’un job ne peut ni modifier ni supprimer (<code>*</code> couvre aussi <code>/</code>).</td></tr>
     <tr><td><code>ports</code></td><td>base 5100, pas 10</td><td>Ports des serveurs de dev des agents (builder, ux, ui).</td></tr>
     <tr><td><code>prices_usd_per_mtok</code></td><td>—</td><td>Tarifs pour estimer le coût par job.</td></tr>
   </table>
@@ -546,7 +552,7 @@ utiliser et attend votre choix (needs-human). Reco : écriture manuscrite.</span
     <div class="card"><h4>Le label est la frontière</h4><p>Seules les issues <code>factory</code> tournent ; seuls triage/écriture peuvent poser le label.</p></div>
     <div class="card"><h4>Texte d’issue = donnée</h4><p>Il n’est jamais collé dans un prompt ; l’intake, qui le lit en premier, n’a pas de shell.</p></div>
     <div class="card"><h4>Branches &amp; merge</h4><p>Les agents ne poussent que <code>factory/*</code>. Seul <code>job merge</code> fusionne, via <code>gh pr merge</code>. Jamais de déploiement.</p></div>
-    <div class="card"><h4>Checks non contournables</h4><p>Le gate exécute le <code>checks.sh</code> de la branche principale, pas celui du job.</p></div>
+    <div class="card"><h4>Factory hors du projet</h4><p>Agents, config et <code>checks.sh</code> vivent dans le repo factory : une PR du projet ne peut pas les modifier. Le gate n’exécute jamais un <code>checks.sh</code> venant de la branche du job.</p></div>
   </div>
   <h3>Démarrer prudemment</h3>
   <ul class="check">
@@ -567,17 +573,17 @@ utiliser et attend votre choix (needs-human). Reco : écriture manuscrite.</span
   <details><summary><code>job create</code> refuse l’issue</summary>
     <p>Elle n’est pas étiquetée, ou plus ouverte, ou aucune place de concurrence n’est libre (<code>hold</code>). Le message du script dit pourquoi : corrigez la cause, ne contournez pas.</p></details>
   <details><summary>Le gate échoue en boucle dès le premier tour</summary>
-    <p>Testez <code>bash factory/checks.sh</code> sur la branche principale. S’il échoue là, la factory ne passera jamais : réparez le script ou le projet. Vérifiez aussi qu’il n’exige pas de variables d’environnement absentes d’un checkout neuf.</p></details>
+    <p>Lancez <code>factory/bin/target check &lt;projet&gt;</code> : il teste <code>targets/&lt;projet&gt;/checks.sh</code> sur un worktree neuf de la branche de base. S’il échoue là, la factory ne passera jamais : réparez le script ou le projet. Vérifiez aussi qu’il n’exige pas de variables d’environnement absentes d’un checkout neuf.</p></details>
   <details><summary>Le gate échoue sur « protected path »</summary>
-    <p>Le builder a modifié <code>checks.sh</code> ou <code>config.json</code>. Normal : il est renvoyé corriger. Si un fichier protégé doit réellement changer, faites-le vous-même hors factory.</p></details>
+    <p>Le builder a modifié un fichier listé dans <code>protected_paths</code> du projet (par défaut <code>.github/workflows/*</code>). Normal : il est renvoyé corriger. Si ce fichier doit réellement changer, faites-le vous-même hors factory ou retirez le motif de la config du projet.</p></details>
   <details><summary>Le job est bloqué en <code>needs-human</code> sans raison évidente</summary>
     <p>Demandez : <code>/factory pourquoi l'issue N attend ?</code>. La raison est dans <code>decision.md</code> (escalade) ou <code>build.md</code> (builder bloqué). Répondez par feedback ou rejet (§7).</p></details>
   <details><summary>J’ai tué la session, des agents se sont arrêtés</summary>
     <p>Relancez <code>/factory run</code> : l’état est dans les fichiers, chaque job reprend à son étape (un agent en cours redémarre de zéro).</p></details>
   <details><summary>Le merge échoue</summary>
     <p><code>job merge</code> resynchronise avec la base et relance le gate ; en cas de conflit ou d’échec, le job passe en <code>needs-human</code> avec la raison. Vérifiez que <code>merge_method</code> est autorisée par le repo et que la protection de branche n’exige pas une revue humaine.</p></details>
-  <details><summary>Conflit avec un autre fichier d’agents/AGENTS.md</summary>
-    <p>L’installeur demande avant d’écraser. Fusionnez à la main la section « Software factory » dans votre fichier existant.</p></details>
+  <details><summary><code>job queue</code> affiche une ligne <code>error</code></summary>
+    <p>Les appels GitHub de ce projet ont échoué (droits, réseau, repo renommé). Les autres projets continuent. Relancez <code>factory/bin/target check &lt;projet&gt;</code>. Rappel : <code>/factory run 4</code> est refusé comme ambigu avec plusieurs projets ; écrivez <code>&lt;projet&gt;#4</code>.</p></details>
   <details><summary>Le dashboard n’affiche rien</summary>
     <p>Lancez le serveur <em>depuis le dossier <code>factory/</code></em> (<code>cd factory &amp;&amp; python3 -m http.server</code>). Sans job dans <code>factory/jobs/</code>, il est vide.</p></details>
 </section>
@@ -586,9 +592,9 @@ utiliser et attend votre choix (needs-human). Reco : écriture manuscrite.</span
 <section id="aide-memoire">
   <h2><span class="num">12</span>Aide-mémoire</h2>
   <div class="grid">
-    <div class="card"><h4>Installer</h4><p>Coller le prompt d’installation dans Claude Code → relire le diff → <code>git push</code>.</p></div>
-    <div class="card"><h4>Lancer</h4><p><code>gh issue edit N --add-label factory</code> puis <code>/factory run</code></p></div>
-    <div class="card"><h4>Une seule issue</h4><p><code>/factory run N</code></p></div>
+    <div class="card"><h4>Ajouter un projet</h4><p><code>factory/bin/target add &lt;nom&gt; owner/repo</code> → <code>checks.sh</code> + <code>notes.md</code> → <code>target check &lt;nom&gt;</code></p></div>
+    <div class="card"><h4>Lancer</h4><p><code>gh issue edit N --repo owner/repo --add-label factory</code> puis <code>/factory run &lt;nom&gt;</code></p></div>
+    <div class="card"><h4>Une seule issue</h4><p><code>/factory run &lt;nom&gt;#N</code></p></div>
     <div class="card"><h4>Statut</h4><p><code>/factory où en est-on ?</code> · <code>factory/bin/job summary</code></p></div>
     <div class="card"><h4>Feedback</h4><p><code>/factory pour l'issue N, fais …</code></p></div>
     <div class="card"><h4>Rejeter</h4><p><code>/factory rejette l'issue N, raison …</code></p></div>
@@ -599,17 +605,18 @@ utiliser et attend votre choix (needs-human). Reco : écriture manuscrite.</span
   <p>L’orchestrateur les appelle ; vous pouvez les lire pour comprendre ou déboguer, jamais éditer <code>job.json</code> à la main.</p>
   <table>
     <tr><th>Commande</th><th>Rôle</th></tr>
-    <tr><td><code>factory/bin/job queue</code></td><td>Que faire de chaque issue : resume / new / hold / wait / skip</td></tr>
-    <tr><td><code>factory/bin/job create &lt;n&gt;</code></td><td>Nouveau job pour l’issue n</td></tr>
+    <tr><td><code>factory/bin/job queue [projet]</code></td><td>Que faire de chaque issue : <code>action projet issue job stage note</code> (resume / new / hold / wait / skip / error)</td></tr>
+    <tr><td><code>factory/bin/job create &lt;projet&gt; &lt;n&gt;</code></td><td>Nouveau job pour l’issue n du projet</td></tr>
+    <tr><td><code>factory/bin/target add|list|check</code></td><td>Déclarer, lister, vérifier un projet</td></tr>
     <tr><td><code>factory/bin/job advance &lt;job&gt; &lt;stage&gt;</code></td><td>Change d’étape, ou refuse</td></tr>
     <tr><td><code>factory/bin/job merge &lt;job&gt;</code></td><td>Sync base, gate, <code>gh pr merge</code></td></tr>
     <tr><td><code>factory/bin/job feedback|reject &lt;job&gt;</code></td><td>Feedback / rejet (texte sur stdin)</td></tr>
     <tr><td><code>factory/bin/job sync|summary</code></td><td>Rafraîchit l’état / tableau récapitulatif</td></tr>
-    <tr><td><code>factory/bin/gate &lt;job&gt;</code></td><td>Lance <code>checks.sh</code> dans le worktree</td></tr>
+    <tr><td><code>factory/bin/gate &lt;job&gt;</code></td><td>Lance le <code>checks.sh</code> du projet dans le worktree</td></tr>
     <tr><td><code>factory/bin/route &lt;job&gt;</code></td><td>Choisit reviewers et modèles</td></tr>
   </table>
   <footer>
-    Sources : transcript « Build a Better Software Factory with Claude Code » (ZazenCodes), README, DESIGN, INSTALL et SKILL.md du dépôt
+    Sources : transcript « Build a Better Software Factory with Claude Code » (ZazenCodes) et la factory v2 dont ce repo est un fork (voir <code>docs/ORIGIN.md</code>) ;
     <a href="https://github.com/zazencodes/zazencodes-season-3/tree/main/src/software-factory-claude-code-v2">zazencodes-season-3 / software-factory-claude-code-v2</a> (GPLv3). Exemples de sorties illustratifs.
   </footer>
 </section>
