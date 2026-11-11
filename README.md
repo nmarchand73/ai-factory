@@ -4,8 +4,6 @@ A software factory driven by Claude Code: a GitHub issue labeled `factory` becom
 (intake → spec → build → gate → parallel reviewers → approver). The factory lives **here** and works on
 as many projects as you like; the projects only receive PRs. Fork of ZazenCodes' v2, see [`docs/ORIGIN.md`](docs/ORIGIN.md).
 
-![The dashboard: one swimlane per project, one card per job](docs/img/dashboard-swimlanes.png)
-
 ## Where to read what
 
 The **[manual](docs/manuel-factory.html)** (English and French, interactive, with a loop and a KPI explorer) is the
@@ -28,102 +26,13 @@ place to learn the factory. It is an HTML page: open it from a clone (`open docs
 
 ## How it works
 
-One issue becomes one pull request. Every arrow is a script in `factory/bin/` or an agent in `.claude/agents/`; the
-orchestrator (the `/factory` skill) only moves a job to the next step, and the scripts refuse illegal moves.
+![The pipeline: an issue becomes a PR through intake, spec, build, gate, parallel reviewers and an approver](docs/img/pipeline.png)
 
-```mermaid
-flowchart TB
-    issue(["GitHub issue<br/>labeled factory"]) --> intake{"intake<br/>agent"}
-    intake -- REJECT --> rejected(["rejected"])
-    intake -- NEEDS-INFO --> ask["question posted<br/>on the issue"]
-    ask -- author answers --> intake
-    intake -- ACCEPT --> route["route<br/>risk and surfaces<br/>pick the reviewers"]
-    route --> spec["spec-writer<br/>testable criteria"]
-    spec --> build["builder<br/>commits, draft PR,<br/>C4 and ADR docs"]
-    build --> gate{"gate<br/>targets/name/checks.sh"}
-    gate -- FAIL --> build
-    gate -- PASS --> diff["route --diff<br/>adds security if the diff<br/>is sensitive"]
-    diff --> review["reviewers in parallel<br/>code / ux / ui / security"]
-    review -- CHANGES --> build
-    review -- all PASS --> approver{"approver<br/>agent"}
-    approver -- APPROVE --> merge(["job merge<br/>sync, gate, squash"])
-    approver -- ESCALATE --> human["needs-human<br/>PR ready, you decide"]
-    human -- your feedback --> build
-```
-
-A job has at most `max_rounds` build rounds; a round is one build, gate and review pass. The states a job moves through:
-
-```mermaid
-stateDiagram-v2
-    direction LR
-    state "needs-info" as needs_info
-    state "needs-human" as needs_human
-    [*] --> intake
-    intake --> spec: ACCEPT
-    intake --> needs_info: NEEDS-INFO
-    needs_info --> intake: author answered
-    intake --> rejected: REJECT
-    spec --> build
-    build --> gate
-    gate --> build: FAIL
-    gate --> review: PASS
-    review --> build: CHANGES
-    review --> approve: all PASS
-    approve --> merging: APPROVE
-    approve --> needs_human: ESCALATE
-    merging --> merged
-    build --> needs_human: blocked or out of rounds
-    needs_human --> build: your feedback
-    needs_human --> rejected: you reject
-    merged --> [*]
-    rejected --> [*]
-```
-
-Where things live: the factory is its own repo, and the projects only receive PRs.
-
-```mermaid
-flowchart TB
-    you(["You"]) -- "/factory run" --> orch
-    subgraph hub ["AI Factory (this repo)"]
-        orch["/factory skill<br/>the orchestrator"]
-        agents["9 agents<br/>.claude/agents"]
-        scripts["factory/bin<br/>job, gate, route, target,<br/>eval, evolve, metrics"]
-        state[("factory/jobs, evals,<br/>evolution, metrics.json")]
-        dash["dashboard.html"]
-        orch -- spawns --> agents
-        orch -- advances jobs --> scripts
-        scripts -- the only writers --> state
-        dash -- reads --> state
-    end
-    subgraph project ["Each project (target)"]
-        clone["targets/name/repo<br/>local clone"]
-        wt["workspaces/name/job<br/>one worktree per job"]
-        clone -.-> wt
-    end
-    gh[("GitHub<br/>issues and PRs")]
-    scripts <--> gh
-    agents -- build and review --> wt
-    wt -- "push factory/job branch" --> gh
-    you -- "merge or give feedback" --> gh
-```
-
-The factory also improves itself. After each run (a cycle) a retrospective proposes changes and **you approve each one**:
-
-```mermaid
-flowchart TB
-    jobs["jobs of the cycle"] --> scores["eval report<br/>confidence per agent"]
-    scores --> close["evolve cycle close<br/>snapshot and input"]
-    close --> retro["retrospective agent<br/>writes plan.json"]
-    retro --> you{"you decide<br/>each change"}
-    you -- reject and reason --> audit[("audit trail")]
-    you -- approve --> apply["evolve apply<br/>new skill version"]
-    apply --> audit
-    apply --> jobs2["next cycle runs<br/>with the new version"]
-    jobs2 --> measure["measured: delivered,<br/>not delivered or regressed"]
-    measure --> scores
-```
-
-The [manual](docs/manuel-factory.html#understand) walks through the same pipeline step by step.
+One issue becomes one pull request. Every step is a script in `factory/bin/` or an agent in `.claude/agents/`; the
+orchestrator (the `/factory` skill) only moves a job to the next step, and the scripts refuse illegal moves. A job has at
+most `max_rounds` build rounds (a round is one build, gate and review pass). The security reviewer runs when intake rates a
+security surface, or when `route --diff` finds a sensitive diff. The [manual](docs/manuel-factory.html#understand) walks
+through it step by step.
 
 ## Quick start
 
@@ -144,6 +53,8 @@ every project's queue (`concurrency` jobs at a time, shared), `/factory run <pro
 ## Dashboard
 
 `cd factory && python3 -m http.server`, then <http://localhost:8000/dashboard.html>.
+
+![The dashboard: one swimlane per project, one card per job](docs/img/dashboard-swimlanes.png)
 
 - one swimlane per project, most recently active first, stages as columns, jobs as cards with a chip per round (gate, code, ux, ui, security);
 - retire a project with `factory/bin/target archive <name>`: it is no longer queued or built and its lane hides behind an
@@ -221,7 +132,6 @@ section of build.md; a change inside an existing component leaves the diagrams a
 acceptance criteria, the code reviewer sends back a branch that lacks them, and the evals score them (completeness, sync with
 the code, ADR format, a judge for accuracy and quality).
 
-![C4 diagrams written by the builder](docs/img/c4-diagrams.png)
 
 ## Self-improvement
 
