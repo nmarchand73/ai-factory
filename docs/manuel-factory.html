@@ -1,0 +1,620 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Manuel de la Software Factory</title>
+<style>
+:root{
+  --bg:#fbfaf8; --surface:#ffffff; --surface2:#f3f1ec; --ink:#1d1b18; --muted:#6a655c; --line:#e3dfd6;
+  --accent:#5b3fd1; --accent-soft:#ece8fb; --ok:#1f8a4c; --ok-soft:#e1f4e8; --warn:#a5660a; --warn-soft:#fbeed5;
+  --bad:#b4372a; --bad-soft:#fbe4e0; --code-bg:#17161c; --code-ink:#e9e6f2; --code-mute:#8b87a0;
+  --shadow:0 1px 2px rgba(0,0,0,.05),0 6px 20px rgba(0,0,0,.05);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#121115; --surface:#1b1a20; --surface2:#23222a; --ink:#ecebf0; --muted:#9a97a6; --line:#2e2c37;
+    --accent:#9d87ff; --accent-soft:#272243; --ok:#4fd08a; --ok-soft:#14291e; --warn:#e2a64a; --warn-soft:#2d2210;
+    --bad:#f0806f; --bad-soft:#321a17; --code-bg:#0d0c10; --shadow:none;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#121115; --surface:#1b1a20; --surface2:#23222a; --ink:#ecebf0; --muted:#9a97a6; --line:#2e2c37;
+  --accent:#9d87ff; --accent-soft:#272243; --ok:#4fd08a; --ok-soft:#14291e; --warn:#e2a64a; --warn-soft:#2d2210;
+  --bad:#f0806f; --bad-soft:#321a17; --code-bg:#0d0c10; --shadow:none;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:20px}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:var(--accent)}
+code,pre,kbd{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+code{background:var(--surface2);border:1px solid var(--line);padding:.08em .38em;border-radius:5px;font-size:.88em}
+.layout{display:grid;grid-template-columns:270px minmax(0,1fr);max-width:1280px;margin:0 auto}
+nav.side{position:sticky;top:0;height:100vh;overflow:auto;padding:28px 18px 28px 24px;border-right:1px solid var(--line)}
+nav.side .brand{font-weight:700;font-size:15px;letter-spacing:.01em;margin-bottom:4px}
+nav.side .sub{color:var(--muted);font-size:13px;margin-bottom:18px}
+nav.side ol{list-style:none;margin:0;padding:0;counter-reset:n}
+nav.side li{counter-increment:n}
+nav.side a{display:flex;gap:10px;padding:6px 10px;border-radius:8px;text-decoration:none;color:var(--muted);font-size:14px}
+nav.side a::before{content:counter(n);font-variant-numeric:tabular-nums;min-width:1.2em;color:var(--accent);font-weight:600}
+nav.side a:hover,nav.side a.on{background:var(--accent-soft);color:var(--ink)}
+.theme{margin-top:18px;font-size:13px;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:6px 12px;cursor:pointer}
+main{padding:0 40px 90px;min-width:0}
+.hero{padding:56px 0 34px;border-bottom:1px solid var(--line)}
+.eyebrow{display:inline-block;font-size:12px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--accent);background:var(--accent-soft);padding:4px 10px;border-radius:99px}
+h1{font-size:clamp(30px,4.6vw,46px);line-height:1.1;margin:16px 0 14px;letter-spacing:-.02em}
+.lead{font-size:19px;color:var(--muted);max-width:720px;margin:0}
+.chips{display:flex;flex-wrap:wrap;gap:10px;margin-top:24px}
+.chip{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 14px;font-size:14px;box-shadow:var(--shadow)}
+.chip b{display:block;font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.06em}
+section{padding-top:56px}
+h2{font-size:28px;letter-spacing:-.015em;margin:0 0 6px;display:flex;align-items:center;gap:12px}
+h2 .num{display:inline-grid;place-items:center;width:34px;height:34px;border-radius:10px;background:var(--accent);color:#fff;font-size:16px;font-weight:700}
+h3{font-size:19px;margin:30px 0 6px}
+p{margin:.6em 0}
+.intro{color:var(--muted);margin:0 0 20px}
+ul,ol{padding-left:1.3em}
+li{margin:.3em 0}
+.callout{border:1px solid var(--line);border-left:4px solid var(--accent);background:var(--surface);border-radius:10px;padding:14px 18px;margin:18px 0;box-shadow:var(--shadow)}
+.callout .t{font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.07em;margin-bottom:2px}
+.callout p{margin:.3em 0}
+.callout.warn{border-left-color:var(--warn);background:var(--warn-soft)} .callout.warn .t{color:var(--warn)}
+.callout.ok{border-left-color:var(--ok);background:var(--ok-soft)} .callout.ok .t{color:var(--ok)}
+.callout.bad{border-left-color:var(--bad);background:var(--bad-soft)} .callout.bad .t{color:var(--bad)}
+.callout.info .t{color:var(--accent)}
+.codeblock{position:relative;margin:14px 0}
+.codeblock .cap{background:#26242e;color:var(--code-mute);font-size:12px;padding:6px 14px;border-radius:10px 10px 0 0;display:flex;justify-content:space-between;align-items:center}
+.codeblock pre{margin:0;background:var(--code-bg);color:var(--code-ink);padding:14px 16px;overflow:auto;border-radius:0 0 10px 10px;font-size:13.5px;line-height:1.55}
+.codeblock:not(:has(.cap)) pre{border-radius:10px}
+.codeblock .copy{background:transparent;color:var(--code-mute);border:1px solid #3a3846;border-radius:6px;font-size:12px;padding:2px 9px;cursor:pointer}
+.codeblock .copy:hover{color:#fff;border-color:#777}
+.codeblock .copy.done{color:#6fe3a2;border-color:#6fe3a2}
+.c{color:var(--code-mute)} .k{color:#a994ff} .s{color:#8fe3b0} .w{color:#f4c27a}
+.steps{counter-reset:s;list-style:none;padding:0;margin:20px 0}
+.steps>li{counter-increment:s;position:relative;padding:0 0 22px 56px;margin:0;border-left:0}
+.steps>li::before{content:counter(s);position:absolute;left:0;top:0;width:38px;height:38px;border-radius:50%;background:var(--accent-soft);color:var(--accent);font-weight:700;display:grid;place-items:center;border:2px solid var(--accent)}
+.steps>li::after{content:"";position:absolute;left:18px;top:42px;bottom:2px;width:2px;background:var(--line)}
+.steps>li:last-child::after{display:none}
+.steps>li>strong:first-child{display:block;font-size:17px;margin-bottom:2px}
+table{width:100%;border-collapse:collapse;font-size:14.5px;margin:14px 0;background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden;display:block;overflow-x:auto}
+th,td{text-align:left;padding:9px 13px;border-bottom:1px solid var(--line);vertical-align:top}
+th{background:var(--surface2);font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+tr:last-child td{border-bottom:0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px;margin:16px 0}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;box-shadow:var(--shadow)}
+.card h4{margin:0 0 4px;font-size:15px}
+.card p{margin:0;font-size:14px;color:var(--muted)}
+.tag{display:inline-block;font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:99px;letter-spacing:.03em;vertical-align:middle}
+.t-ok{background:var(--ok-soft);color:var(--ok)} .t-warn{background:var(--warn-soft);color:var(--warn)} .t-bad{background:var(--bad-soft);color:var(--bad)} .t-in{background:var(--accent-soft);color:var(--accent)}
+figure{margin:20px 0;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;box-shadow:var(--shadow)}
+figure svg{width:100%;height:auto;display:block}
+figcaption{font-size:13px;color:var(--muted);margin-top:8px;text-align:center}
+.svg-t{fill:var(--ink);font:600 13px -apple-system,Segoe UI,sans-serif}
+.svg-s{fill:var(--muted);font:11.5px -apple-system,Segoe UI,sans-serif}
+.box{fill:var(--surface2);stroke:var(--line);stroke-width:1.3}
+.box-a{fill:var(--accent-soft);stroke:var(--accent);stroke-width:1.4}
+.box-ok{fill:var(--ok-soft);stroke:var(--ok);stroke-width:1.4}
+.box-w{fill:var(--warn-soft);stroke:var(--warn);stroke-width:1.4}
+.box-b{fill:var(--bad-soft);stroke:var(--bad);stroke-width:1.4}
+.ln{stroke:var(--muted);stroke-width:1.5;fill:none}
+.stage{display:grid;grid-template-columns:130px 1fr;gap:14px;padding:14px 0;border-bottom:1px dashed var(--line)}
+.stage:last-child{border-bottom:0}
+.stage .who{font-weight:700}
+.stage .who small{display:block;font-weight:500;color:var(--muted);font-size:12.5px}
+.term{background:var(--code-bg);border-radius:12px;overflow:hidden;margin:16px 0;box-shadow:var(--shadow)}
+.term .bar{background:#26242e;padding:7px 14px;display:flex;gap:7px;align-items:center;color:var(--code-mute);font-size:12px}
+.term .bar i{width:10px;height:10px;border-radius:50%;background:#555;display:inline-block}
+.term pre{margin:0;padding:14px 16px;color:var(--code-ink);font-size:13.5px;line-height:1.6;overflow:auto}
+.p{color:#a994ff} .ok{color:#6fe3a2} .no{color:#ff8c7a} .am{color:#f4c27a}
+details{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:2px 16px;margin:10px 0}
+summary{cursor:pointer;font-weight:600;padding:10px 0}
+details[open] summary{border-bottom:1px solid var(--line);margin-bottom:8px}
+.check{list-style:none;padding:0}
+.check li{padding-left:30px;position:relative}
+.check li::before{content:"☐";position:absolute;left:0;color:var(--accent);font-size:18px;line-height:1.4}
+footer{margin-top:70px;padding-top:22px;border-top:1px solid var(--line);color:var(--muted);font-size:13.5px}
+@media (max-width:900px){
+  .layout{grid-template-columns:1fr}
+  nav.side{position:static;height:auto;border-right:0;border-bottom:1px solid var(--line)}
+  nav.side ol{display:flex;flex-wrap:wrap;gap:4px}
+  main{padding:0 16px 70px}
+  .stage{grid-template-columns:1fr;gap:4px}
+}
+@media print{nav.side,.theme,.copy{display:none}.layout{display:block}section{break-inside:avoid-page}}
+</style>
+</head>
+<body>
+<div class="layout">
+
+<nav class="side" aria-label="Sommaire">
+  <div class="brand">Manuel Software Factory</div>
+  <div class="sub">Claude Code · issues → PR</div>
+  <ol>
+    <li><a href="#comprendre">Comprendre</a></li>
+    <li><a href="#prerequis">Prérequis</a></li>
+    <li><a href="#installer">Installer</a></li>
+    <li><a href="#adapter">Adapter à votre projet</a></li>
+    <li><a href="#premier-job">Premier job (exemple)</a></li>
+    <li><a href="#parallele">Plusieurs issues en parallèle</a></li>
+    <li><a href="#humain">Piloter &amp; décider</a></li>
+    <li><a href="#dashboard">Dashboard &amp; coûts</a></li>
+    <li><a href="#config">Configuration</a></li>
+    <li><a href="#securite">Sécurité &amp; bonnes pratiques</a></li>
+    <li><a href="#depannage">Dépannage</a></li>
+    <li><a href="#aide-memoire">Aide-mémoire</a></li>
+  </ol>
+  <button class="theme" id="themeBtn" type="button">Thème clair / sombre</button>
+</nav>
+
+<main>
+<header class="hero">
+  <span class="eyebrow">Manuel pas à pas</span>
+  <h1>Faire travailler une usine logicielle sur n’importe quel projet GitHub</h1>
+  <p class="lead">Vous étiquetez une issue <code>factory</code>, vous tapez <code>/factory run</code> dans Claude Code, et des agents décident si elle mérite d’être construite, écrivent la spec, codent, testent, relisent et ouvrent une pull request. Ce manuel vous conduit de zéro au premier merge automatique.</p>
+  <div class="chips">
+    <div class="chip"><b>Entrée</b>Issues GitHub</div>
+    <div class="chip"><b>Sortie</b>Une PR par issue</div>
+    <div class="chip"><b>Moteur</b>Sous-agents Claude Code</div>
+    <div class="chip"><b>Colonne vertébrale</b>Scripts déterministes</div>
+    <div class="chip"><b>Source</b>ZazenCodes · factory v2 (GPLv3)</div>
+  </div>
+</header>
+
+<!-- 1 -->
+<section id="comprendre">
+  <h2><span class="num">1</span>Comprendre la factory</h2>
+  <p class="intro">Une « software factory » transforme une file de demandes en code fusionné via un pipeline fixe. Les scripts font le déterministe (tests, état, merge) ; les agents font le jugement (est-ce utile ? que construire ? est-ce bon ?).</p>
+
+  <figure>
+  <svg viewBox="0 0 980 330" role="img" aria-label="Pipeline de la factory">
+    <defs><marker id="ar" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="var(--muted)"/></marker></defs>
+    <rect class="box" x="10" y="30" width="110" height="56" rx="10"/><text class="svg-t" x="65" y="55" text-anchor="middle">Issue</text><text class="svg-s" x="65" y="72" text-anchor="middle">label « factory »</text>
+    <rect class="box-a" x="150" y="30" width="110" height="56" rx="10"/><text class="svg-t" x="205" y="55" text-anchor="middle">Intake</text><text class="svg-s" x="205" y="72" text-anchor="middle">Fable · 1×/issue</text>
+    <rect class="box" x="290" y="30" width="110" height="56" rx="10"/><text class="svg-t" x="345" y="55" text-anchor="middle">Route</text><text class="svg-s" x="345" y="72" text-anchor="middle">script</text>
+    <rect class="box-a" x="430" y="30" width="110" height="56" rx="10"/><text class="svg-t" x="485" y="55" text-anchor="middle">Spec</text><text class="svg-s" x="485" y="72" text-anchor="middle">Opus</text>
+    <rect class="box-a" x="570" y="30" width="110" height="56" rx="10"/><text class="svg-t" x="625" y="55" text-anchor="middle">Build</text><text class="svg-s" x="625" y="72" text-anchor="middle">Opus · PR draft</text>
+    <rect class="box-w" x="710" y="30" width="110" height="56" rx="10"/><text class="svg-t" x="765" y="55" text-anchor="middle">Gate</text><text class="svg-s" x="765" y="72" text-anchor="middle">checks.sh</text>
+    <rect class="box-a" x="850" y="30" width="120" height="56" rx="10"/><text class="svg-t" x="910" y="55" text-anchor="middle">Reviewers</text><text class="svg-s" x="910" y="72" text-anchor="middle">code · ux · ui · sécu</text>
+    <path class="ln" d="M120 58H148" marker-end="url(#ar)"/><path class="ln" d="M260 58H288" marker-end="url(#ar)"/><path class="ln" d="M400 58H428" marker-end="url(#ar)"/><path class="ln" d="M540 58H568" marker-end="url(#ar)"/><path class="ln" d="M680 58H708" marker-end="url(#ar)"/><path class="ln" d="M820 58H848" marker-end="url(#ar)"/>
+    <!-- loops -->
+    <path class="ln" stroke-dasharray="5 4" d="M765 86V130H625V88" marker-end="url(#ar)"/><text class="svg-s" x="695" y="146" text-anchor="middle">FAIL → retour builder</text>
+    <path class="ln" stroke-dasharray="5 4" d="M910 86V190H640V88" marker-end="url(#ar)"/><text class="svg-s" x="790" y="206" text-anchor="middle">CHANGES → retour builder (max_rounds)</text>
+    <!-- exits -->
+    <path class="ln" d="M910 86V240" /><path class="ln" d="M910 240H760" marker-end="url(#ar)"/>
+    <rect class="box-a" x="590" y="215" width="170" height="52" rx="10"/><text class="svg-t" x="675" y="238" text-anchor="middle">Approver (Opus)</text><text class="svg-s" x="675" y="254" text-anchor="middle">tous les verdicts = PASS</text>
+    <path class="ln" d="M590 232H500V225H470" marker-end="url(#ar)"/>
+    <path class="ln" d="M590 252H500V282H470" marker-end="url(#ar)"/>
+    <rect class="box-ok" x="300" y="205" width="170" height="40" rx="10"/><text class="svg-t" x="385" y="230" text-anchor="middle">APPROVE → PR mergée</text>
+    <rect class="box-w" x="300" y="262" width="170" height="40" rx="10"/><text class="svg-t" x="385" y="287" text-anchor="middle">ESCALATE → humain</text>
+    <!-- intake exits -->
+    <path class="ln" stroke-dasharray="5 4" d="M205 86V130" marker-end="url(#ar)"/>
+    <rect class="box-b" x="100" y="132" width="210" height="40" rx="10"/><text class="svg-t" x="205" y="157" text-anchor="middle">NEEDS-INFO / REJECT</text>
+  </svg>
+  <figcaption>Les flèches en pointillés sont les boucles d’auto-correction. Un job fait au plus <code>max_rounds</code> tours (3 par défaut).</figcaption>
+  </figure>
+
+  <h3>Les huit rôles</h3>
+  <div class="grid">
+    <div class="card"><h4>intake <span class="tag t-in">Fable</span></h4><p>Lit l’issue, décide ACCEPT / NEEDS-INFO / REJECT, recadre le périmètre, note le risque (low/medium/high) et les surfaces (ui, security).</p></div>
+    <div class="card"><h4>spec-writer <span class="tag t-in">Opus</span></h4><p>Transforme l’issue acceptée en <code>spec.md</code> avec critères d’acceptation testables.</p></div>
+    <div class="card"><h4>builder <span class="tag t-in">Opus</span></h4><p>Code dans un worktree dédié, commit, pousse, ouvre la PR draft « Closes #n », écrit <code>build.md</code>.</p></div>
+    <div class="card"><h4>reviewer-code <span class="tag t-in">Haiku/Sonnet</span></h4><p>Correction, simplicité, conventions. Toujours présent. Modèle choisi selon le risque.</p></div>
+    <div class="card"><h4>reviewer-ux / ui <span class="tag t-in">si surface ui</span></h4><p>Parcours, états, accessibilité (ux) ; cohérence visuelle (ui).</p></div>
+    <div class="card"><h4>reviewer-security <span class="tag t-in">si surface security</span></h4><p>Auth, données, entrées utilisateur. Tourne sur Opus.</p></div>
+    <div class="card"><h4>approver <span class="tag t-in">Opus</span></h4><p>APPROVE (merge automatique) ou ESCALATE (PR prête pour un humain).</p></div>
+    <div class="card"><h4>Scripts <span class="tag t-warn">déterministes</span></h4><p><code>job</code> (seul écrivain d’état), <code>gate</code> (lance les checks), <code>route</code> (choisit les reviewers).</p></div>
+  </div>
+
+  <h3>Trois idées à retenir</h3>
+  <ul>
+    <li><b>Un seul orchestrateur.</b> La session Claude Code où vous tapez <code>/factory</code> lance tous les agents en arrière-plan, <code>concurrency</code> jobs à la fois. Elle n’écrit jamais de code elle-même.</li>
+    <li><b>L’état, ce sont des fichiers.</b> Tout vit dans <code>factory/jobs/&lt;id&gt;/</code> ; si la session meurt, <code>/factory run</code> reprend chaque job là où il en était.</li>
+    <li><b>Le gate passe avant la relecture.</b> Un build qui échoue à <code>checks.sh</code> repart au builder sans coûter un seul reviewer.</li>
+  </ul>
+</section>
+
+<!-- 2 -->
+<section id="prerequis">
+  <h2><span class="num">2</span>Prérequis</h2>
+  <p class="intro">Vérifiez ces points <em>avant</em> d’installer ; l’installeur s’arrête sinon.</p>
+  <table>
+    <tr><th>Élément</th><th>Exigence</th><th>Vérification</th></tr>
+    <tr><td>Projet</td><td>Dépôt git avec un <code>origin</code> sur GitHub</td><td><code>git remote -v</code></td></tr>
+    <tr><td>GitHub CLI</td><td><code>gh</code> authentifié, droit de push et de gestion des labels</td><td><code>gh auth status</code></td></tr>
+    <tr><td>Branche par défaut</td><td>Existe sur <code>origin</code> (main, master…)</td><td><code>gh repo view --json defaultBranchRef</code></td></tr>
+    <tr><td>Claude Code</td><td>2.1.257 ou plus (l’intake tourne sur Fable)</td><td><code>claude --version</code></td></tr>
+    <tr><td>Python</td><td>3.10+ (bibliothèque standard seule)</td><td><code>python3 --version</code></td></tr>
+    <tr><td>Tests du projet</td><td>Des commandes de test / lint / build non interactives</td><td>voir <code>package.json</code>, <code>Makefile</code>…</td></tr>
+  </table>
+  <div class="callout warn"><div class="t">Coût</div><p>L’intake utilise Fable, une fois par issue. Selon votre plan, Fable peut être facturé en crédits d’usage plutôt que dans l’inclus du plan. Les builders Opus consomment aussi. Commencez par une ou deux petites issues.</p></div>
+  <div class="callout info"><div class="t">Pas encore de repo GitHub ?</div><p>Créez-le d’abord : <code>gh repo create mon-projet --private --source . --remote origin --push</code>. La factory a besoin des issues et des PR.</p></div>
+</section>
+
+<!-- 3 -->
+<section id="installer">
+  <h2><span class="num">3</span>Installer la factory</h2>
+  <p class="intro">L’installation est faite par Claude Code lui-même : il lit <code>INSTALL.md</code>, copie les fichiers et adapte ce qui dépend de votre projet.</p>
+
+  <ol class="steps">
+    <li><strong>Ouvrez Claude Code à la racine de votre projet</strong>
+      <div class="codeblock"><div class="cap"><span>terminal</span><button class="copy" type="button">Copier</button></div><pre>cd ~/dev/mon-projet
+claude</pre></div>
+      Travaillez sur la branche par défaut, propre (<code>git status</code> vide) : l’installation sera commitée là.
+    </li>
+    <li><strong>Collez le prompt d’installation</strong>
+      <div class="codeblock"><div class="cap"><span>prompt Claude Code</span><button class="copy" type="button">Copier</button></div><pre>Install this software factory in this project from the reference repository:
+
+https://github.com/zazencodes/zazencodes-season-3/tree/main/src/software-factory-claude-code-v2</pre></div>
+    </li>
+    <li><strong>Laissez-le travailler et répondez à ses questions</strong>
+      Il vérifie les prérequis, copie 14 fichiers, remplit <code>factory/checks.sh</code>, tailleure les reviewers à votre stack, crée les labels, puis lance <code>checks.sh</code> pour vérifier qu’il passe. Il vous demandera avant d’écraser un fichier existant et avant de pousser.
+    </li>
+    <li><strong>Relisez le diff, puis poussez sur la branche par défaut</strong>
+      La factory crée chaque job depuis <code>origin/&lt;base&gt;</code> : l’installation doit donc être poussée avant le premier run.
+      <div class="codeblock"><div class="cap"><span>terminal</span><button class="copy" type="button">Copier</button></div><pre>git status
+git log -1 --stat
+git push</pre></div>
+    </li>
+  </ol>
+
+  <h3>Ce qui est ajouté à votre projet</h3>
+  <div class="codeblock"><pre>.claude/
+  skills/factory/SKILL.md     <span class="c"># l'orchestrateur (la commande /factory)</span>
+  agents/                     <span class="c"># intake, spec-writer, builder, reviewer-*, approver</span>
+factory/
+  config.json                 <span class="c"># concurrence, tours max, routage, chemins protégés, prix</span>
+  checks.sh                   <span class="c"># VOS tests/lint/build (le seul script propre au projet)</span>
+  bin/job  bin/gate  bin/route
+  dashboard.html              <span class="c"># le tableau de bord</span>
+  jobs/                       <span class="c"># état d'exécution, gitignoré</span>
+.worktrees/                   <span class="c"># un checkout par job, gitignoré</span>
+AGENTS.md (ou CLAUDE.md)      <span class="c"># + section « Software factory »</span></pre></div>
+
+  <div class="callout ok"><div class="t">Installation manuelle (alternative)</div>
+  <p>Cloner le repo de référence, copier les chemins ci-dessus à l’identique, <code>chmod +x factory/checks.sh factory/bin/*</code>, ajouter <code>/factory/jobs/</code> et <code>/.worktrees/</code> au <code>.gitignore</code>, puis créer les trois labels :</p>
+  <div class="codeblock"><pre>gh label create factory            --color 5319E7 --description "Build this with the software factory"
+gh label create factory:needs-info  --color FBCA04 --description "The factory asked the author a question"
+gh label create factory:needs-human --color D93F0B --description "The factory needs a human decision on the PR"</pre></div></div>
+</section>
+
+<!-- 4 -->
+<section id="adapter">
+  <h2><span class="num">4</span>Adapter à votre projet</h2>
+  <p class="intro">L’installeur le fait pour vous, mais vérifiez ces quatre points : ils décident de la qualité de ce que la factory produira.</p>
+
+  <h3>1 · <code>factory/checks.sh</code> — le juge impartial</h3>
+  <p>C’est la seule porte déterministe. Elle tourne dans le worktree du job et doit : être non interactive, ne <b>rien réécrire</b> (pas de <code>--fix</code>, pas de <code>--update-snapshots</code>), et sortir non-zéro à la moindre erreur.</p>
+  <div class="codeblock"><div class="cap"><span>exemple — projet Node</span><button class="copy" type="button">Copier</button></div><pre>#!/usr/bin/env bash
+set -euo pipefail
+npm ci --prefer-offline
+npm run lint
+npm run typecheck
+npm test -- --run
+npm run build</pre></div>
+  <div class="codeblock"><div class="cap"><span>exemple — projet Python</span><button class="copy" type="button">Copier</button></div><pre>#!/usr/bin/env bash
+set -euo pipefail
+pip install -q -r requirements.txt
+ruff check .
+mypy .
+pytest -q</pre></div>
+  <div class="callout warn"><div class="t">Règle d’or</div><p>Lancez <code>bash factory/checks.sh</code> sur votre branche principale : s’il échoue, <b>aucun job ne pourra jamais passer</b>. Corrigez le script (ou le projet) avant d’aller plus loin.</p></div>
+
+  <h3>2 · <code>factory/config.json</code></h3>
+  <ul>
+    <li><code>base_branch</code> : votre branche par défaut.</li>
+    <li><code>merge_method</code> : <code>merge</code>, <code>squash</code> ou <code>rebase</code> — une méthode que le repo autorise (<code>gh api repos/{owner}/{repo} --jq '{allow_merge_commit,allow_squash_merge,allow_rebase_merge}'</code>).</li>
+    <li><code>protected_paths</code> : gardez les deux entrées d’usine. N’y mettez pas vos tests : une feature modifie légitimement des tests, un test protégé bloquerait le job. Le reviewer code détecte les tests affaiblis.</li>
+    <li><code>ports.base</code> : à déplacer si votre projet utilise déjà les ports 5100–5199.</li>
+  </ul>
+
+  <h3>3 · Les agents, taillés pour votre stack</h3>
+  <table>
+    <tr><th>Fichier</th><th>Ce qu’on y précise</th></tr>
+    <tr><td><code>reviewer-security.md</code></td><td>Vos points chauds : auth, accès aux données, paiement/webhooks, endroits où l’entrée utilisateur touche une requête ou du HTML</td></tr>
+    <tr><td><code>reviewer-ui.md</code></td><td>Où vivent tokens de design, thème, composants partagés</td></tr>
+    <tr><td><code>reviewer-ux.md</code></td><td>Les types d’utilisateurs de l’app</td></tr>
+    <tr><td><code>approver.md</code></td><td>Ce qu’un humain doit <em>toujours</em> voir (liste ESCALATE)</td></tr>
+    <tr><td><code>intake.md</code></td><td>Une ligne : à quoi sert le projet, pour juger ce qui y a sa place</td></tr>
+  </table>
+  <p>Ne changez ni la structure, ni les noms de fichiers, ni les formats de première ligne (<code>VERDICT: PASS</code>, <code>APPROVE</code>…) : les scripts s’appuient dessus.</p>
+
+  <h3>4 · <code>AGENTS.md</code> (ou <code>CLAUDE.md</code>)</h3>
+  <p>Tous les agents le lisent. Il doit dire comment installer un checkout neuf, comment lancer le serveur de dev sur un port donné, et quelles commandes valident le code (identiques à <code>checks.sh</code>). Plus ce projet de documentation est précis, moins les builders tâtonnent.</p>
+</section>
+
+<!-- 5 -->
+<section id="premier-job">
+  <h2><span class="num">5</span>Premier job, pas à pas</h2>
+  <p class="intro">Exemple fil rouge : une petite appli de notes <b>NoteWall</b> (React + Vite) hébergée sur <code>monuser/notewall</code>. On y ajoute un <b>mode sombre</b>. Les sorties ci-dessous sont illustratives ; leur forme est celle de la vraie factory.</p>
+
+  <ol class="steps">
+    <li><strong>Créer l’issue</strong>
+      Soyez concret : le comportement attendu, ce qui est hors périmètre. Plus c’est précis, plus l’intake accepte sans question.
+      <div class="codeblock"><div class="cap"><span>terminal</span><button class="copy" type="button">Copier</button></div><pre>gh issue create --title "Ajouter un mode sombre" --body "$(cat &lt;&lt;'EOF'
+L'appli est uniquement en thème clair.
+
+Attendu :
+- thème sombre par défaut si le système est en mode sombre
+- un bouton de bascule dans l'en-tête, choix mémorisé (localStorage)
+- couleurs via des variables CSS, pas de couleurs en dur
+
+Hors périmètre : thèmes personnalisés.
+EOF
+)"</pre></div>
+    </li>
+    <li><strong>Poser le label <code>factory</code> — c’est le feu vert</strong>
+      Seule une issue étiquetée est traitée. Seuls ceux qui ont les droits triage/écriture peuvent poser un label : c’est la frontière de confiance.
+      <div class="codeblock"><pre>gh issue edit 1 --add-label factory</pre></div>
+    </li>
+    <li><strong>Démarrer l’orchestrateur</strong>
+      Ouvrez Claude Code <em>à la racine du projet</em> et tapez :
+      <div class="term"><div class="bar"><i></i><i></i><i></i>&nbsp;claude — notewall</div><pre><span class="p">&gt;</span> /factory run
+<span class="c">● factory/bin/job queue</span>
+  new  #1  -  -  Ajouter un mode sombre
+<span class="c">● factory/bin/job create 1</span>
+  001-ajouter-un-mode-sombre
+<span class="c">● intake lancé (Fable) …</span></pre></div>
+      Cette session devient <b>l’orchestrateur</b> : laissez-la ouverte. Vous pouvez continuer à lui parler pendant que les agents travaillent.
+    </li>
+    <li><strong>Intake : « est-ce que ça vaut la peine ? »</strong>
+      Fable lit l’issue dans le contexte du projet, la juge, la recadre si besoin, et poste sa décision en commentaire sur l’issue.
+      <div class="codeblock"><div class="cap"><span>factory/jobs/001-…/intake.md</span></div><pre>DECISION: ACCEPT
+RISK: low
+SURFACES: ui
+RESCOPED: no
+
+## Summary
+- Accepté : changement UI à faible risque
+- Variables CSS + bascule dans l'en-tête, choix en localStorage
+- Hors périmètre : thèmes personnalisés</pre></div>
+      <p>Trois issues possibles : <span class="tag t-ok">ACCEPT</span> (éventuellement recadrée), <span class="tag t-warn">NEEDS-INFO</span> (question à l’auteur, label <code>factory:needs-info</code>, le job attend), <span class="tag t-bad">REJECT</span> (raison sur l’issue, label retiré).</p>
+      Le risque et les surfaces servent au <code>route</code> : ici <i>low + ui</i> ⇒ reviewers code (Haiku) + ux (Sonnet) + ui (Haiku), pas de sécurité.
+    </li>
+    <li><strong>Spec puis build</strong>
+      Le spec-writer produit <code>spec.md</code> (critères d’acceptation numérotés). Le builder crée la branche <code>factory/001-…</code> dans <code>.worktrees/</code>, implémente, commit, pousse et ouvre une <b>PR draft « Closes #1 »</b>. Vous pouvez entrer dans le sous-agent depuis Claude Code pour le voir réfléchir (ce n’est pas nécessaire).
+    </li>
+    <li><strong>Le gate : checks déterministes</strong>
+      <div class="term"><div class="bar"><i></i><i></i><i></i>&nbsp;orchestrateur</div><pre><span class="ok">001-mode-sombre #1: build READY → gate</span>
+<span class="ok">GATE: PASS</span>  <span class="c">(lint · typecheck · test · build, 41 s)</span>
+001-mode-sombre #1: review → code, ux, ui</pre></div>
+      Si <code>GATE: FAIL</code> : retour au builder avec le journal, <b>sans lancer aucun reviewer</b>. Le gate échoue aussi si le builder touche un <code>protected_path</code>.
+    </li>
+    <li><strong>Relecture parallèle, puis boucle d’auto-correction</strong>
+      Les reviewers tournent en parallèle ; chacun écrit <code>round-N/review-&lt;lentille&gt;.md</code> dont la première ligne est <code>VERDICT: PASS</code> ou <code>VERDICT: CHANGES</code>.
+      <div class="term"><div class="bar"><i></i><i></i><i></i>&nbsp;orchestrateur</div><pre>code: <span class="ok">PASS</span>   ux: <span class="ok">PASS</span>   ui: <span class="no">CHANGES</span>
+001-mode-sombre #1: round 1 → CHANGES → build (round 2)
+<span class="ok">GATE: PASS</span>
+code: <span class="ok">PASS</span>   ux: <span class="ok">PASS</span>   ui: <span class="ok">PASS</span>   → approve</pre></div>
+      Au plus <code>max_rounds</code> tours (3). Au-delà, le job passe en <code>needs-human</code>.
+    </li>
+    <li><strong>Approver : merge auto ou humain</strong>
+      <div class="codeblock"><div class="cap"><span>factory/jobs/001-…/decision.md</span></div><pre>APPROVE
+
+## Summary
+- Approuvé : changement CSS/JS limité à l'UI
+- Gate vert, 3 reviews PASS au tour 2
+- Aucun critère touchant argent, accès, déploiement ou dépendance</pre></div>
+      <p><span class="tag t-ok">APPROVE</span> : <code>job merge</code> resynchronise avec la base, relance le gate, puis <code>gh pr merge</code>. <span class="tag t-warn">ESCALATE</span> : la PR est marquée « ready », la décision est postée en commentaire et l’issue reçoit <code>factory:needs-human</code>.</p>
+    </li>
+    <li><strong>Récupérer le résultat</strong>
+      <div class="codeblock"><div class="cap"><span>terminal</span><button class="copy" type="button">Copier</button></div><pre>git checkout main
+git pull
+npm run dev</pre></div>
+      Ouvrez l’app : le mode sombre est là, et tout l’historique (commits, commentaires, PR) est sur GitHub.
+    </li>
+  </ol>
+
+  <div class="callout info"><div class="t">Durée et coût typiques</div><p>Un petit changement UI prend de quelques minutes à ~10 min ; la factory affiche durée et coût (équivalent API) par job. Le coût réel dépend de votre plan.</p></div>
+</section>
+
+<!-- 6 -->
+<section id="parallele">
+  <h2><span class="num">6</span>Plusieurs issues en parallèle</h2>
+  <p class="intro">Étiquetez autant d’issues que vous voulez ; la factory en traite <code>concurrency</code> à la fois (3 par défaut) et lance les suivantes dès qu’une place se libère.</p>
+  <div class="codeblock"><div class="cap"><span>terminal</span><button class="copy" type="button">Copier</button></div><pre>gh issue edit 2 3 4 5 --add-label factory   <span class="c"># ou depuis l'interface GitHub</span></pre></div>
+  <div class="term"><div class="bar"><i></i><i></i><i></i>&nbsp;claude — notewall</div><pre><span class="p">&gt;</span> /factory run 4          <span class="c"># une seule issue, maintenant</span>
+<span class="p">&gt;</span> /factory run            <span class="c"># toutes les autres</span></pre></div>
+  <table>
+    <tr><th>Commande</th><th>Effet</th></tr>
+    <tr><td><code>/factory run</code></td><td>Vide la file : toutes les issues <code>factory</code> ouvertes, <code>concurrency</code> à la fois. Reprend aussi les jobs interrompus.</td></tr>
+    <tr><td><code>/factory run &lt;n&gt;</code></td><td>Traite uniquement l’issue n (ou reprend son job).</td></tr>
+    <tr><td><code>/factory &lt;texte libre&gt;</code></td><td>Parler à la factory : questions, feedback sur un job, nouvelle fonctionnalité.</td></tr>
+  </table>
+  <h3>Le routage est dynamique</h3>
+  <p>Chaque job a son propre graphe selon l’évaluation de l’intake :</p>
+  <table>
+    <tr><th></th><th>Code review</th><th>UX</th><th>UI</th><th>Sécurité</th></tr>
+    <tr><td>risque low</td><td>Haiku</td><td></td><td></td><td></td></tr>
+    <tr><td>risque medium / high</td><td>Sonnet</td><td></td><td></td><td></td></tr>
+    <tr><td>+ surface <code>ui</code></td><td></td><td>Sonnet</td><td>Haiku</td><td></td></tr>
+    <tr><td>+ surface <code>security</code></td><td></td><td></td><td></td><td>Opus</td></tr>
+  </table>
+  <p>Le builder est toujours sur Opus. Tout se règle dans <code>config.json</code> (<code>routing</code>, <code>surface_reviewers</code>) sans toucher aux prompts.</p>
+</section>
+
+<!-- 7 -->
+<section id="humain">
+  <h2><span class="num">7</span>Piloter &amp; décider quand la factory a besoin de vous</h2>
+  <p class="intro">Parler à l’orchestrateur est l’interface normale. Vous pouvez aussi ouvrir une seconde session Claude Code dans le même projet : tant qu’elle utilise <code>/factory</code>, elle voit le même état.</p>
+
+  <h3>Demander où on en est</h3>
+  <div class="term"><div class="bar"><i></i><i></i><i></i>&nbsp;claude</div><pre><span class="p">&gt;</span> /factory qu'est-il arrivé à l'issue 4 ?
+<span class="c">Intake a accepté avec un périmètre réduit. Il hésite sur la police à
+utiliser et attend votre choix (needs-human). Reco : écriture manuscrite.</span>
+<span class="p">&gt;</span> /factory quels jobs attendent un humain ?</pre></div>
+
+  <h3>Les états d’un job</h3>
+  <table>
+    <tr><th>Stage</th><th>Signification</th><th>Que faire</th></tr>
+    <tr><td><code>intake → spec → build → gate → review → approve</code></td><td>Progression normale</td><td>Rien</td></tr>
+    <tr><td><code>needs-info</code></td><td>Une question a été posée à l’auteur sur l’issue</td><td>Répondre dans l’issue (ou via <code>/factory</code>)</td></tr>
+    <tr><td><code>needs-human</code></td><td>Escalade, builder bloqué, ou tours épuisés</td><td>Merger la PR, donner du feedback, ou rejeter</td></tr>
+    <tr><td><code>merged</code></td><td>PR fusionnée</td><td><code>git pull</code></td></tr>
+    <tr><td><code>rejected</code></td><td>Écarté à l’intake ou par vous</td><td>—</td></tr>
+  </table>
+
+  <h3>Les trois façons de répondre à <code>needs-human</code></h3>
+  <div class="grid">
+    <div class="card"><h4>1 · Approuver</h4><p>Mergez la PR sur GitHub. La factory le détecte et passe le job en <code>merged</code>.</p></div>
+    <div class="card"><h4>2 · Donner du feedback</h4><p>Dites ce que vous voulez : <code>/factory pour l'issue 4, utilise la police Inter</code>. Vos mots deviennent <code>feedback-1.md</code>, le builder repart avec un budget de tours neuf.</p></div>
+    <div class="card"><h4>3 · Rejeter</h4><p><code>/factory rejette l'issue 4, c'est hors sujet</code>. La raison est postée sur l’issue, la PR fermée, les labels retirés.</p></div>
+  </div>
+  <div class="callout info"><div class="t">Remettre une issue en jeu</div><p>Après un rejet, l’issue reste ouverte. Pour la rejouer : supprimer <code>factory/jobs/&lt;id&gt;</code> et ré-ajouter le label <code>factory</code>.</p></div>
+
+  <h3>Nouvelle fonctionnalité sans passer par GitHub</h3>
+  <div class="term"><div class="bar"><i></i><i></i><i></i>&nbsp;claude</div><pre><span class="p">&gt;</span> /factory ajoute un export Markdown des notes
+<span class="c">● gh issue create --label factory --title "Ajouter un export Markdown" …
+● /factory run 12</span></pre></div>
+
+  <div class="callout warn"><div class="t">Ne tuez pas l’orchestrateur à la légère</div><p>Ctrl-C sur la session arrête aussi tous les sous-agents <em>et</em> le serveur du dashboard s’il a été lancé par elle. Le travail en cours est perdu, mais rien d’autre : relancez <code>/factory run</code> et tout reprend depuis les fichiers d’état.</p></div>
+</section>
+
+<!-- 8 -->
+<section id="dashboard">
+  <h2><span class="num">8</span>Dashboard, observabilité &amp; coûts</h2>
+  <div class="codeblock"><div class="cap"><span>terminal</span><button class="copy" type="button">Copier</button></div><pre>cd factory &amp;&amp; python3 -m http.server
+<span class="c"># puis ouvrir http://localhost:8000/dashboard.html</span></pre></div>
+  <p>Chaque job est une carte : issue et PR, pastilles gate/review par tour, risque, coût, durée. Cliquez pour lire tous les fichiers produits ; chacun commence par un <code>## Summary</code> de 3 à 5 puces.</p>
+  <h3>Où est la trace de tout</h3>
+  <div class="codeblock"><pre>factory/jobs/001-ajouter-un-mode-sombre/
+  job.json            <span class="c"># état (écrit UNIQUEMENT par factory/bin/job)</span>
+  issue.md            <span class="c"># l'issue, citée comme donnée</span>
+  intake.md  spec.md  build.md  decision.md
+  round-1/checks.md  round-1/review-code.md  round-1/review-ux.md …
+  round-2/…
+  feedback-1.md       <span class="c"># vos retours éventuels</span></pre></div>
+  <ul>
+    <li><b>Coût</b> : équivalent prix API, calculé depuis les transcripts de Claude Code. Sur un abonnement, c’est un repère relatif pour comparer et optimiser, pas votre facture.</li>
+    <li><b>Résumé</b> : <code>factory/bin/job summary</code> affiche issue, stage, PR, coût et durée.</li>
+    <li><b>Persistance</b> : <code>factory/jobs/</code> est local et gitignoré. Pour le conserver, demandez à Claude de le synchroniser vers un stockage de votre choix.</li>
+  </ul>
+</section>
+
+<!-- 9 -->
+<section id="config">
+  <h2><span class="num">9</span>Référence de configuration</h2>
+  <p class="intro">Tout est dans <code>factory/config.json</code>.</p>
+  <table>
+    <tr><th>Clé</th><th>Défaut</th><th>Rôle</th></tr>
+    <tr><td><code>concurrency</code></td><td>3</td><td>Jobs actifs simultanément. Mettez <b>1</b> pour démarrer prudemment.</td></tr>
+    <tr><td><code>max_rounds</code></td><td>3</td><td>Tours build→gate→review avant d’appeler un humain.</td></tr>
+    <tr><td><code>base_branch</code></td><td>main</td><td>Branche source des jobs et cible des PR.</td></tr>
+    <tr><td><code>merge_method</code></td><td>merge</td><td><code>merge</code> · <code>squash</code> · <code>rebase</code>.</td></tr>
+    <tr><td><code>labels</code></td><td>factory…</td><td>Noms des labels file / needs-info / needs-human.</td></tr>
+    <tr><td><code>routing</code></td><td>haiku/sonnet</td><td>Modèle du reviewer code par niveau de risque.</td></tr>
+    <tr><td><code>surface_reviewers</code></td><td>ux, ui, security</td><td>Reviewers ajoutés par surface et leur modèle.</td></tr>
+    <tr><td><code>protected_paths</code></td><td>checks.sh, config.json</td><td>Motifs fnmatch qu’un job ne peut ni modifier ni supprimer (<code>*</code> couvre aussi <code>/</code>).</td></tr>
+    <tr><td><code>ports</code></td><td>base 5100, pas 10</td><td>Ports des serveurs de dev des agents (builder, ux, ui).</td></tr>
+    <tr><td><code>prices_usd_per_mtok</code></td><td>—</td><td>Tarifs pour estimer le coût par job.</td></tr>
+  </table>
+  <h3>Pistes d’optimisation</h3>
+  <ul>
+    <li>Réduire le coût : modèles moins chers aux reviewers — mais un reviewer plus faible que le builder peut renvoyer du travail inutilement et coûter plus cher au total.</li>
+    <li>Confier l’approbation à un modèle plus léger : à réserver aux projets peu critiques.</li>
+    <li>Brancher votre monitoring de production pour qu’il crée des issues <code>factory</code> automatiquement : la file d’entrée est déjà là.</li>
+  </ul>
+</section>
+
+<!-- 10 -->
+<section id="securite">
+  <h2><span class="num">10</span>Sécurité &amp; bonnes pratiques</h2>
+  <div class="grid">
+    <div class="card"><h4>Le label est la frontière</h4><p>Seules les issues <code>factory</code> tournent ; seuls triage/écriture peuvent poser le label.</p></div>
+    <div class="card"><h4>Texte d’issue = donnée</h4><p>Il n’est jamais collé dans un prompt ; l’intake, qui le lit en premier, n’a pas de shell.</p></div>
+    <div class="card"><h4>Branches &amp; merge</h4><p>Les agents ne poussent que <code>factory/*</code>. Seul <code>job merge</code> fusionne, via <code>gh pr merge</code>. Jamais de déploiement.</p></div>
+    <div class="card"><h4>Checks non contournables</h4><p>Le gate exécute le <code>checks.sh</code> de la branche principale, pas celui du job.</p></div>
+  </div>
+  <h3>Démarrer prudemment</h3>
+  <ul class="check">
+    <li><code>concurrency</code> à 1 pendant les premiers jours.</li>
+    <li>Commencer par de petites issues bien décrites, hors zones sensibles.</li>
+    <li>Lire chaque PR avant de faire confiance à l’auto-merge.</li>
+    <li>Activer la protection de branche (checks requis) : <code>gh pr merge</code> la respecte.</li>
+    <li>Compléter la liste ESCALATE de l’approver avec vos zones à risque.</li>
+  </ul>
+  <div class="callout bad"><div class="t">Production</div><p>Ce code est une base solide pour apprendre et expérimenter, pas un pilote automatique à brancher les yeux fermés sur un système critique. Gardez un humain dans la boucle là où l’erreur coûte cher.</p></div>
+</section>
+
+<!-- 11 -->
+<section id="depannage">
+  <h2><span class="num">11</span>Dépannage</h2>
+  <details><summary><code>/factory run</code> ne trouve rien (« queue » vide)</summary>
+    <p>Aucune issue ouverte n’a le label <code>factory</code>. Vérifiez : <code>gh issue list --label factory</code>. Si le label n’existe pas, créez-le (voir §3).</p></details>
+  <details><summary><code>job create</code> refuse l’issue</summary>
+    <p>Elle n’est pas étiquetée, ou plus ouverte, ou aucune place de concurrence n’est libre (<code>hold</code>). Le message du script dit pourquoi : corrigez la cause, ne contournez pas.</p></details>
+  <details><summary>Le gate échoue en boucle dès le premier tour</summary>
+    <p>Testez <code>bash factory/checks.sh</code> sur la branche principale. S’il échoue là, la factory ne passera jamais : réparez le script ou le projet. Vérifiez aussi qu’il n’exige pas de variables d’environnement absentes d’un checkout neuf.</p></details>
+  <details><summary>Le gate échoue sur « protected path »</summary>
+    <p>Le builder a modifié <code>checks.sh</code> ou <code>config.json</code>. Normal : il est renvoyé corriger. Si un fichier protégé doit réellement changer, faites-le vous-même hors factory.</p></details>
+  <details><summary>Le job est bloqué en <code>needs-human</code> sans raison évidente</summary>
+    <p>Demandez : <code>/factory pourquoi l'issue N attend ?</code>. La raison est dans <code>decision.md</code> (escalade) ou <code>build.md</code> (builder bloqué). Répondez par feedback ou rejet (§7).</p></details>
+  <details><summary>J’ai tué la session, des agents se sont arrêtés</summary>
+    <p>Relancez <code>/factory run</code> : l’état est dans les fichiers, chaque job reprend à son étape (un agent en cours redémarre de zéro).</p></details>
+  <details><summary>Le merge échoue</summary>
+    <p><code>job merge</code> resynchronise avec la base et relance le gate ; en cas de conflit ou d’échec, le job passe en <code>needs-human</code> avec la raison. Vérifiez que <code>merge_method</code> est autorisée par le repo et que la protection de branche n’exige pas une revue humaine.</p></details>
+  <details><summary>Conflit avec un autre fichier d’agents/AGENTS.md</summary>
+    <p>L’installeur demande avant d’écraser. Fusionnez à la main la section « Software factory » dans votre fichier existant.</p></details>
+  <details><summary>Le dashboard n’affiche rien</summary>
+    <p>Lancez le serveur <em>depuis le dossier <code>factory/</code></em> (<code>cd factory &amp;&amp; python3 -m http.server</code>). Sans job dans <code>factory/jobs/</code>, il est vide.</p></details>
+</section>
+
+<!-- 12 -->
+<section id="aide-memoire">
+  <h2><span class="num">12</span>Aide-mémoire</h2>
+  <div class="grid">
+    <div class="card"><h4>Installer</h4><p>Coller le prompt d’installation dans Claude Code → relire le diff → <code>git push</code>.</p></div>
+    <div class="card"><h4>Lancer</h4><p><code>gh issue edit N --add-label factory</code> puis <code>/factory run</code></p></div>
+    <div class="card"><h4>Une seule issue</h4><p><code>/factory run N</code></p></div>
+    <div class="card"><h4>Statut</h4><p><code>/factory où en est-on ?</code> · <code>factory/bin/job summary</code></p></div>
+    <div class="card"><h4>Feedback</h4><p><code>/factory pour l'issue N, fais …</code></p></div>
+    <div class="card"><h4>Rejeter</h4><p><code>/factory rejette l'issue N, raison …</code></p></div>
+    <div class="card"><h4>Dashboard</h4><p><code>cd factory &amp;&amp; python3 -m http.server</code> → :8000/dashboard.html</p></div>
+    <div class="card"><h4>Reprendre après crash</h4><p><code>/factory run</code></p></div>
+  </div>
+  <h3>Les commandes bas niveau (lecture seule pour vous)</h3>
+  <p>L’orchestrateur les appelle ; vous pouvez les lire pour comprendre ou déboguer, jamais éditer <code>job.json</code> à la main.</p>
+  <table>
+    <tr><th>Commande</th><th>Rôle</th></tr>
+    <tr><td><code>factory/bin/job queue</code></td><td>Que faire de chaque issue : resume / new / hold / wait / skip</td></tr>
+    <tr><td><code>factory/bin/job create &lt;n&gt;</code></td><td>Nouveau job pour l’issue n</td></tr>
+    <tr><td><code>factory/bin/job advance &lt;job&gt; &lt;stage&gt;</code></td><td>Change d’étape, ou refuse</td></tr>
+    <tr><td><code>factory/bin/job merge &lt;job&gt;</code></td><td>Sync base, gate, <code>gh pr merge</code></td></tr>
+    <tr><td><code>factory/bin/job feedback|reject &lt;job&gt;</code></td><td>Feedback / rejet (texte sur stdin)</td></tr>
+    <tr><td><code>factory/bin/job sync|summary</code></td><td>Rafraîchit l’état / tableau récapitulatif</td></tr>
+    <tr><td><code>factory/bin/gate &lt;job&gt;</code></td><td>Lance <code>checks.sh</code> dans le worktree</td></tr>
+    <tr><td><code>factory/bin/route &lt;job&gt;</code></td><td>Choisit reviewers et modèles</td></tr>
+  </table>
+  <footer>
+    Sources : transcript « Build a Better Software Factory with Claude Code » (ZazenCodes), README, DESIGN, INSTALL et SKILL.md du dépôt
+    <a href="https://github.com/zazencodes/zazencodes-season-3/tree/main/src/software-factory-claude-code-v2">zazencodes-season-3 / software-factory-claude-code-v2</a> (GPLv3). Exemples de sorties illustratifs.
+  </footer>
+</section>
+</main>
+</div>
+
+<script>
+// copier
+document.querySelectorAll('.copy').forEach(function(b){
+  b.addEventListener('click',function(){
+    var t=b.closest('.codeblock').querySelector('pre').innerText;
+    var done=function(){b.textContent='Copié';b.classList.add('done');setTimeout(function(){b.textContent='Copier';b.classList.remove('done')},1400)};
+    if(navigator.clipboard){navigator.clipboard.writeText(t).then(done,function(){})}else{done()}
+  });
+});
+// thème
+var root=document.documentElement;
+try{var s=localStorage.getItem('theme');if(s)root.setAttribute('data-theme',s)}catch(e){}
+document.getElementById('themeBtn').addEventListener('click',function(){
+  var dark=root.getAttribute('data-theme')==='dark'||(!root.getAttribute('data-theme')&&matchMedia('(prefers-color-scheme:dark)').matches);
+  var n=dark?'light':'dark';root.setAttribute('data-theme',n);try{localStorage.setItem('theme',n)}catch(e){}
+});
+// sommaire actif
+var links=[].slice.call(document.querySelectorAll('nav.side a'));
+var secs=links.map(function(a){return document.querySelector(a.getAttribute('href'))});
+if('IntersectionObserver' in window){
+  var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){links.forEach(function(l){l.classList.toggle('on',l.getAttribute('href')==='#'+e.target.id)})}})},{rootMargin:'-20% 0px -70% 0px'});
+  secs.forEach(function(s){if(s)io.observe(s)});
+}
+</script>
+</body>
+</html>
