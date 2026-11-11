@@ -6,10 +6,10 @@ Usage:
   gate <job-id> --merge    same, as round-N/merge-checks.md (job merge runs it)
   gate --hook              builder SubagentStop hook: run the checks once, exit 2 on failure
 
-The gate runs the main checkout's factory/checks.sh inside the job's worktree,
+The gate runs the factory's targets/<target>/checks.sh inside the job's worktree,
 so a branch can't change the checks it is judged by. It also fails when the
-branch modifies or deletes a file matching config.json `protected_paths`
-(fnmatch patterns, where `*` also matches `/`). Adding new files is fine.
+branch modifies or deletes a file matching the target's `protected_paths` in
+config.json (fnmatch patterns, where `*` also matches `/`). Adding new files is fine.
 """
 
 import fnmatch
@@ -19,10 +19,9 @@ import sys
 import time
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[2]
-FACTORY = REPO / "factory"
+ROOT = Path(__file__).resolve().parents[2]
+FACTORY = ROOT / "factory"
 CONFIG = json.loads((FACTORY / "config.json").read_text())
-CHECKS = FACTORY / "checks.sh"
 TAIL = 80
 
 
@@ -38,23 +37,38 @@ def git(worktree, *args):
     return res.stdout
 
 
-def protected_changes(worktree):
+def target_of(job):
+    cfg = CONFIG["targets"].get(job["target"])
+    if cfg is None:
+        die(f"job {job['id']} has unknown target {job['target']!r}")
+    return cfg
+
+
+def checks_path(job):
+    return ROOT / "targets" / job["target"] / "checks.sh"
+
+
+def protected_changes(job):
     """Existing files under protected_paths that the branch modified or deleted."""
-    diff = git(worktree, "diff", "--name-status", f"origin/{CONFIG['base_branch']}...HEAD")
+    cfg = target_of(job)
+    diff = git(job["worktree"], "diff", "--name-status", f"origin/{cfg['base_branch']}...HEAD")
     hits = []
     for line in diff.splitlines():
         status, *paths = line.split("\t")
         if status.startswith("A"):
             continue
         old = paths[0]  # for renames and copies, the original path
-        if any(fnmatch.fnmatch(old, pattern) for pattern in CONFIG["protected_paths"]):
+        if any(fnmatch.fnmatch(old, pattern) for pattern in cfg.get("protected_paths", [])):
             hits.append(f"{status[0]} {old}")
     return hits
 
 
-def run_checks(worktree):
+def run_checks(job):
+    checks = checks_path(job)
+    if not checks.exists():
+        die(f"{checks} doesn't exist; run factory/bin/target add or create it")
     start = time.monotonic()
-    res = subprocess.run(["bash", str(CHECKS)], cwd=worktree, capture_output=True, text=True)
+    res = subprocess.run(["bash", str(checks)], cwd=job["worktree"], capture_output=True, text=True)
     return res.returncode, res.stdout + res.stderr, int(time.monotonic() - start)
 
 
@@ -65,8 +79,8 @@ def gate(job_id, merge):
         die(f"{job_id} hasn't started a build round")
     round_dir = FACTORY / "jobs" / job_id / f"round-{job['round']}"
     commit = git(worktree, "rev-parse", "HEAD").strip()
-    protected = protected_changes(worktree)
-    code, log, seconds = run_checks(worktree)
+    protected = protected_changes(job)
+    code, log, seconds = run_checks(job)
     verdict = "PASS" if code == 0 and not protected else "FAIL"
     name = "merge-checks" if merge else "checks"
     (round_dir / f"{name}.log").write_text(log)
@@ -97,10 +111,10 @@ def hook():
     prompt = content if isinstance(content, str) else " ".join(b.get("text", "") for b in content)
     job_id = prompt.split("Job: ", 1)[1].split(".", 1)[0]
     job = json.loads((FACTORY / "jobs" / job_id / "job.json").read_text())
-    code, log, _ = run_checks(job["worktree"])
+    code, log, _ = run_checks(job)
     if code != 0:
         tail = "\n".join(log.rstrip().splitlines()[-40:])
-        print(f"factory/checks.sh fails in your worktree (exit {code}). The gate will reject this "
+        print(f"The target's checks.sh fails in your worktree (exit {code}). The gate will reject this "
               f"build. Fix it, or write STATUS: BLOCKED in build.md if you can't.\n\n{tail}",
               file=sys.stderr)
         sys.exit(2)

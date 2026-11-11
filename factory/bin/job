@@ -7,8 +7,8 @@ it and refuses anything else. GitHub side effects that belong to a transition
 orchestrator never improvises them.
 
 Usage:
-  job queue                      what /factory run should do with each labeled issue
-  job create <issue>             new job for an open `factory` issue; prints the job id
+  job queue [<target>]           what /factory run should do with each labeled issue
+  job create <target> <issue>    new job for an open `factory` issue; prints the job id
   job advance <job> <stage>      move a job to <stage>, or refuse
   job merge <job>                APPROVE → sync with the base branch, gate, merge the PR
   job feedback <job>             needs-human → build, with your feedback (stdin) as feedback-<k>.md
@@ -17,7 +17,12 @@ Usage:
   job sync <job>                 refresh reviews, gate and cost from the job's files
   job summary [<job>...]         table of jobs: issue, stage, PR, cost, time
 
-<job> is a job id (004-dark-mode) or an issue number (12).
+<job> is a job id (004-dark-mode), `<target>#<issue>` (notes#12), or a bare
+issue number (12) when the factory has a single target.
+
+The factory works on target repos from outside them: each target has a clone in
+targets/<name>/repo/ and every job gets a worktree in workspaces/<name>/<job-id>.
+Every `gh` call names its repo explicitly (--repo); none depends on a working directory.
 """
 
 import fcntl
@@ -29,13 +34,14 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[2]
-FACTORY = REPO / "factory"
+ROOT = Path(__file__).resolve().parents[2]
+REPO = ROOT  # the factory's own root; Claude Code's session directory, so cost transcripts key on it
+FACTORY = ROOT / "factory"
 JOBS = FACTORY / "jobs"
 BIN = FACTORY / "bin"
 CONFIG = json.loads((FACTORY / "config.json").read_text())
 LABELS = CONFIG["labels"]
-BASE = CONFIG["base_branch"]
+TARGETS = CONFIG["targets"]
 MARKER = "<!-- factory -->"
 
 TRANSITIONS = {
@@ -69,15 +75,38 @@ def now():
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def run(cmd, cwd=REPO, check=True):
-    res = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
+# The target the current command works on. use_target() sets these once per command.
+TARGET = None
+SLUG = None    # owner/name on GitHub
+BASE = None    # the target's base branch
+MERGE_METHOD = None
+CLONE = None   # targets/<name>/repo
+
+
+def use_target(name):
+    global TARGET, SLUG, BASE, MERGE_METHOD, CLONE
+    if name not in TARGETS:
+        die(f"unknown target {name!r} (known: {', '.join(TARGETS) or 'none; add one with factory/bin/target add'})")
+    cfg = TARGETS[name]
+    TARGET, SLUG, BASE = name, cfg["repo"], cfg["base_branch"]
+    MERGE_METHOD, CLONE = cfg["merge_method"], ROOT / "targets" / name / "repo"
+    if not CLONE.exists():
+        die(f"target {name} has no clone at {CLONE}; run factory/bin/target add or check")
+
+
+def run(cmd, cwd=None, check=True):
+    res = subprocess.run(cmd, cwd=cwd or CLONE, capture_output=True, text=True)
     if check and res.returncode != 0:
         raise Refused(f"`{' '.join(cmd)}` failed: {(res.stderr or res.stdout).strip()}")
     return res
 
 
 def gh(*args):
-    return run(["gh", *args]).stdout
+    """Run gh against the current target's repo, named explicitly (never via the cwd)."""
+    exe = os.environ.get("FACTORY_GH", "gh")
+    if args[0] != "api":
+        args = (*args, "--repo", SLUG)
+    return run([exe, *args]).stdout
 
 
 def gh_json(*args):
@@ -141,12 +170,26 @@ def require_slot(job_id):
 
 
 def resolve(arg):
-    if arg.isdigit():
+    """A job by id, `<target>#<n>`, or a bare issue number when there's one target."""
+    if "#" in arg:
+        name, _, num = arg.partition("#")
+        if name not in TARGETS or not num.isdigit():
+            die(f"bad job reference {arg!r}; use <target>#<issue> with a target from: {', '.join(TARGETS)}")
+        matches = [j for j in all_jobs() if j["target"] == name and j["issue"] == int(num)]
+        if not matches:
+            die(f"no job for {arg}")
+        job = matches[0]
+    elif arg.isdigit():
+        if len(TARGETS) != 1:
+            die(f"issue #{arg} is ambiguous with {len(TARGETS)} targets; use <target>#{arg} ({', '.join(TARGETS)})")
         matches = [j for j in all_jobs() if j["issue"] == int(arg)]
         if not matches:
             die(f"no job for issue #{arg}")
-        return matches[0]
-    return load(arg)
+        job = matches[0]
+    else:
+        job = load(arg)
+    use_target(job["target"])
+    return job
 
 
 def first_line(path):
@@ -514,10 +557,22 @@ def slugify(title):
     return "-".join(words) or "issue"
 
 
-def cmd_create(number):
-    existing = [j for j in all_jobs() if j["issue"] == int(number)]
+def next_job_id(title):
+    """Allocate the next global job number under a lock so two sessions never collide."""
+    JOBS.mkdir(parents=True, exist_ok=True)
+    with open(JOBS / ".create.lock", "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        numbers = [int(p.name.split("-")[0]) for p in JOBS.iterdir() if p.name[:3].isdigit()]
+        job_id = f"{max(numbers, default=0) + 1:03d}-{slugify(title)}"
+        job_dir(job_id).mkdir()
+    return job_id
+
+
+def cmd_create(target, number):
+    use_target(target)
+    existing = [j for j in all_jobs() if j["target"] == target and j["issue"] == int(number)]
     if existing:
-        die(f"issue #{number} already has job {existing[0]['id']} ({existing[0]['stage']})")
+        die(f"{target}#{number} already has job {existing[0]['id']} ({existing[0]['stage']})")
     try:
         require_slot(None)
     except Refused as e:
@@ -527,15 +582,12 @@ def cmd_create(number):
         die(f"issue #{number} is {issue['state'].lower()}")
     if LABELS["queue"] not in {l["name"] for l in issue["labels"]}:
         die(f"issue #{number} isn't labeled {LABELS['queue']}")
-    JOBS.mkdir(parents=True, exist_ok=True)
-    numbers = [int(p.name.split("-")[0]) for p in JOBS.iterdir() if p.name[:3].isdigit()]
-    job_id = f"{max(numbers, default=0) + 1:03d}-{slugify(issue['title'])}"
-    job_dir(job_id).mkdir()
+    job_id = next_job_id(issue["title"])
     job = {
-        "id": job_id, "issue": issue["number"], "title": issue["title"], "issue_url": issue["url"],
+        "id": job_id, "target": target, "issue": issue["number"], "title": issue["title"], "issue_url": issue["url"],
         "pr": None, "pr_url": None,
         "branch": f"factory/{job_id}",
-        "worktree": str(REPO / ".worktrees" / job_id),
+        "worktree": str(ROOT / "workspaces" / target / job_id),
         "stage": "intake", "round": 0, "round_limit": CONFIG["max_rounds"],
         "intake": None, "agents": None, "gate": None, "reviews": {},
         "cost_usd": 0.0, "started": now(), "ended": None,
@@ -545,10 +597,10 @@ def cmd_create(number):
     print(job_id)
 
 
-def cmd_queue():
-    """Rows in the order to start them. `resume` and `new` rows fit in the
-    concurrency slots; the rest show as `hold` until a running job finishes."""
-    jobs = {j["issue"]: j for j in all_jobs()}
+def queue_rows(target, jobs_all):
+    """Rows for one target: (kind, target, issue, job, stage, note) in four groups."""
+    use_target(target)
+    jobs = {j["issue"]: j for j in jobs_all if j["target"] == target}
     # A job is done once its PR is merged on GitHub, which also closes the issue.
     for j in jobs.values():
         if j["stage"] not in TERMINAL and j["pr"] and pr_state(j) == "MERGED":
@@ -561,34 +613,54 @@ def cmd_queue():
         n = issue["number"]
         j = jobs.get(n)
         if not j:
-            new_rows.append(("new", n, "-", "-", issue["title"]))
+            new_rows.append(("new", target, n, "-", "-", issue["title"]))
         elif j["stage"] == "needs-info":
             if replied_since_question(fetch_issue(n)):
-                replied_rows.append(("resume", n, j["id"], j["stage"], "author replied"))
+                replied_rows.append(("resume", target, n, j["id"], j["stage"], "author replied"))
             else:
-                other_rows.append(("wait", n, j["id"], j["stage"], "waiting for the author"))
+                other_rows.append(("wait", target, n, j["id"], j["stage"], "waiting for the author"))
         elif j["stage"] == "needs-human":
-            other_rows.append(("wait", n, j["id"], j["stage"], f"merge PR #{j['pr']}, or give feedback"
+            other_rows.append(("wait", target, n, j["id"], j["stage"], f"merge PR #{j['pr']}, or give feedback"
                                if j["pr"] else "give feedback"))
         elif j["stage"] == "rejected":
-            other_rows.append(("skip", n, j["id"], j["stage"], f"rejected; delete factory/jobs/{j['id']} to retry"))
+            other_rows.append(("skip", target, n, j["id"], j["stage"], f"rejected; delete factory/jobs/{j['id']} to retry"))
         elif j["stage"] == "merged":
-            other_rows.append(("skip", n, j["id"], j["stage"], "merged"))
+            other_rows.append(("skip", target, n, j["id"], j["stage"], "merged"))
         else:
-            running_rows.append(("resume", n, j["id"], j["stage"], f"round {j['round']}"))
+            running_rows.append(("resume", target, n, j["id"], j["stage"], f"round {j['round']}"))
     for n, j in sorted(jobs.items()):
         if n not in open_numbers and j["stage"] not in TERMINAL | WAITING:
-            other_rows.append(("skip", n, j["id"], j["stage"], f"issue is closed or no longer labeled {LABELS['queue']}"))
+            other_rows.append(("skip", target, n, j["id"], j["stage"],
+                               f"issue is closed or no longer labeled {LABELS['queue']}"))
+    return running_rows, replied_rows, new_rows, other_rows
+
+
+def cmd_queue(only=None):
+    """Rows in the order to start them. `resume` and `new` rows fit in the
+    concurrency slots (shared by every target); the rest show as `hold` until a
+    running job finishes. A target whose GitHub calls fail prints an `error` row."""
+    names = [only] if only else list(TARGETS)
+    if only and only not in TARGETS:
+        die(f"unknown target {only!r} (known: {', '.join(TARGETS)})")
+    jobs_all = all_jobs()
+    running_rows, replied_rows, new_rows, other_rows, errors = [], [], [], [], []
+    for name in names:
+        try:
+            r, rp, nw, ot = queue_rows(name, jobs_all)
+        except Refused as e:
+            errors.append(("error", name, "-", "-", "-", str(e).splitlines()[0]))
+            continue
+        running_rows += r; replied_rows += rp; new_rows += nw; other_rows += ot
     # Jobs already in a running stage hold a slot whether or not an agent is on them.
-    slots = CONCURRENCY - len(running(jobs.values()))
+    slots = CONCURRENCY - len(running(jobs_all))
     rows = list(running_rows)
     for row in replied_rows + new_rows:
         if slots > 0:
             rows.append(row)
             slots -= 1
         else:
-            rows.append(("hold",) + row[1:4] + (f"concurrency {CONCURRENCY} reached",))
-    for row in rows + other_rows:
+            rows.append(("hold",) + row[1:5] + (f"concurrency {CONCURRENCY} reached",))
+    for row in rows + other_rows + errors:
         print("\t".join(str(c) for c in row))
 
 
@@ -621,7 +693,7 @@ def cmd_merge(job):
         git(job, "push", "origin", job["branch"])
         if gh_json("pr", "view", str(job["pr"]), "--json", "isDraft")["isDraft"]:
             gh("pr", "ready", str(job["pr"]))
-        gh("pr", "merge", str(job["pr"]), f"--{CONFIG['merge_method']}")
+        gh("pr", "merge", str(job["pr"]), f"--{MERGE_METHOD}")
     except Refused as e:
         return fail(f"The merge failed:\n\n```\n{e}\n```")
     # GitHub may already have deleted the branch on merge.
@@ -668,10 +740,11 @@ def elapsed(job):
 
 def cmd_summary(args):
     jobs = [resolve(a) for a in args] if args else all_jobs()
-    rows = [("job", "issue", "stage", "round", "pr", "cost", "time")]
+    rows = [("job", "target", "issue", "stage", "round", "pr", "cost", "time")]
     for j in jobs:
+        use_target(j["target"])
         sync(j)  # for display only; the orchestrator owns the saved state
-        rows.append((j["id"], f"#{j['issue']}", j["stage"], str(j["round"]),
+        rows.append((j["id"], j["target"], f"#{j['issue']}", j["stage"], str(j["round"]),
                      f"#{j['pr']}" if j["pr"] else "-", f"${j['cost_usd']:.2f}", elapsed(j)))
     widths = [max(len(r[i]) for r in rows) for i in range(len(rows[0]))]
     for r in rows:
@@ -685,10 +758,12 @@ def main(argv):
         return
     cmd, args = argv[0], argv[1:]
     try:
-        if cmd == "queue" and not args:
-            cmd_queue()
-        elif cmd == "create" and len(args) == 1 and args[0].isdigit():
-            cmd_create(args[0])
+        if cmd == "queue" and len(args) <= 1:
+            cmd_queue(args[0] if args else None)
+        elif cmd == "create" and len(args) == 2 and args[1].isdigit():
+            cmd_create(*args)
+        elif cmd == "create" and len(args) == 1 and args[0].isdigit() and len(TARGETS) == 1:
+            cmd_create(next(iter(TARGETS)), args[0])
         elif cmd == "advance" and len(args) == 2:
             job = advance(sync(resolve(args[0])), args[1])
             save(sync(job))

@@ -12,10 +12,9 @@ folder, the worktree, the branch and the issue. You write exactly one file,
 ## Where you work
 
 The worktree is a checkout of the job branch, fresh from the base branch, in
-`.worktrees/<job-id>` inside the main checkout you start in. Don't rely on the
+`<root>/workspaces/<target>/<job-id>` inside the factory repo you start in (the "Factory root" in your prompt). Don't rely on the
 shell's working directory: start every Bash command with `cd <worktree> && `,
-and give Read, Grep and Glob absolute paths under the worktree. The job folder is
-in the main checkout; your one file goes there.
+and give Read, Grep and Glob absolute paths under the worktree. The job folder is in the factory repo; your one file goes there.
 
 ## Read first
 
@@ -24,7 +23,7 @@ in the main checkout; your one file goes there.
 2. `<job folder>/intake.md`: intake's decision. **Its Scope is binding**: build
    the spec from it, not from the issue alone. When intake rescoped the issue,
    what it left out is out of scope.
-3. `AGENTS.md` (or `CLAUDE.md`) in the worktree: the project overview,
+3. The target's `notes.md` (the Notes path in your prompt: setup, hot spots, escalation rules, canonical when the project's own docs are thin), then `AGENTS.md` (or `CLAUDE.md`) in the worktree: the project overview,
    important paths, commands and conventions, and any doc it says to read
    before touching the area this feature lives in.
 4. The code the feature touches. Find the real files and components; don't
@@ -75,7 +74,7 @@ The approver escalates to a human when one of these is a product decision.
   helper, a doc convention), name it in Context and require it.
 - Include the doc updates the change needs (AGENTS.md and any docs it lists) as
   requirements.
-- `factory/checks.sh` runs the repo's tests, lint and build on every round, so
+- The target's `checks.sh` runs the repo's tests, lint and build on every round, so
   don't restate it as a criterion. Ask for new tests where the repo has a test
   runner and the behaviour can be tested.
 - Never require a change to a file matching `protected_paths` in

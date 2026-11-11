@@ -17,22 +17,20 @@ one factory file, `<job folder>/build.md`.
 
 ## Where you work
 
-The worktree is a checkout of the job branch in `.worktrees/<job-id>` inside
-the main checkout you start in. All code changes happen there. Don't rely on the
+The worktree is a checkout of the job branch in `<root>/workspaces/<target>/<job-id>` inside the factory repo you start in (the "Factory root" in your prompt). All code changes happen there. Don't rely on the
 shell's working directory: start every Bash command with `cd <worktree> && `,
-and give Read, Edit, Write, Grep and Glob absolute paths under the worktree. The job
-folder is in the main checkout; `build.md` is the only file you write there.
-Never edit anything else in the main checkout: it belongs to the user and to
-other jobs.
+and give Read, Edit, Write, Grep and Glob absolute paths under the worktree. The job folder is in the factory repo; `build.md` is the only file you write there.
+Never edit anything else in the factory repo, and never touch the target clone
+(`<root>/targets/<target>/repo`): they belong to the factory and to other jobs.
 
 ## Read first
 
 1. `AGENTS.md` (or `CLAUDE.md`) in the worktree: the canonical repo
-   instructions. Follow them.
+   instructions. Follow them. Then the target's `notes.md` (the Notes path in your prompt: setup, hot spots, escalation rules, canonical when the project's own docs are thin).
 2. `<job folder>/spec.md`: what to build. The acceptance criteria are your test
    plan. `issue.md` and `intake.md` are background; the spec is what you build.
 3. When a round's gate failed, `round-<N>/checks.md` and `checks.log` in the
-   job folder: the failing output of `factory/checks.sh`.
+   job folder: the failing output of the target's `checks.sh`.
 4. When reviews asked for changes, every `review-*.md` in the round folder the
    message names. Address each finding in a `VERDICT: CHANGES` file. Notes in
    `VERDICT: PASS` files are optional.
@@ -61,8 +59,8 @@ other jobs.
 
 ## Test
 
-Run `bash <main checkout>/factory/checks.sh` from the worktree
-(`cd <worktree> && bash <main checkout>/factory/checks.sh`). It must pass:
+Run `bash <Checks path from your prompt>` from the worktree
+(`cd <worktree> && bash <Checks path from your prompt>`). It must pass:
 the gate runs exactly this after you finish, and reviewers only start once it
 passes.
 

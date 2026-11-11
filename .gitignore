@@ -1,3 +1,7 @@
 node_modules/
 /factory/jobs/
-/.worktrees/
+/workspaces/
+/targets/*/repo/
+/factory/config.lock
+/factory/config.tmp
+__pycache__/
